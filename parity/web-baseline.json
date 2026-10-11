@@ -133,7 +133,10 @@
         "nativeTestsRun": true,
         "backendFlowVerified": false,
         "deviceFlowVerified": true,
-        "nativeTestScope": "JVM collection filters and fourteen Manga tests; three Android TLS fixture tests for invalid range, saved-composition resume after ambiguous commit and combined filters with invariant totals; backend pending"
+        "nativeTestScope": "JVM collection filters and fourteen Manga tests; three Android TLS fixture tests for invalid range, saved-composition resume after ambiguous commit and combined filters with invariant totals; backend pending",
+        "verificationScope": [
+          "fixture-nullable-library-prices-single-PATCH-note-quantity-and-foreign-row-isolation"
+        ]
       },
       "remaining": [
         "real-backend-collection-filter-flows"
@@ -156,7 +159,8 @@
           "fixture-budget-literal-half-cent-display-and-nine-currency-HALF_UP-regression",
           "fixture-saving-month-currency-specific-baseline-severity-counts-and-filters",
           "fixture-new-recurring-top-three-cadences-owner-pagination-inactive-and-account-dismissals",
-          "fixture-recurring-price-exact-threshold-pipeline-limits-currencies-ties-and-read-only-UI"
+          "fixture-recurring-price-exact-threshold-pipeline-limits-currencies-ties-and-read-only-UI",
+          "real-QA-production-FinanceScreen-form-CRUD-test-transport-UUID-and-complete-cleanup"
         ]
       },
       "owner": "finance-agent",
@@ -307,6 +311,25 @@
       "sha256": "c70de53adc8732ccd46b38a17749d5d236a6776e4b3a1d56290ea46bb8c74789",
       "scope": [
         "signature-versionCode4-to5-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.5-alpha",
+      "variant": "debug",
+      "jvmTests": 232,
+      "androidTests": 44,
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "opt-in-real-QA-form-CRUD-with-test-transport-UUID-and-cleanup"
+      ]
+    },
+    {
+      "version": "0.1.5-alpha",
+      "versionCode": 6,
+      "variant": "release",
+      "sha256": "5c19146f97ddab4eb4e3e311440bcebadf6b6050a1c07a6cede41f217ee7d63e",
+      "scope": [
+        "signature-versionCode5-to6-upgrade-and-anonymous-login-layout-on-AVD"
       ]
     }
   ]

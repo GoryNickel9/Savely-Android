@@ -2,7 +2,7 @@
 
 App Android nativa di Savely in Kotlin e Jetpack Compose, con account e dati condivisi con il sito.
 
-Stato al 11 ottobre 2026: APK 0.1.4-alpha firmato e ottimizzato, aggiornamento dalla 0.1.3 installato su emulatore Android 15; 232 test JVM e 43 Android superati, lint debug/release senza errori. Admin cancella dati e dialoghi sul diniego; Insights copre cinque rilevatori su otto. Il flusso TCG conserva il prezzo assente e usa il costo di acquisto se il servizio prezzi è indisponibile. La 0.1.2 ha verificato sincronizzazione Android→sito e ripristino della sessione in un nuovo processo. Login con password, telefono fisico e parità completa restano aperti.
+Stato al 11 ottobre 2026: APK 0.1.5-alpha firmato e ottimizzato, aggiornamento dalla 0.1.4 installato su emulatore Android 15; 232 test JVM e 44 Android superati, lint debug/release senza errori. Libreria conserva i prezzi assenti quando si modificano note o quantità. Un test opt-in ha verificato inserimento, modifica e cancellazione dal form transazioni sul solo account QA, con pulizia completa e UUID aggiunto dal trasporto di test. La 0.1.2 ha verificato sincronizzazione Android→sito e ripristino della sessione in un nuovo processo. Insights copre cinque rilevatori su otto. Login con password, telefono fisico e parità completa restano aperti.
 
 Sono presenti accesso e sessione cifrata, dashboard, transazioni, categorie, budget, ricorrenze, grafici, portafoglio, patrimonio, import/export CSV, FIRE, Poker, Fumo, TCG, Libreria, Coppia e impostazioni. La presenza di una schermata non certifica tutti i flussi: i contratti e le lacune sono registrati nei documenti delle singole aree.
 

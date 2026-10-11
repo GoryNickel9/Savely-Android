@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5-alpha — 11 ottobre 2026
+
+Libreria rende facoltativi i prezzi di acquisto e rivendita: modificare note o quantità di un record senza prezzi conserva JSON null. Una fixture TLS verifica input malformato/negativo, singolo PATCH, metadati e isolamento della riga estranea.
+
+Passano 232 test JVM e 44 Android, con lint debug/release senza errori. Lo smoke opt-in verifica CRUD dal form transazioni sul solo account QA con UUID aggiunto dal trasporto di test; riga, bootstrap e sessione temporanea risultano rimossi. Il primo tentativo fallito è stato pulito completamente; i selettori ambigui del test sono stati corretti prima del tentativo riuscito. APK firmato/versionCode 6 aggiornato sopra la 0.1.4 sul solo emulatore, senza account. Login con password, telefono e parità completa restano aperti.
+
 ## 0.1.4-alpha — 11 ottobre 2026
 
 Admin rimuove utenti, controlli e dialoghi dopo un diniego locale o HTTP 403, conservando la sessione. Un errore temporaneo mantiene dati e dialogo con possibilità di retry esplicito. Insights aggiunge la variazione del prezzo ricorrente, con soglia esatta del 10% e limiti della pipeline dichiarati; copertura 5/8.

@@ -2,6 +2,12 @@
 
 ## Risultati eseguiti il 11 ottobre 2026
 
+La verifica finale 0.1.5-alpha passa 232 test JVM e 44 Android, zero failure/errori/skip, lint debug/release zero errori e 24 avvertenze. Snapshot sorgenti invariato; report finali in `artifacts/verified-0.1.5-final/`. Suite Android finale: 451.913 secondi sul solo AVD Android 15. La prima build completa era passata in 12m56s con suite Android di 435.305 secondi; il pacchetto test è stato poi ricompilato per diagnosi e selettori dello smoke opt-in, prima della riesecuzione finale. L’errore iniziale JSONObject.keySet è stato corretto con keys().asSequence().toSet().
+
+APK 0.1.5-alpha: versionCode 6, 1.800.912 byte, SHA-256 `5c19146f97ddab4eb4e3e311440bcebadf6b6050a1c07a6cede41f217ee7d63e`, stessa firma v2; aggiornamento 0.1.4→0.1.5 e login anonimo controllati sull’AVD. Scansione senza credenziali privilegiate rilevate. Il test Library conserva entrambi i prezzi null, note/quantità e metadati, con un solo PATCH e righe estranee intatte.
+
+Lo smoke reale dal form FinanceScreen passa sul solo account QA, run `d03234ac-4666-4aa6-b7d9-ad82764505d3`, sessione `d577c20d-d96e-4c2d-a3a8-287815eb63a1`: inserimento EUR 0,01, modifica 0,02, conferma e cancellazione, riletture REST, riga assente, logout local-scope e clear locale. Bootstrap rimosso, checkpoint assente, cleanup_pending=false. Report in `artifacts/finance-form/d03234ac-4666-4aa6-b7d9-ad82764505d3/`. L’UUID è aggiunto dal solo interceptor test: non verifica navigazione MainActivity o generazione UUID del database. Il primo run `10db1215-ff7b-4386-ba03-413423b03895` è fallito con errore generico, ma tutti i controlli di pulizia sono passati; audit e correzione dei selettori precedono il run riuscito. Le fixture TLS opt-in e i 47 controlli host sono passati; queste prove sono separate dai 44 test ordinari.
+
 La build integrata 0.1.4-alpha passa 232 test JVM e 43 Android, zero failure/errori/skip, lint debug/release zero errori e 24 avvertenze. Snapshot sorgenti invariato durante la build; report in `artifacts/verified-0.1.4/`. Aggiunge sei JVM per variazione del prezzo ricorrente e quattro Android per lo stesso rilevatore, diniego Admin con sessione conservata e TCG con prezzi HTTP 503. Suite Android: 274.014 secondi, osservazione locale sull’AVD Android 15.
 
 APK 0.1.4-alpha: versionCode 5, 1.800.912 byte, SHA-256 `c70de53adc8732ccd46b38a17749d5d236a6776e4b3a1d56290ea46bb8c74789`, firma v2 e stessa chiave. Aggiornamento 0.1.3→0.1.4 e login anonimo controllati sull’AVD. Scansione APK senza credenziali privilegiate rilevate. Le nuove prove usano esclusivamente fixture locali; gli smoke reali della 0.1.2 restano evidenza separata.
@@ -34,6 +40,8 @@ La 0.1.1 aggiunge 22 test JVM e sei test Android: mediana globale Budget e mezzo
 
 ## Comandi
 
+La CI della 0.1.4-alpha, commit `fd0ceeac16407366a0fc71d160965b0711dd2048`, passa entrambi i job: [esecuzione 38163488230](https://github.com/GoryNickel9/Savely-Android/actions/runs/38163488230). Il report Android scaricato conferma 43 test, zero failure, zero skip e 100% di successo in 4m35.31s; conservato in `artifacts/ci-38163488230-ui/`. Questa revisione precede la correzione dei prezzi facoltativi Library e lo smoke reale dal form transazioni.
+
 La CI della 0.1.3-alpha, commit `2bc75672eafd22cbbc75b12f72b43bf2b03bfe80`, passa entrambi i job: [esecuzione 38162299922](https://github.com/GoryNickel9/Savely-Android/actions/runs/38162299922). Il report Android scaricato conferma 39 test, zero failure, zero skip e 100% di successo; conservato in `artifacts/ci-38162299922-ui/`. Questa revisione precede il quinto rilevatore Insights e la correzione della cache Admin sul diniego.
 
 La CI della 0.1.2-alpha, commit `8e6dd4ec9c013f9df7880491b3447ad43edd1f7f`, passa entrambi i job: [esecuzione 38160631288](https://github.com/GoryNickel9/Savely-Android/actions/runs/38160631288). Il report Android scaricato conferma 36 test, zero failure, zero skip e 100% di successo; report conservato in `artifacts/ci-38160631288-ui/`. Questa revisione precede il quarto rilevatore Insights e la correzione dell'origine delle API web.
@@ -49,7 +57,7 @@ python -m unittest discover -s tools -p 'test_web_parity_audit.py'
 python tools/web_parity_audit.py --web-repo ../Savely --output artifacts/web-parity-audit.json
 ```
 
-I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 43 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
+I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 44 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
 
 ## Smoke aggiuntivo sul backend reale
 

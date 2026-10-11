@@ -13,7 +13,7 @@ I package `ui`, `data`, `finance`, `transfer` e `modules` contengono le schermat
 | AUTH | `/auth`, `/auth/callback`, `/reset-password` | Login, registrazione, registrazioni disabilitate, conferma, reset, rinnovo e logout | Account | Contratti e UI testati; sessione reale E2E verificata; password reale e callback nativo mancanti |
 | DOCS | `/privacy`, `/cookies`, `/terms`, wildcard | Contenuti informativi applicabili e gestione schermate non disponibili | Documenti/navigazione | Testi nativi estratti dal web e addendum storage Android; confronto editoriale completo aperto |
 | DASH | `/` | Dati riassuntivi, intervalli e collegamenti alle operazioni | Dashboard | Calcoli e schermata presenti; caricamento reale E2E verificato |
-| TX | `/transactions` | CRUD, filtri, categorie, importi, date e risultati | Transazioni | Fixture e CRUD UI verificati; CRUD repository reale E2E, lettura UI e lettura della stessa riga sul sito verificati |
+| TX | `/transactions` | CRUD, filtri, categorie, importi, date e risultati | Transazioni | Fixture e CRUD form reale QA verificati con UUID nel trasporto test; lettura MainActivity/sito su run precedente verificata; navigazione form MainActivity e UUID database aperti |
 | REC | `/recurring` | CRUD, periodicità, suggerimenti, ignore e comportamento delle ricorrenze | Ricorrenze | CRUD, suggerimenti e ignore per account implementati e testati; calendario completo ancora aperto |
 | BUD | `/budget` | Periodi, limiti e spesa raggiunta | Budget | Mediana mensile globale, riepiloghi per valuta e arrotondamenti verificati con fixture JVM/UI; flusso reale da verificare |
 | CAT | `/categories` | Categorie e compatibilità con transazioni/importazioni | Categorie | CRUD e detach presenti; flusso reale da verificare |

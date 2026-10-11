@@ -124,8 +124,8 @@ class CollectionScreenTest {
         replace("Autore (facoltativo)", "Autore sintetico")
         replace("Editore (facoltativo)", "Editore sintetico")
         replace("Anno pubblicazione (facoltativo)", "2024")
-        replace("Prezzo acquisto unitario (€)", "6,25")
-        replace("Valore rivendita unitario (€)", "8,50")
+        replace("Prezzo acquisto unitario (€) (facoltativo)", "6,25")
+        replace("Valore rivendita unitario (€) (facoltativo)", "8,50")
         replace("Note (facoltativo)", "Nota della serie")
         touch(button("Aggiungi 3 volumi"))
         await("Manga partial failure is visible") {

@@ -419,8 +419,8 @@ private val librarySchemas = listOf("libri", "fumetti", "manga").map { category 
     Field("title", "Titolo"), Field("author", "Autore", optional = true), Field("publisher", "Editore", optional = true),
     Field("year", "Anno pubblicazione", FieldType.INTEGER, optional = true),
     Field("quantity", "Quantità", FieldType.INTEGER, default = "1"),
-    Field("purchase_price", "Prezzo acquisto unitario (€)", FieldType.NUMBER, default = "0"),
-    Field("reselling_value", "Valore rivendita unitario (€)", FieldType.NUMBER, default = "0"), Field("notes", "Note", optional = true)), category) }
+    Field("purchase_price", "Prezzo acquisto unitario (€)", FieldType.NUMBER, optional = true, default = "0"),
+    Field("reselling_value", "Valore rivendita unitario (€)", FieldType.NUMBER, optional = true, default = "0"), Field("notes", "Note", optional = true)), category) }
 
 @Composable
 private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modifier) {
