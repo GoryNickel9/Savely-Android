@@ -20,8 +20,8 @@ I package `ui`, `data`, `finance`, `transfer` e `modules` contengono le schermat
 | CHART | `/charts`, `/charts/income-expense`, `/charts/expense`, `/charts/income` | Aggregazioni, filtri e rappresentazione dei valori | Grafici | Aggregazioni e grafici nativi presenti; confronto di tutti i filtri aperto |
 | PORT | `/portfolio` | Posizioni, chiusure e operazioni disponibili, prezzi e cambi | Portafoglio | CRUD, chiusura, prezzi e componente TCG presenti; cambio/storico avanzato da completare |
 | NW | `/net-worth` | Componenti del patrimonio, storico e totali | Patrimonio | Formula finanziaria presente; storico avanzato da completare. Il web esclude TCG dal net worth |
-| INS | `/insights` | Metriche e calcoli sullo stesso dataset | Insights | Due rilevatori implementati; parità con tutti i rilevatori aperta |
-| POK | `/poker`, `/poker/next-cut`, `/poker/hourly-earnings`, `/poker/rakeback` | Contabilità e calcoli esistenti; permesso `poker` | Poker | CRUD e formule presenti con test; backend/limiti temporali da verificare |
+| INS | `/insights` | Metriche e calcoli sullo stesso dataset | Insights | Tre rilevatori su otto, severità e filtri verificati con fixture; parità completa aperta |
+| POK | `/poker`, `/poker/next-cut`, `/poker/hourly-earnings`, `/poker/rakeback` | Contabilità e calcoli esistenti; permesso `poker` | Poker | Guadagno orario, singolo submit, validazione e arrotondamento verificati con UI TLS; backend e limiti temporali aperti |
 | FIRE | `/fire`, `/fire/standard`, `/fire/barista` | Parametri e risultati Standard/Barista; permesso `fire` | FIRE | Formule, commit su disco, ricreazione, isolamento e reset testati; share URL e process death FIRE aperti |
 | FUM | `/fumo`, `/fumo/liquido-sigaretta`, `/fumo/cbd`, `/fumo/thc` | Gestione dei dati e calcoli esistenti; permesso `fumo` | Fumo | CRUD e formule testate su fixture; backend da verificare |
 | TCG | `/tcg`, `/tcg/magic`, `/tcg/pokemon`, `/tcg/yugioh` | Collezioni, ricerche e prezzi; permesso `tcg` | TCG | CRUD, ricerca, immagini e prezzi presenti; normalizzazione set e ricerca verificate su UI TLS; backend reale da verificare |

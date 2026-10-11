@@ -2,7 +2,13 @@
 
 ## Risultati eseguiti il 11 ottobre 2026
 
-Su Windows, JBR Android Studio 21, Gradle 8.13, SDK 36: APK debug e release ottimizzata 0.1.1-alpha compilati e testati sull'AVD SavelyTest (Android 15/API 35, x86_64, Pixel 2, WHPX, GPU software). I 193 test JVM e 32 test Android integrati passano senza failure, errori o skip. Il test Python del mapping sorgenti passa; il report sul checkout web di riferimento indica zero file cambiati e lascia la parità non verificata. I report di questa versione sono conservati localmente in `artifacts/verified-0.1.1/` prima dei blocchi successivi.
+Su Windows, JBR Android Studio 21, Gradle 8.13, SDK 36: APK debug e release ottimizzata 0.1.2-alpha compilati e testati sull'AVD SavelyTest (Android 15/API 35, x86_64, Pixel 2, WHPX, GPU software). I 212 test JVM e 36 Android integrati passano senza failure, errori o skip. Lint debug/release: zero errori e 23 avvertenze note. Il test Python del mapping sorgenti passa; il report sul checkout web indica zero file cambiati e lascia la parità non verificata. I report sono conservati in `artifacts/verified-0.1.2/`; quelli della 0.1.1 restano separati.
+
+La 0.1.2-alpha aggiunge 19 test JVM e quattro Android: invalidazione globale della sessione da chiamate esterne al ViewModel, protezione da risposte tardive e nuovi login, segnale saving_month con severità/filtri e Guadagno orario Poker con validazione, singolo submit e arrotondamento binario coerente con il web. La prima verifica completa passa in 10m31s; dopo la correzione dell'avvertenza Kotlin sul copy della data class, la verifica finale passa in 8m36s. XML finale: 212 JVM e 36 Android, zero failure/errori/skip; tempo della suite Android 212,027 secondi. Questi tempi descrivono esecuzioni locali, non benchmark del telefono.
+
+APK release 0.1.2-alpha: 1.800.912 byte, versionCode 3, SHA-256 `080ed2c9da69779d5e64f2e19186bee537a4e4ade4c93c3edceead7cbbbdd384`, firma v2 con lo stesso certificato delle alpha precedenti. Scansione delle entry APK senza credenziali privilegiate rilevate. Aggiornamento sopra la 0.1.1/versionCode 2 riuscito sul solo AVD, senza account; schermata login controllata. Cold start singolo `am start -W`: 1938 ms, riferito al primo frame. Non verifica sessione conservata nell'aggiornamento o prestazioni del telefono.
+
+Ripetuti sulla build debug 0.1.2 anche gli smoke reali: run Android→web `c9e470f8-c3fe-4d39-a436-0217155fe3f0`, preparazione instrumentation 12,620 s e cleanup 3,378 s; riga EUR 0,01 letta nell'app e nel browser, screenshot controllato, rimozione/logout/clear confermati e nessuna pulizia pendente. Run process death `768413e0-8311-4ef8-ba7b-f9279a36a7b2`, 2,089/9,670 s, PID 25289→25343, dashboard e cleanup confermati. Il primo avvio dell'helper Android-web aveva trovato il package rimosso da Gradle: nessuna creazione finanziaria, sessione temporanea revocata. Il helper ora verifica package debug/test e debuggability prima di preparare credenziali; il rifiuto per test APK assente è stato eseguito e conserva il report riuscito.
 
 La prima esecuzione dei cinque test Android ha passato quattro casi e fallito il caso del ciphertext corrotto: il test scriveva in device-protected storage mentre lo store ricavava l'application context e leggeva un'altra area. Il test usa ora un ContextWrapper con namespace isolato. La seconda esecuzione ha passato tutti i nove casi, inclusi quattro flussi HTTPS con Keystore e JSON Android, senza skip.
 
@@ -20,6 +26,8 @@ La 0.1.1 aggiunge 22 test JVM e sei test Android: mediana globale Budget e mezzo
 
 ## Comandi
 
+Anche la CI della 0.1.1-alpha, commit `3b086777d2104514e0cd7a797ffbe0c1d8dea723`, passa entrambi i job: [esecuzione 38157386878](https://github.com/GoryNickel9/Savely-Android/actions/runs/38157386878). Il report Android scaricato conferma 32 test, zero failure, zero skip e 100% di successo. Questo risultato precede il blocco 0.1.2 con invalidazione foreground e nuovo segnale Insights.
+
 La CI GitHub del commit `020ac8161fcaeba3b2e1c75cdc6ae79edb90a7c8` passa sia build/lint/JVM sia instrumentation Android API 35: [esecuzione 38154018127](https://github.com/GoryNickel9/Savely-Android/actions/runs/38154018127). Questa revisione copre l'alpha 0.1.0, prima dei nuovi blocchi Budget/Manga. La prima esecuzione aveva fallito il setup SDK richiedendo il pacchetto rimosso `tools`; il workflow ora specifica platform-tools, platform Android 36 e build-tools 36.0.0.
 
 ```sh
@@ -29,7 +37,7 @@ python -m unittest discover -s tools -p 'test_web_parity_audit.py'
 python tools/web_parity_audit.py --web-repo ../Savely --output artifacts/web-parity-audit.json
 ```
 
-I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 32 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
+I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 36 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
 
 ## Smoke aggiuntivo sul backend reale
 

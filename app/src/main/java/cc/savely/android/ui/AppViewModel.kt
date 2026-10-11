@@ -9,6 +9,7 @@ import cc.savely.android.data.SupabaseApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.Base64
@@ -27,7 +28,16 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
     private val mutable = MutableStateFlow(AppState())
     val state = mutable.asStateFlow()
 
-    init { restore() }
+    init {
+        viewModelScope.launch {
+            api.sessionInvalidation.filterNotNull().collect { event ->
+                api.withCurrentSessionInvalidation(event) {
+                    mutable.value = AppState(initialized = true, busy = mutable.value.busy, error = event.message)
+                }
+            }
+        }
+        restore()
+    }
 
     fun restore() = runAction {
         val session = api.session()
@@ -66,14 +76,21 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
     }
 
     private suspend fun acceptSession(session: Session) {
+        val owner = api.sessionOwnerRevision(session) ?: return
         // Verified factors require aal2 before any account data is displayed.
         val factors = api.listMfaFactors()
+        if (!api.isSessionOwnerCurrent(owner)) return
         if (factors.length() > 0 && assuranceLevel(session) != "aal2") {
-            mutable.value = AppState(initialized = true, session = session, mfaFactor = factors.getJSONObject(0).getString("id"))
+            api.withCurrentSessionOwner(owner) {
+                mutable.value = AppState(initialized = true, session = session, mfaFactor = factors.getJSONObject(0).getString("id"))
+            }
             return
         }
         val permissions = api.permissions()
-        mutable.value = AppState(initialized = true, session = session, permissions = permissions)
+        // A pane may invalidate the session while this restore is awaiting HTTP.
+        api.withCurrentSessionOwner(owner) {
+            mutable.value = AppState(initialized = true, session = session, permissions = permissions)
+        }
     }
 
     private fun runAction(block: suspend () -> Unit) {

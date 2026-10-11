@@ -157,6 +157,51 @@ class AuthSecurityTest {
         }
     }
 
+    @Test fun invalidationAndUiPublicationGuardsRejectAnEarlierOwnerAfterNewLogin() = runBlocking {
+        for (newUser in listOf(USER, OTHER_USER)) {
+            val oldSession = session().also(store::save)
+            api.session()
+            val oldOwner = requireNotNull(api.sessionOwnerRevision(oldSession))
+            store.save(oldSession.copy(expiresAt = 1))
+            server.enqueue(json("""{"code":"refresh_token_not_found"}""", 400))
+            try { api.session(); fail("Expected revoked refresh") }
+            catch (error: ApiException) { assertEquals(ApiError.AUTHENTICATION, error.kind) }
+            val event = requireNotNull(api.sessionInvalidation.value)
+            assertTrue(api.isSessionInvalidationCurrent(event))
+
+            val replacement = session(OTHER_SID, newUser)
+            server.enqueue(json(replacement.toJson().toString()))
+            server.enqueue(json("", 201))
+            assertEquals(replacement, withTimeout(5_000) { api.signIn(replacement.email, "old") })
+            assertFalse(api.isSessionInvalidationCurrent(event))
+            assertFalse(api.isSessionOwnerCurrent(oldOwner))
+            assertNull(api.sessionOwnerRevision(oldSession))
+            assertNotNull(api.sessionOwnerRevision(replacement))
+            var stalePublication = false
+            api.withCurrentSessionOwner(oldOwner) { stalePublication = true }
+            api.withCurrentSessionInvalidation(event) { stalePublication = true }
+            assertFalse(stalePublication)
+            assertEquals(replacement, store.load())
+            // Drain refresh, login and audit before another iteration changes the queued responses.
+            repeat(3) { requireNotNull(server.takeRequest(5, TimeUnit.SECONDS)) }
+        }
+    }
+
+    @Test fun eachSuccessfulLoginRevisesOwnershipEvenWhenAnAuthResponseRepeatsAnId() = runBlocking {
+        val original = session().also(store::save)
+        api.session()
+        val revision = requireNotNull(api.sessionOwnerRevision(original))
+        server.enqueue(json(authResponse()))
+        server.enqueue(json("", 201))
+        withTimeout(5_000) { api.signIn(original.email, "old") }
+
+        assertNotEquals(revision, api.sessionOwnerRevision(original))
+        assertFalse(api.isSessionOwnerCurrent(revision))
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(original, store.load())
+        repeat(2) { requireNotNull(server.takeRequest(5, TimeUnit.SECONDS)) }
+    }
+
     private suspend fun assertValidation(action: suspend () -> Unit) {
         try { action(); fail("Expected validation failure") }
         catch (error: ApiException) { assertEquals(ApiError.VALIDATION, error.kind) }

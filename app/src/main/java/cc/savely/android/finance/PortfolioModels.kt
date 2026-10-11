@@ -3,6 +3,7 @@ package cc.savely.android.finance
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
+import java.time.YearMonth
 import org.json.JSONObject
 
 enum class FinanceAssetType(val wire: String, val label: String) {
@@ -87,9 +88,41 @@ internal fun snapshotFromJson(json: JSONObject): FinanceSnapshot = FinanceSnapsh
     json.getString("id"), LocalDate.parse(json.getString("date")), json.decimal("net_worth"), json.optJSONObject("components"),
 )
 
-data class FinanceInsight(val id: String, val title: String, val message: String, val warning: Boolean, val value: BigDecimal)
+enum class InsightSeverity(val label: String) { WARNING("Attenzione"), POSITIVE("Positivo"), INFO("Info") }
 
-/** Direct counterparts of budget_exceeded and portfolio_loss; currencies are never combined. */
+data class FinanceInsight(val id: String, val title: String, val message: String, val warning: Boolean, val value: BigDecimal,
+    val severity: InsightSeverity = if (warning) InsightSeverity.WARNING else InsightSeverity.INFO)
+
+/** Date.setMonth overflow used by web Insights, deliberately distinct from recurring-date clamp. */
+internal fun insightWindowStart(today: LocalDate, months: Long): LocalDate =
+    today.withDayOfMonth(1).minusMonths(months).plusDays((today.dayOfMonth - 1).toLong())
+
+internal fun savingMonthInsights(transactions: List<FinanceTransaction>, today: LocalDate): List<FinanceInsight> {
+    val start = insightWindowStart(today, 12)
+    val currentMonth = YearMonth.from(today)
+    return transactions.filter { it.date > start }.groupBy { it.currency }.toSortedMap().mapNotNull { (currency, rows) ->
+        val netByMonth = rows.groupBy { YearMonth.from(it.date) }.mapValues { (_, month) ->
+            month.fold(BigDecimal.ZERO) { sum, transaction ->
+                sum + if (transaction.type == TransactionType.INCOME) transaction.amount else -transaction.amount
+            }
+        }
+        val currentNet = netByMonth[currentMonth] ?: BigDecimal.ZERO
+        val historical = netByMonth.filterKeys { it != currentMonth }.values
+        if (historical.isEmpty() || currentNet.signum() <= 0) return@mapNotNull null
+        val sum = historical.fold(BigDecimal.ZERO, BigDecimal::add)
+        if (sum.signum() <= 0) return@mapNotNull null
+        val count = BigDecimal(historical.size)
+        // Exact 120% comparison; avoid a rounded average or binary floating point at the threshold.
+        if (currentNet * count * BigDecimal("5") < sum * BigDecimal("6")) return@mapNotNull null
+        val averageDisplay = sum.divide(count, 2, RoundingMode.HALF_UP)
+        val percent = ((currentNet * count - sum) * BigDecimal("100")).divide(sum, 0, RoundingMode.HALF_UP)
+        FinanceInsight("saving-month-$currency", "Ottimo mese di risparmio: $currency",
+            "Stai risparmiando ${formatMoney(currentNet, currency)} questo mese, +$percent% rispetto alla media dei mesi registrati (${formatMoney(averageDisplay, currency)}).",
+            false, currentNet, InsightSeverity.POSITIVE)
+    }
+}
+
+/** Three web counterparts: budget_exceeded, portfolio_loss and saving_month; currencies never combine. */
 fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List<FinanceInsight> {
     val result = mutableListOf<FinanceInsight>()
     for (budget in data.budgets) {
@@ -111,5 +144,6 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
         result.add(FinanceInsight("loss-${asset.id}", "Posizione in perdita: ${asset.name}",
             "${asset.symbol ?: asset.name}: ${(change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP)}% rispetto al prezzo di acquisto.", true, change))
     }
-    return result.sortedByDescending { it.value.abs() }
+    result.addAll(savingMonthInsights(data.transactions, today))
+    return result.sortedWith(compareBy<FinanceInsight> { it.severity.ordinal }.thenByDescending { it.value.abs() })
 }

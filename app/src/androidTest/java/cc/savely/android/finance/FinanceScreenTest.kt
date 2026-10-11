@@ -49,6 +49,7 @@ class FinanceScreenTest {
     private val recurringFixture = AtomicBoolean(false)
     private val budgetFixture = AtomicBoolean(false)
     private val budgetRoundingFixture = AtomicBoolean(false)
+    private val insightsFixture = AtomicBoolean(false)
     private val processingFixture = AtomicBoolean(false)
     private val failRecurringAdvance = AtomicBoolean(false)
     private val dueQueries = AtomicInteger()
@@ -195,6 +196,46 @@ class FinanceScreenTest {
         transactionList().performScrollToNode(hasText("voce TCG in valuta diversa", substring = true))
         compose.onNodeWithText("1 voce TCG in valuta diversa", substring = true).assertIsDisplayed()
         assertEquals("Reading valuation must not create or modify records", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun insightsShowSavingMonthAndSeverityFiltersWithLiteralValuesWithoutWrites() {
+        insightsFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("Tutti (3)")
+        compose.onNodeWithText("Controlli disponibili (3 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Attenzione (2)").assertExists()
+        compose.onNodeWithText("Positivi (1)").assertExists()
+        compose.onNodeWithText("Info (0)").assertExists()
+        fun selectFilter(label: String) {
+            transactionList().performScrollToIndex(0)
+            transactionList().performScrollToNode(hasText(label))
+            compose.onNodeWithText(label).performScrollTo()
+            recurringTouch(hasText(label))
+            compose.onNodeWithText(label).assertIsSelected()
+        }
+        selectFilter("Positivi (1)")
+        transactionList().performScrollToNode(hasContentDescription("Insight saving-month-EUR"))
+        compose.onNodeWithContentDescription("Insight saving-month-EUR").assertIsDisplayed()
+            .assertTextContains("Ottimo mese di risparmio: EUR", substring = true)
+            .assertTextContains("Positivo", substring = true)
+            .assertTextContains("Stai risparmiando 120,00", substring = true)
+            .assertTextContains("+20%", substring = true)
+            .assertTextContains("100,00", substring = true)
+        compose.onNodeWithContentDescription("Insight budget-insights-food").assertDoesNotExist()
+        selectFilter("Attenzione (2)")
+        transactionList().performScrollToNode(hasContentDescription("Insight budget-insights-food"))
+        compose.onNodeWithContentDescription("Insight budget-insights-food").assertIsDisplayed()
+            .assertTextContains("Attenzione", substring = true)
+        compose.onNodeWithContentDescription("Insight saving-month-EUR").assertDoesNotExist()
+        selectFilter("Info (0)")
+        waitForText("Nessun segnale nel filtro selezionato")
+        selectFilter("Tutti (3)")
+        transactionList().performScrollToNode(hasContentDescription("Insight saving-month-EUR"))
+        compose.onNodeWithContentDescription("Insight saving-month-EUR").assertIsDisplayed()
+        assertEquals("Insights derive signals without writing records", 0, posts.get() + patches.get() + deletes.get())
         assertEquals(0, rejectedRequests.get())
     }
 
@@ -378,14 +419,19 @@ class FinanceScreenTest {
                         json(JSONArray(categories.filter { id == null || it.getString("id") == id }).toString())
                     }
                     "/rest/v1/profiles" -> json("""[{"default_currency":"EUR"}]""")
-                    "/rest/v1/budgets" -> if (budgetRoundingFixture.get() && request.method == "GET") json(JSONArray()
+                    "/rest/v1/budgets" -> if (insightsFixture.get() && request.method == "GET") json(JSONArray()
+                        .put(JSONObject().put("id", "insights-food").put("category_id", FOOD_ID).put("amount", "100.00").put("currency", "EUR"))
+                        .toString()) else if (budgetRoundingFixture.get() && request.method == "GET") json(JSONArray()
                         .put(JSONObject().put("id", "budget-rounding").put("category_id", FOOD_ID).put("amount", "0.30").put("currency", "EUR"))
                         .toString()) else if (budgetFixture.get() && request.method == "GET") json(JSONArray()
                         .put(JSONObject().put("id", "budget-food").put("category_id", FOOD_ID).put("amount", "60.00").put("currency", "EUR"))
                         .put(JSONObject().put("id", "budget-transport").put("category_id", TRANSPORT_ID).put("amount", "20.00").put("currency", "EUR"))
                         .put(JSONObject().put("id", "budget-gbp").put("category_id", FOOD_ID).put("amount", "25.00").put("currency", "GBP"))
                         .toString()) else reject()
-                    "/rest/v1/portfolio_assets", "/rest/v1/manual_price_updates" -> json("[]")
+                    "/rest/v1/portfolio_assets" -> if (insightsFixture.get()) json("""[
+                        {"id":"insights-loss","name":"Posizione sintetica","symbol":"TEST","type":"stock","quantity":"2","purchase_price":"100.00","current_price":"85.00","currency":"USD","purchase_date":"2026-01-01","sold_at":null,"sold_price":null,"notes":null}
+                    ]""") else json("[]")
+                    "/rest/v1/manual_price_updates" -> json("[]")
                     "/rest/v1/tgc_cards" -> json("""[
                         {"id":"priced","category":"magic","quantity":2,"purchase_price":"10.00","current_price":"12.50","currency":"EUR"},
                         {"id":"unpriced","category":"pokemon","quantity":1,"purchase_price":"100.00","current_price":null,"currency":null},
@@ -430,7 +476,16 @@ class FinanceScreenTest {
                         else -> reject()
                     }
                     "/rest/v1/transactions" -> when (request.method) {
-                        "GET" -> if (budgetRoundingFixture.get()) {
+                        "GET" -> if (insightsFixture.get()) {
+                            val month = LocalDate.now().withDayOfMonth(1)
+                            json(JSONArray()
+                                .put(transaction("insights-eur-previous", "100.00", "Entrata EUR", FOOD_ID).put("type", "income").put("date", month.minusMonths(1).toString()))
+                                .put(transaction("insights-usd-previous", "100.00", "Entrata USD", FOOD_ID).put("type", "income").put("currency", "USD").put("date", month.minusMonths(1).toString()))
+                                .put(transaction("insights-eur-income", "320.00", "Entrata EUR", FOOD_ID).put("type", "income"))
+                                .put(transaction("insights-eur-expense", "200.00", "Uscita EUR", FOOD_ID))
+                                .put(transaction("insights-usd-income", "100.00", "Entrata USD", FOOD_ID).put("type", "income").put("currency", "USD"))
+                                .toString())
+                        } else if (budgetRoundingFixture.get()) {
                             val month = LocalDate.now().withDayOfMonth(1)
                             json(JSONArray()
                                 .put(transaction("rounding-previous", "0.30", "Spesa precedente", FOOD_ID).put("date", month.minusMonths(1).toString()))

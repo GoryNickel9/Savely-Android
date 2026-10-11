@@ -29,6 +29,10 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+/** A non-secret revision identifies the invalidated login, including across token rotations. */
+@ConsistentCopyVisibility
+data class SessionInvalidation internal constructor(val ownerRevision: Long, val message: String?)
+
 /** Direct Supabase Auth/PostgREST client. Authorization remains enforced by backend RLS. */
 class SupabaseApi(
     private val config: BackendConfig,
@@ -46,6 +50,12 @@ class SupabaseApi(
     private var auditOwner: String? = null
     private val mutableAccessAuditWarning = MutableStateFlow<String?>(null)
     val accessAuditWarning = mutableAccessAuditWarning.asStateFlow()
+    private val sessionStateLock = Any()
+    private var ownerRevision = 0L
+    private var ownerIdentity: Pair<String, String?>? = null
+    private var ownerActive = false
+    private val mutableSessionInvalidation = MutableStateFlow<SessionInvalidation?>(null)
+    val sessionInvalidation = mutableSessionInvalidation.asStateFlow()
     private val base: HttpUrl
     private val web: HttpUrl
 
@@ -59,7 +69,7 @@ class SupabaseApi(
         validateCredentials(email, password)
         val json = objectValue(request(endpoint(base, "auth/v1/token", "grant_type=password"), "POST",
             JSONObject().put("email", email.trim()).put("password", password), config.anonKey))
-        parseSession(json).also { store(it); startAccessAudit(it) }
+        parseSession(json).also { store(it, newLogin = true); startAccessAudit(it) }
     }
 
     /** Returns a fixed display status. Email confirmation currently uses the existing web callback. */
@@ -76,7 +86,7 @@ class SupabaseApi(
         val result = objectValue(request(url, "POST", body, config.anonKey))
         if (result.has("access_token") && !result.isNull("access_token")) {
             val created = parseSession(result)
-            store(created)
+            store(created, newLogin = true)
             startAccessAudit(created)
             "Registrazione completata."
         } else {
@@ -94,7 +104,7 @@ class SupabaseApi(
     suspend fun signOut() = authMutex.withLock {
         cancelPendingAudit()
         withContext(Dispatchers.IO) {
-            val saved = sessionStore.load()
+            val saved = load()
             try {
                 if (saved != null) {
                     try {
@@ -104,7 +114,7 @@ class SupabaseApi(
                     }
                 }
             } finally {
-                sessionStore.clear()
+                clearStoredSession()
             }
         }
     }
@@ -189,7 +199,7 @@ class SupabaseApi(
             val saved = load()
             if (saved?.authSessionId() == id) {
                 cancelPendingAudit()
-                withContext(Dispatchers.IO) { sessionStore.clear() }
+                clearStoredSession()
                 true
             } else false
         }
@@ -316,15 +326,72 @@ class SupabaseApi(
         } catch (error: ApiException) {
             if (error.status in listOf(400, 401, 403) && error.code in INVALID_REFRESH_CODES) {
                 cancelPendingAudit()
-                withContext(Dispatchers.IO) { sessionStore.clear() }
+                clearStoredSession(unauthorized().message)
                 throw unauthorized()
             }
             throw error
         }
     }
 
-    private suspend fun load(): Session? = withContext(Dispatchers.IO) { sessionStore.load() }
-    private suspend fun store(session: Session) = withContext(Dispatchers.IO) { sessionStore.save(session) }
+    /** These checks do not refresh or issue HTTP requests. A newer login invalidates old events. */
+    fun sessionOwnerRevision(): Long? = synchronized(sessionStateLock) { ownerRevision.takeIf { ownerActive } }
+    internal fun sessionOwnerRevision(session: Session): Long? = synchronized(sessionStateLock) {
+        ownerRevision.takeIf { ownerActive && ownerIdentity == (session.userId to session.authSessionId()) }
+    }
+    fun isSessionOwnerCurrent(revision: Long): Boolean = synchronized(sessionStateLock) { ownerActive && ownerRevision == revision }
+    fun isSessionInvalidationCurrent(event: SessionInvalidation): Boolean = synchronized(sessionStateLock) {
+        !ownerActive && ownerRevision == event.ownerRevision && mutableSessionInvalidation.value === event
+    }
+
+    // Keep the check and UI publication atomic with a login/clear on the I/O dispatcher.
+    internal fun withCurrentSessionOwner(revision: Long, update: () -> Unit): Unit = synchronized(sessionStateLock) {
+        if (isSessionOwnerCurrent(revision)) update()
+    }
+    internal fun withCurrentSessionInvalidation(event: SessionInvalidation, update: () -> Unit): Unit = synchronized(sessionStateLock) {
+        if (isSessionInvalidationCurrent(event)) update()
+    }
+
+    private fun observeSession(session: Session, newLogin: Boolean = false) = synchronized(sessionStateLock) {
+        val identity = session.userId to session.authSessionId()
+        if (newLogin || !ownerActive || ownerIdentity != identity) ownerRevision++
+        ownerIdentity = identity
+        ownerActive = true
+        mutableSessionInvalidation.value = null
+    }
+
+    private fun invalidateObservedSession(message: String?): Unit = synchronized(sessionStateLock) {
+        if (ownerActive) {
+            ownerActive = false
+            mutableSessionInvalidation.value = SessionInvalidation(ownerRevision, message)
+        }
+    }
+
+    private suspend fun load(): Session? = withContext(Dispatchers.IO) {
+        try {
+            sessionStore.load().also { saved ->
+                if (saved == null) invalidateObservedSession(unauthorized().message) else observeSession(saved)
+            }
+        } catch (error: ApiException) {
+            if (error.kind == ApiError.STORAGE) invalidateObservedSession(error.message)
+            throw error
+        }
+    }
+
+    private suspend fun store(session: Session, newLogin: Boolean = false) = withContext(Dispatchers.IO) {
+        try { sessionStore.save(session); observeSession(session, newLogin) }
+        catch (error: ApiException) {
+            if (error.kind == ApiError.STORAGE) invalidateObservedSession(error.message)
+            throw error
+        }
+    }
+
+    private suspend fun clearStoredSession(message: String? = null) = withContext(Dispatchers.IO) {
+        try { sessionStore.clear(); invalidateObservedSession(message) }
+        catch (error: ApiException) {
+            if (error.kind == ApiError.STORAGE) invalidateObservedSession(error.message)
+            throw error
+        }
+    }
 
     private suspend fun request(
         url: HttpUrl, method: String = "GET", body: JSONObject? = null, token: String?,

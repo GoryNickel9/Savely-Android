@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -107,6 +108,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
     var deleteRequest by remember { mutableStateOf<DeleteRequest?>(null) }
     var closingId by rememberSaveable { mutableStateOf<String?>(null) }
     var showClosedAssets by rememberSaveable { mutableStateOf(false) }
+    var insightFilter by rememberSaveable(section) { mutableStateOf("all") }
     val data = state.data
     val suggestions = remember(data, section) { if (section == "recurring" && data != null) availableRecurringSuggestions(data) else emptyList() }
     val writable = section in setOf("transactions", "categories", "budget", "recurring", "portfolio")
@@ -231,14 +233,20 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 }
             }
             "insights" -> {
-                item { Text("Controlli disponibili: budget superati e posizioni con perdita di almeno 15%. Gli altri rilevatori web sono in costruzione.") }
+                item { Text("Controlli disponibili (3 su 8): budget superati, posizioni con perdita di almeno 15% e mesi di risparmio sopra la media. Gli altri rilevatori web sono in costruzione.") }
                 val insights = financeInsights(data)
-                if (insights.isEmpty()) item { EmptyCard("Nessun avviso nei controlli disponibili") }
-                items(insights, key = { it.id }) { insight ->
-                    Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(insight.title, style = MaterialTheme.typography.titleMedium)
-                        Text(insight.message)
-                    } }
+                val filtered = insights.filter { insightFilter == "all" || it.severity.name == insightFilter }
+                item { Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = insightFilter == "all", onClick = { insightFilter = "all" }, label = { Text("Tutti (${insights.size})") })
+                    InsightSeverity.entries.forEach { severity ->
+                        val label = when (severity) { InsightSeverity.WARNING -> "Attenzione"; InsightSeverity.POSITIVE -> "Positivi"; InsightSeverity.INFO -> "Info" }
+                        FilterChip(selected = insightFilter == severity.name, onClick = { insightFilter = severity.name },
+                            label = { Text("$label (${insights.count { it.severity == severity }})") })
+                    }
+                } }
+                if (filtered.isEmpty()) item { EmptyCard(if (insights.isEmpty()) "Nessun segnale nei tre controlli disponibili" else "Nessun segnale nel filtro selezionato") }
+                items(filtered, key = { it.id }) { insight ->
+                    FinanceInsightCard(insight)
                 }
             }
         }
@@ -267,6 +275,24 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 model.mutate({ delete(request.table, request.id) }) { deleteRequest = null }
             }) { Text(if (state.saving) "Eliminazione…" else "Elimina") } },
             dismissButton = { TextButton(enabled = !state.saving, onClick = { deleteRequest = null }) { Text("Annulla") } })
+    }
+}
+
+@Composable
+private fun FinanceInsightCard(insight: FinanceInsight) {
+    val colors = when (insight.severity) {
+        InsightSeverity.WARNING -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        InsightSeverity.POSITIVE -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        InsightSeverity.INFO -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    Card(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "Insight ${insight.id}" }) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(insight.title, style = MaterialTheme.typography.titleMedium)
+            Surface(color = colors.first, contentColor = colors.second, shape = MaterialTheme.shapes.small) {
+                Text(insight.severity.label, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
+            }
+            Text(insight.message)
+        }
     }
 }
 

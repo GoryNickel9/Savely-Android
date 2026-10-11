@@ -69,6 +69,15 @@ $adb = Join-Path $sdkDirectory 'platform-tools/adb.exe'
 if ($Device -notmatch '^emulator-[0-9]+$') { throw 'Usare solo l''AVD SavelyTest dedicato.' }
 $avdName = (& $adb -s $Device emu avd name 2>$null | Select-Object -First 1).Trim()
 if ($avdName -ne 'SavelyTest') { throw 'Il dispositivo non è SavelyTest.' }
+# Gradle removes the app after connected tests; check installation before creating a QA session.
+foreach ($package in @('cc.savely.android', 'cc.savely.android.test')) {
+    $installed = & $adb -s $Device shell pm path $package 2>$null
+    if ($LASTEXITCODE -ne 0 -or ($installed -join "`n") -notmatch '^package:') {
+        throw 'Installare APK debug e androidTest prima dello smoke Android-web.'
+    }
+}
+& $adb -s $Device shell run-as cc.savely.android true 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Lo smoke Android-web richiede un APK debuggable.' }
 $configuration = Get-Content -LiteralPath (Join-Path $projectDirectory 'savely.properties')
 $publicKey = ($configuration | Where-Object { $_ -match '^SUPABASE_ANON_KEY=' } | Select-Object -First 1) -replace '^SUPABASE_ANON_KEY=', ''
 $configuredUrl = ($configuration | Where-Object { $_ -match '^SUPABASE_URL=' } | Select-Object -First 1) -replace '^SUPABASE_URL=', ''

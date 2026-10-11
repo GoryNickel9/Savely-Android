@@ -52,8 +52,9 @@
         "sourceFormulasInspected": true,
         "nativeTestsRun": true,
         "backendFlowVerified": false,
-        "deviceFlowVerified": false,
-        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM formulas, parsing, repository contracts; three TLS fixture UI tests for hourly save, zero/invalid inputs, duplicate month, single submit, persisted gross rates and literal net-of-deal rounding; real backend remains unverified",
+        "webRateRoundingFixturesExecuted": true
       },
       "differences": [
         "NextCut creates and writes only after explicit Save; empty-record P/L starts at zero rather than copying the web's hardcoded 1804.87",
@@ -149,7 +150,8 @@
           "real-E2E-host-created-marker-read-on-canonical-deployed-web-with-cleanup",
           "fixture-budget-global-monthly-median-and-currency-union",
           "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup",
-          "fixture-budget-literal-half-cent-display-and-nine-currency-HALF_UP-regression"
+          "fixture-budget-literal-half-cent-display-and-nine-currency-HALF_UP-regression",
+          "fixture-saving-month-currency-specific-baseline-severity-counts-and-filters"
         ]
       },
       "owner": "finance-agent",
@@ -169,7 +171,8 @@
         "verificationScope": [
           "fixture-auth-MFA-and-expiry-revocation",
           "real-E2E-temporary-session-identity-permissions-Keystore-reopen-and-logout",
-          "real-E2E-new-process-session-restore-native-dashboard-and-logout"
+          "real-E2E-new-process-session-restore-native-dashboard-and-logout",
+          "fixture-foreground-session-invalidation-transient-errors-token-rotation-and-stale-owner-guards"
         ]
       },
       "owner": "auth-agent",
@@ -240,6 +243,26 @@
       "sha256": "2a53238a2a46cb96b0af0f5163675e7e87d2c27e4bfa58b3fff1f69135eb4e04",
       "scope": [
         "signature-versionCode1-to2-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.2-alpha",
+      "variant": "debug",
+      "jvmTests": 212,
+      "androidTests": 36,
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup",
+        "real-E2E-new-process-session-restore-native-dashboard-and-logout"
+      ]
+    },
+    {
+      "version": "0.1.2-alpha",
+      "versionCode": 3,
+      "variant": "release",
+      "sha256": "080ed2c9da69779d5e64f2e19186bee537a4e4ade4c93c3edceead7cbbbdd384",
+      "scope": [
+        "signature-versionCode2-to3-upgrade-and-anonymous-login-layout-on-AVD"
       ]
     }
   ]

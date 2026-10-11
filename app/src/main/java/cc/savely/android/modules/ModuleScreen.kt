@@ -28,6 +28,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.YearMonth
@@ -35,6 +37,14 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
 private fun money(value: Double) = NumberFormat.getCurrencyInstance(Locale.ITALY).format(value)
+/** PokerHourlyEarnings.tsx uses toFixed(2): round the exact binary Double, ties away from zero.
+ * BigDecimal(value), unlike valueOf(value), also preserves the web's 0.305 -> 0.30 behavior on Android ICU.
+ */
+internal fun pokerRateMoney(value: Double): String {
+    require(value.isFinite())
+    return NumberFormat.getCurrencyInstance(Locale.ITALY).apply { roundingMode = RoundingMode.HALF_UP }
+        .format(BigDecimal(value))
+}
 private fun number(value: String): Double {
     val normalized = if (value.contains(',') && value.contains('.')) value.replace(".", "").replace(',', '.') else value.replace(',', '.')
     return normalized.trim().toDoubleOrNull()?.takeIf { it.isFinite() } ?: error("Inserisci un numero valido")
@@ -521,7 +531,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                         }
                         if (schema.table == "poker_hourly_earnings") {
                             val hourly = PokerCalculations.hourly(row.getDouble("hours_played") * 60, row.getDouble("profit_loss"), row.optDouble("net_won_ev", 0.0))
-                            Text("Orario dopo deal ${money(hourly.hourlyRate * deal)} · EV ${money(hourly.hourlyRateEv * deal)}")
+                            Text("Orario dopo deal ${pokerRateMoney(hourly.hourlyRate * deal)} · EV ${pokerRateMoney(hourly.hourlyRateEv * deal)}")
                         }
                         if (schema.table in listOf("cbd", "thc", "liquido_sigaretta")) {
                             val liquid = schema.table == "liquido_sigaretta"
@@ -730,7 +740,7 @@ private fun yearlyMetrics(schema: RecordSchema, rows: List<JSONObject>, deal: Do
         val result = when (schema.table) {
             "poker_hourly_earnings" -> {
                 val totals = PokerCalculations.aggregate(group.map { PokerCalculations.Hourly(it.getDouble("hours_played"), it.getDouble("profit_loss"), it.optDouble("net_won_ev", 0.0)) })
-                "${format(totals.hours)} h · Net Won ${money(totals.netWon)} · EV ${money(totals.netWonEv)}\nOrario dopo deal ${money(totals.hourlyRate * deal)} · EV/h ${money(totals.hourlyRateEv * deal)}\nMediana ore ${format(PokerCalculations.median(group.map { it.getDouble("hours_played") }))}"
+                "${format(totals.hours)} h · Net Won ${money(totals.netWon)} · EV ${money(totals.netWonEv)}\nOrario dopo deal ${pokerRateMoney(totals.hourlyRate * deal)} · EV/h ${pokerRateMoney(totals.hourlyRateEv * deal)}\nMediana ore ${format(PokerCalculations.median(group.map { it.getDouble("hours_played") }))}"
             }
             "poker_rakeback" -> {
                 val rake = group.sumOf { it.getDouble("rake_generated") }

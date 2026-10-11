@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2-alpha — 11 ottobre 2026
+
+Una sessione revocata o illeggibile azzera subito account e permessi anche da una chiamata diretta delle impostazioni; errori temporanei conservano la sessione. Eventi del vecchio login e risposte profilo tardive non sovrascrivono il nuovo stato. Insights aggiunge il mese di risparmio, severità e filtri, con copertura dichiarata 3/8. Guadagno orario Poker corregge ±0,125 in ±0,13 e conserva gli altri arrotondamenti del riferimento web.
+
+Passano 212 test JVM, 36 Android e lint debug/release senza errori. Ripetuti sincronizzazione Android→sito e ripristino in un processo nuovo sul solo account E2E, con pulizia completa. APK firmato/versionCode 3 aggiornato sopra la 0.1.1 sul solo emulatore, senza account. Restano login con password, telefono e parità completa.
+
 ## 0.1.1-alpha — 11 ottobre 2026
 
 Budget con mediana mensile globale e riepiloghi separati per valuta; arrotondamento monetario `HALF_UP` e soglia di perdita del portafoglio confrontata prima di arrotondare. Manga con intervalli fino a 100 record, prezzi unitari, UUID stabili, riconciliazione delle risposte ambigue e ripresa esplicita della serie dopo ripristino dello stato della composizione.
