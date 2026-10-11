@@ -1,0 +1,47 @@
+Cookie Policy
+
+Informativa sui cookie e sulle tecnologie di memorizzazione locale
+
+La presente informativa descrive i cookie e le tecnologie di memorizzazione equivalenti (es. localStorage) utilizzate da Savely, in ottemperanza alla normativa europea (GDPR, ePrivacy) e italiana (Codice della Privacy — d.lgs. 196/2003).
+
+1. Cosa sono i cookie
+
+I cookie sono piccoli file di testo che un sito web salva nel tuo dispositivo. Servono a mantenere informazioni tra una visita e l'altra. Per estensione, qui trattiamo anche i dati salvati nel localStorage del browser, che svolgono la stessa funzione tecnica.
+
+2. Cookie utilizzati da Savely
+
+Savely utilizza esclusivamente cookie tecnici strettamente necessari al funzionamento e alla sicurezza del Servizio. Non utilizza cookie di profilazione, analytics di terze parti, cookie pubblicitari o di tracciamento marketing.
+
+Elenco dettagliato:
+
+• Token di sessione Supabase (sb-*, salvato nel localStorage): conserva le credenziali di accesso dopo il login per mantenerti autenticato tra una visita e l'altra, senza dover reinserire email e password a ogni pagina. Durata: sessione/rinnovo automatico (max ~7 giorni). Tipo: strettamente necessario.
+
+• Consenso cookie (savely_cookie_consent, localStorage): registra che hai visualizzato e chiuso il banner di informativa cookie. Durata: 12 mesi. Tipo: strettamente necessario (funzionale).
+
+• Dati delle preferenze (es. valuta predefinita, salvataggio dei moduli in corso): memorizzati localmente o nel tuo profilo per personalizzare l'esperienza. Tipo: funzionali/preferenziali.
+
+3. Cookie di terze parti
+
+Il Servizio non integra reti sociali, widget, analytics o banner pubblicitari di terze parti, pertanto non installa cookie di terze parti. Qualora in futuro venissero introdotte funzionalità che li richiedono (es. analytics), questa informativa verrebbe aggiornata e il consenso richiesto preventivamente, con possibilità di rifiutare.
+
+4. Come gestire e disattivare i cookie
+
+Puoi gestire, bloccare o eliminare i cookie tramite le impostazioni del tuo browser. Disabilitare i cookie tecnici di sessione ti impedirà di accedere a Savely. Istruzioni per i browser principali:
+
+• Google Chrome
+
+• Mozilla Firefox
+
+• Apple Safari
+
+• Microsoft Edge
+
+5. Banner di informativa
+
+Al primo accesso viene mostrato un banner informativo che rinvia alla presente Cookie Policy. Chiudendolo, registriamo nel tuo browser l'avvenuta visualizzazione, in modo da non mostrartelo nuovamente per 12 mesi.
+
+6. Contatti
+
+Per domande relative ai cookie, contatta il Titolare all'indirizzo info@savely.cc.
+
+Vedi anche la Privacy Policy e i Termini di servizio.

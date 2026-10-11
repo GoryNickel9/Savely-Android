@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "referenceRepository": "GoryNickel9/Savely",
+  "inspectedRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "deployedWebRevision": null,
+  "verifiedApkVersion": null,
+  "globalParityVerified": false,
+  "features": [
+    {
+      "id": "fire",
+      "implemented": [
+        "standard",
+        "barista",
+        "annual-projections",
+        "import-24-month-account-defaults",
+        "account-specific-persistent-parameters",
+        "reset-defaults",
+        "versioned-local-parameter-validation"
+      ],
+      "verification": {
+        "webFixtureExecuted": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM formulas and codec; four Android fixture tests: ten-field disk commit, fresh-screen restore, account isolation, reset and invalid snapshots",
+        "verificationScope": [
+          "fixture-ten-parameters-committed-XML-and-fresh-screen-restore",
+          "fixture-two-account-isolation-reset-corrupt-and-incomplete-drafts"
+        ]
+      },
+      "differences": [
+        "Local parameters are isolated per account instead of web browser-wide localStorage",
+        "Corrupt/unknown-version snapshot is preserved until explicit reset"
+      ],
+      "remaining": [
+        "share-url",
+        "24-month-boundary-timezone-test",
+        "real-process-death-storage-failure-and-account-login-tests"
+      ]
+    },
+    {
+      "id": "poker",
+      "implemented": [
+        "next-cut",
+        "manual-expenses-crud",
+        "hourly-crud",
+        "net-won-ev",
+        "rakeback-crud",
+        "yearly-metrics"
+      ],
+      "verification": {
+        "sourceFormulasInspected": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": false,
+        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+      },
+      "differences": [
+        "NextCut creates and writes only after explicit Save; empty-record P/L starts at zero rather than copying the web's hardcoded 1804.87",
+        "deal validated in (0,1]"
+      ],
+      "remaining": [
+        "backend-duplicate-month-race",
+        "730-day-boundary-timezone-test"
+      ]
+    },
+    {
+      "id": "fumo",
+      "implemented": [
+        "cbd-crud",
+        "thc-crud",
+        "liquid-crud",
+        "derived-daily-monthly-cost",
+        "yearly-summary",
+        "cost-per-gram-liquid-daily-summary",
+        "current-year-detail-filter"
+      ],
+      "verification": {
+        "webFixtureExecuted": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": false,
+        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+      },
+      "differences": [
+        "Reject finished date before arrival"
+      ],
+      "remaining": []
+    },
+    {
+      "id": "tcg",
+      "implemented": [
+        "magic-pokemon-yugioh-crud",
+        "manual-prices",
+        "collection-cost-value",
+        "cardtrader-search",
+        "cardtrader-prices",
+        "text-filter",
+        "native-card-images",
+        "collection-set-filters",
+        "cardtrader-expansion-filter"
+      ],
+      "verification": {
+        "sourceSchemaInspected": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": false,
+        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+      },
+      "remaining": [
+        "device-and-backend-collection-filter-flows"
+      ]
+    },
+    {
+      "id": "libreria",
+      "implemented": [
+        "books-comics-manga-manual-crud",
+        "collection-cost-value",
+        "google-books-search",
+        "metadata-cover-url-persistence",
+        "text-filter",
+        "native-cover-images",
+        "author-publisher-year-filters"
+      ],
+      "verification": {
+        "sourceSchemaInspected": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": false,
+        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+      },
+      "remaining": [
+        "manga-volume-ranges",
+        "device-and-backend-collection-filter-flows"
+      ]
+    },
+    {
+      "id": "finance",
+      "verification": {
+        "backendFlowVerified": true,
+        "deviceFlowVerified": true,
+        "nativeTestsRun": true,
+        "verificationScope": [
+          "fixture-calculations-and-transaction-UI",
+          "real-E2E-transaction-repository-CRUD-and-native-read-after-activity-recreation",
+          "fixture-recurring-toggle-single-submit-partial-error-refresh-and-deduplicated-rerun",
+          "fixture-portfolio-TCG-valuation-and-explicit-exclusions"
+        ]
+      },
+      "owner": "finance-agent",
+      "remaining": [
+        "real-password-login",
+        "physical-phone",
+        "all-finance-module-backend-flows",
+        "complete-web-parity"
+      ]
+    },
+    {
+      "id": "auth-account-admin",
+      "verification": {
+        "backendFlowVerified": true,
+        "deviceFlowVerified": true,
+        "nativeTestsRun": true,
+        "verificationScope": [
+          "fixture-auth-MFA-and-expiry-revocation",
+          "real-E2E-temporary-session-identity-permissions-Keystore-reopen-and-logout",
+          "real-E2E-new-process-session-restore-native-dashboard-and-logout"
+        ]
+      },
+      "owner": "auth-agent",
+      "remaining": [
+        "real-password-login",
+        "real-MFA-enrollment-and-challenge",
+        "native-email-callback",
+        "two-user-session-revocation",
+        "real-admin-role-flows",
+        "synthetic-account-deletion"
+      ]
+    },
+    {
+      "id": "couple",
+      "verification": {
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "verificationScope": [
+          "fixture-partner-code-invitation-guards-budget-median-and-custom-split-UI"
+        ]
+      },
+      "owner": "integration"
+    },
+    {
+      "id": "bank",
+      "implemented": [],
+      "verification": {
+        "apiContractAvailable": false
+      },
+      "remaining": [
+        "independent-bank-service-api-inventory"
+      ]
+    }
+  ],
+  "verificationDate": "2026-10-11",
+  "testedBuilds": [
+    {
+      "version": "0.1.0-alpha",
+      "variant": "debug",
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "real-E2E-session-dashboard-transaction-recreate",
+        "real-E2E-new-process-session-restore-dashboard-and-logout"
+      ]
+    },
+    {
+      "version": "0.1.0-alpha",
+      "variant": "release",
+      "sha256": "ada5e306ef285191ce6949e7d2be01d1e87a97466251acf458c12481cb58c035",
+      "scope": [
+        "signature-install-anonymous-login-layout"
+      ]
+    }
+  ]
+}

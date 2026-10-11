@@ -1,0 +1,642 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "fixedDate": "2026-10-11T12:00:00Z",
+  "provenance": "Executed unmodified TypeScript exports from the read-only web checkout using Node type stripping",
+  "standard": {
+    "inputs": {
+      "currentAge": 30,
+      "retirementAge": 60,
+      "currentSavings": 100000,
+      "annualContribution": 24000,
+      "annualIncome": 60000,
+      "expectedReturn": 0.07,
+      "inflationRate": 0.03,
+      "withdrawalRate": 0.04,
+      "annualExpenses": 48000
+    },
+    "result": {
+      "fireNumber": 1200000,
+      "yearsToFIRE": 24.4,
+      "fireAge": 54.4,
+      "projections": [
+        {
+          "age": 30,
+          "year": 2026,
+          "portfolio": 100000,
+          "contributions": 100000,
+          "totalContributions": 100000,
+          "inflationAdjusted": 100000
+        },
+        {
+          "age": 31,
+          "year": 2027,
+          "portfolio": 131000,
+          "contributions": 24000,
+          "totalContributions": 124000,
+          "inflationAdjusted": 127184
+        },
+        {
+          "age": 32,
+          "year": 2028,
+          "portfolio": 164170,
+          "contributions": 24000,
+          "totalContributions": 148000,
+          "inflationAdjusted": 154746
+        },
+        {
+          "age": 33,
+          "year": 2029,
+          "portfolio": 199662,
+          "contributions": 24000,
+          "totalContributions": 172000,
+          "inflationAdjusted": 182719
+        },
+        {
+          "age": 34,
+          "year": 2030,
+          "portfolio": 237638,
+          "contributions": 24000,
+          "totalContributions": 196000,
+          "inflationAdjusted": 211138
+        },
+        {
+          "age": 35,
+          "year": 2031,
+          "portfolio": 278273,
+          "contributions": 24000,
+          "totalContributions": 220000,
+          "inflationAdjusted": 240041
+        },
+        {
+          "age": 36,
+          "year": 2032,
+          "portfolio": 321752,
+          "contributions": 24000,
+          "totalContributions": 244000,
+          "inflationAdjusted": 269462
+        },
+        {
+          "age": 37,
+          "year": 2033,
+          "portfolio": 368275,
+          "contributions": 24000,
+          "totalContributions": 268000,
+          "inflationAdjusted": 299441
+        },
+        {
+          "age": 38,
+          "year": 2034,
+          "portfolio": 418054,
+          "contributions": 24000,
+          "totalContributions": 292000,
+          "inflationAdjusted": 330016
+        },
+        {
+          "age": 39,
+          "year": 2035,
+          "portfolio": 471318,
+          "contributions": 24000,
+          "totalContributions": 316000,
+          "inflationAdjusted": 361226
+        },
+        {
+          "age": 40,
+          "year": 2036,
+          "portfolio": 528310,
+          "contributions": 24000,
+          "totalContributions": 340000,
+          "inflationAdjusted": 393112
+        },
+        {
+          "age": 41,
+          "year": 2037,
+          "portfolio": 589292,
+          "contributions": 24000,
+          "totalContributions": 364000,
+          "inflationAdjusted": 425717
+        },
+        {
+          "age": 42,
+          "year": 2038,
+          "portfolio": 654542,
+          "contributions": 24000,
+          "totalContributions": 388000,
+          "inflationAdjusted": 459083
+        },
+        {
+          "age": 43,
+          "year": 2039,
+          "portfolio": 724360,
+          "contributions": 24000,
+          "totalContributions": 412000,
+          "inflationAdjusted": 493254
+        },
+        {
+          "age": 44,
+          "year": 2040,
+          "portfolio": 799065,
+          "contributions": 24000,
+          "totalContributions": 436000,
+          "inflationAdjusted": 528276
+        },
+        {
+          "age": 45,
+          "year": 2041,
+          "portfolio": 879000,
+          "contributions": 24000,
+          "totalContributions": 460000,
+          "inflationAdjusted": 564196
+        },
+        {
+          "age": 46,
+          "year": 2042,
+          "portfolio": 964530,
+          "contributions": 24000,
+          "totalContributions": 484000,
+          "inflationAdjusted": 601063
+        },
+        {
+          "age": 47,
+          "year": 2043,
+          "portfolio": 1056047,
+          "contributions": 24000,
+          "totalContributions": 508000,
+          "inflationAdjusted": 638926
+        },
+        {
+          "age": 48,
+          "year": 2044,
+          "portfolio": 1153970,
+          "contributions": 24000,
+          "totalContributions": 532000,
+          "inflationAdjusted": 677836
+        },
+        {
+          "age": 49,
+          "year": 2045,
+          "portfolio": 1258748,
+          "contributions": 24000,
+          "totalContributions": 556000,
+          "inflationAdjusted": 717846
+        },
+        {
+          "age": 50,
+          "year": 2046,
+          "portfolio": 1370860,
+          "contributions": 24000,
+          "totalContributions": 580000,
+          "inflationAdjusted": 759012
+        },
+        {
+          "age": 51,
+          "year": 2047,
+          "portfolio": 1490820,
+          "contributions": 24000,
+          "totalContributions": 604000,
+          "inflationAdjusted": 801389
+        },
+        {
+          "age": 52,
+          "year": 2048,
+          "portfolio": 1619178,
+          "contributions": 24000,
+          "totalContributions": 628000,
+          "inflationAdjusted": 845037
+        },
+        {
+          "age": 53,
+          "year": 2049,
+          "portfolio": 1756520,
+          "contributions": 24000,
+          "totalContributions": 652000,
+          "inflationAdjusted": 890014
+        },
+        {
+          "age": 54,
+          "year": 2050,
+          "portfolio": 1903477,
+          "contributions": 24000,
+          "totalContributions": 676000,
+          "inflationAdjusted": 936384
+        },
+        {
+          "age": 55,
+          "year": 2051,
+          "portfolio": 2060720,
+          "contributions": 24000,
+          "totalContributions": 700000,
+          "inflationAdjusted": 984211
+        },
+        {
+          "age": 56,
+          "year": 2052,
+          "portfolio": 2228971,
+          "contributions": 24000,
+          "totalContributions": 724000,
+          "inflationAdjusted": 1033562
+        },
+        {
+          "age": 57,
+          "year": 2053,
+          "portfolio": 2408999,
+          "contributions": 24000,
+          "totalContributions": 748000,
+          "inflationAdjusted": 1084505
+        },
+        {
+          "age": 58,
+          "year": 2054,
+          "portfolio": 2601628,
+          "contributions": 24000,
+          "totalContributions": 772000,
+          "inflationAdjusted": 1137111
+        },
+        {
+          "age": 59,
+          "year": 2055,
+          "portfolio": 2807742,
+          "contributions": 24000,
+          "totalContributions": 796000,
+          "inflationAdjusted": 1191455
+        },
+        {
+          "age": 60,
+          "year": 2056,
+          "portfolio": 3028284,
+          "contributions": 24000,
+          "totalContributions": 820000,
+          "inflationAdjusted": 1247613
+        },
+        {
+          "age": 61,
+          "year": 2057,
+          "portfolio": 3264264,
+          "contributions": 24000,
+          "totalContributions": 844000,
+          "inflationAdjusted": 1305664
+        },
+        {
+          "age": 62,
+          "year": 2058,
+          "portfolio": 3516763,
+          "contributions": 24000,
+          "totalContributions": 868000,
+          "inflationAdjusted": 1365689
+        },
+        {
+          "age": 63,
+          "year": 2059,
+          "portfolio": 3786936,
+          "contributions": 24000,
+          "totalContributions": 892000,
+          "inflationAdjusted": 1427774
+        },
+        {
+          "age": 64,
+          "year": 2060,
+          "portfolio": 4076022,
+          "contributions": 24000,
+          "totalContributions": 916000,
+          "inflationAdjusted": 1492007
+        },
+        {
+          "age": 65,
+          "year": 2061,
+          "portfolio": 4385343,
+          "contributions": 24000,
+          "totalContributions": 940000,
+          "inflationAdjusted": 1558478
+        }
+      ],
+      "savingsRate": 0.4,
+      "monthlyContribution": 2000,
+      "coastFireNumber": 382635
+    }
+  },
+  "barista": {
+    "inputs": {
+      "currentAge": 35,
+      "retirementAge": 60,
+      "currentSavings": 50000,
+      "annualContribution": 12000,
+      "annualIncome": 60000,
+      "expectedReturn": 0.06,
+      "inflationRate": 0.02,
+      "withdrawalRate": 0.04,
+      "annualExpenses": 36000
+    },
+    "partTimeIncome": 12000,
+    "result": {
+      "baristaNumber": 600000,
+      "fullFireNumber": 900000,
+      "yearsToBaristaFIRE": 24.3,
+      "partTimeIncomeNeeded": 12000,
+      "projections": [
+        {
+          "age": 35,
+          "year": 2026,
+          "portfolio": 50000,
+          "contributions": 50000,
+          "totalContributions": 50000,
+          "inflationAdjusted": 50000
+        },
+        {
+          "age": 36,
+          "year": 2027,
+          "portfolio": 65000,
+          "contributions": 12000,
+          "totalContributions": 62000,
+          "inflationAdjusted": 63725
+        },
+        {
+          "age": 37,
+          "year": 2028,
+          "portfolio": 80900,
+          "contributions": 12000,
+          "totalContributions": 74000,
+          "inflationAdjusted": 77759
+        },
+        {
+          "age": 38,
+          "year": 2029,
+          "portfolio": 97754,
+          "contributions": 12000,
+          "totalContributions": 86000,
+          "inflationAdjusted": 92116
+        },
+        {
+          "age": 39,
+          "year": 2030,
+          "portfolio": 115619,
+          "contributions": 12000,
+          "totalContributions": 98000,
+          "inflationAdjusted": 106814
+        },
+        {
+          "age": 40,
+          "year": 2031,
+          "portfolio": 134556,
+          "contributions": 12000,
+          "totalContributions": 110000,
+          "inflationAdjusted": 121872
+        },
+        {
+          "age": 41,
+          "year": 2032,
+          "portfolio": 154630,
+          "contributions": 12000,
+          "totalContributions": 122000,
+          "inflationAdjusted": 137307
+        },
+        {
+          "age": 42,
+          "year": 2033,
+          "portfolio": 175908,
+          "contributions": 12000,
+          "totalContributions": 134000,
+          "inflationAdjusted": 153138
+        },
+        {
+          "age": 43,
+          "year": 2034,
+          "portfolio": 198462,
+          "contributions": 12000,
+          "totalContributions": 146000,
+          "inflationAdjusted": 169385
+        },
+        {
+          "age": 44,
+          "year": 2035,
+          "portfolio": 222370,
+          "contributions": 12000,
+          "totalContributions": 158000,
+          "inflationAdjusted": 186069
+        },
+        {
+          "age": 45,
+          "year": 2036,
+          "portfolio": 247712,
+          "contributions": 12000,
+          "totalContributions": 170000,
+          "inflationAdjusted": 203210
+        },
+        {
+          "age": 46,
+          "year": 2037,
+          "portfolio": 274575,
+          "contributions": 12000,
+          "totalContributions": 182000,
+          "inflationAdjusted": 220830
+        },
+        {
+          "age": 47,
+          "year": 2038,
+          "portfolio": 303049,
+          "contributions": 12000,
+          "totalContributions": 194000,
+          "inflationAdjusted": 238952
+        },
+        {
+          "age": 48,
+          "year": 2039,
+          "portfolio": 333232,
+          "contributions": 12000,
+          "totalContributions": 206000,
+          "inflationAdjusted": 257599
+        },
+        {
+          "age": 49,
+          "year": 2040,
+          "portfolio": 365226,
+          "contributions": 12000,
+          "totalContributions": 218000,
+          "inflationAdjusted": 276796
+        },
+        {
+          "age": 50,
+          "year": 2041,
+          "portfolio": 399140,
+          "contributions": 12000,
+          "totalContributions": 230000,
+          "inflationAdjusted": 296567
+        },
+        {
+          "age": 51,
+          "year": 2042,
+          "portfolio": 435088,
+          "contributions": 12000,
+          "totalContributions": 242000,
+          "inflationAdjusted": 316938
+        },
+        {
+          "age": 52,
+          "year": 2043,
+          "portfolio": 473193,
+          "contributions": 12000,
+          "totalContributions": 254000,
+          "inflationAdjusted": 337937
+        },
+        {
+          "age": 53,
+          "year": 2044,
+          "portfolio": 513585,
+          "contributions": 12000,
+          "totalContributions": 266000,
+          "inflationAdjusted": 359591
+        },
+        {
+          "age": 54,
+          "year": 2045,
+          "portfolio": 556400,
+          "contributions": 12000,
+          "totalContributions": 278000,
+          "inflationAdjusted": 381930
+        },
+        {
+          "age": 55,
+          "year": 2046,
+          "portfolio": 601784,
+          "contributions": 12000,
+          "totalContributions": 290000,
+          "inflationAdjusted": 404983
+        },
+        {
+          "age": 56,
+          "year": 2047,
+          "portfolio": 649891,
+          "contributions": 12000,
+          "totalContributions": 302000,
+          "inflationAdjusted": 428782
+        },
+        {
+          "age": 57,
+          "year": 2048,
+          "portfolio": 700884,
+          "contributions": 12000,
+          "totalContributions": 314000,
+          "inflationAdjusted": 453359
+        },
+        {
+          "age": 58,
+          "year": 2049,
+          "portfolio": 754937,
+          "contributions": 12000,
+          "totalContributions": 326000,
+          "inflationAdjusted": 478748
+        },
+        {
+          "age": 59,
+          "year": 2050,
+          "portfolio": 812234,
+          "contributions": 12000,
+          "totalContributions": 338000,
+          "inflationAdjusted": 504983
+        },
+        {
+          "age": 60,
+          "year": 2051,
+          "portfolio": 872968,
+          "contributions": 12000,
+          "totalContributions": 350000,
+          "inflationAdjusted": 532101
+        },
+        {
+          "age": 61,
+          "year": 2052,
+          "portfolio": 937346,
+          "contributions": 12000,
+          "totalContributions": 362000,
+          "inflationAdjusted": 560138
+        },
+        {
+          "age": 62,
+          "year": 2053,
+          "portfolio": 1005586,
+          "contributions": 12000,
+          "totalContributions": 374000,
+          "inflationAdjusted": 589135
+        },
+        {
+          "age": 63,
+          "year": 2054,
+          "portfolio": 1077922,
+          "contributions": 12000,
+          "totalContributions": 386000,
+          "inflationAdjusted": 619131
+        },
+        {
+          "age": 64,
+          "year": 2055,
+          "portfolio": 1154597,
+          "contributions": 12000,
+          "totalContributions": 398000,
+          "inflationAdjusted": 650168
+        },
+        {
+          "age": 65,
+          "year": 2056,
+          "portfolio": 1235873,
+          "contributions": 12000,
+          "totalContributions": 410000,
+          "inflationAdjusted": 682289
+        },
+        {
+          "age": 66,
+          "year": 2057,
+          "portfolio": 1322025,
+          "contributions": 12000,
+          "totalContributions": 422000,
+          "inflationAdjusted": 715541
+        },
+        {
+          "age": 67,
+          "year": 2058,
+          "portfolio": 1413347,
+          "contributions": 12000,
+          "totalContributions": 434000,
+          "inflationAdjusted": 749969
+        },
+        {
+          "age": 68,
+          "year": 2059,
+          "portfolio": 1510147,
+          "contributions": 12000,
+          "totalContributions": 446000,
+          "inflationAdjusted": 785622
+        },
+        {
+          "age": 69,
+          "year": 2060,
+          "portfolio": 1612756,
+          "contributions": 12000,
+          "totalContributions": 458000,
+          "inflationAdjusted": 822551
+        },
+        {
+          "age": 70,
+          "year": 2061,
+          "portfolio": 1721522,
+          "contributions": 12000,
+          "totalContributions": 470000,
+          "inflationAdjusted": 860808
+        }
+      ],
+      "savingsFromPartTime": 300000
+    }
+  },
+  "fumo": {
+    "inputs": {
+      "arrival": "2026-01-01",
+      "finished": "2026-01-11",
+      "quantity": 20,
+      "cost": 50
+    },
+    "result": {
+      "giorni_durata": 10,
+      "quantita_al_giorno": 2,
+      "euro_al_giorno": 5,
+      "costo_mensile": 150
+    }
+  }
+}

@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "referenceRepository": "GoryNickel9/Savely",
+  "referenceRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "modules": [
+    {
+      "id": "app",
+      "sources": [
+        "src/App.tsx",
+        "src/components/layout/**",
+        "src/i18n/**",
+        "src/index.css",
+        "src/main.tsx"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/ui/**",
+        "app/src/main/java/cc/savely/android/MainActivity.kt"
+      ],
+      "tests": [
+        "app/src/androidTest/**"
+      ]
+    },
+    {
+      "id": "auth-account-admin",
+      "sources": [
+        "src/pages/Auth*",
+        "src/pages/ResetPassword.tsx",
+        "src/pages/Admin.tsx",
+        "src/pages/Settings.tsx",
+        "src/hooks/useAuth.tsx",
+        "src/hooks/usePermissions*",
+        "src/components/settings/**",
+        "src/lib/mfa*",
+        "api/**",
+        "supabase/functions/delete-account/**"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/data/**",
+        "app/src/main/java/cc/savely/android/ui/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/data/**",
+        "app/src/androidTest/java/cc/savely/android/data/**",
+        "app/src/androidTest/java/cc/savely/android/ui/AuthScreenTest.kt",
+        "app/src/androidTest/java/cc/savely/android/ui/SettingsSecurityTest.kt"
+      ]
+    },
+    {
+      "id": "finance",
+      "sources": [
+        "src/pages/Transactions.tsx",
+        "src/pages/Dashboard.tsx",
+        "src/pages/Budget.tsx",
+        "src/pages/Categories.tsx",
+        "src/pages/RecurringExpenses.tsx",
+        "src/pages/Charts*",
+        "src/pages/Insights.tsx",
+        "src/pages/Portfolio.tsx",
+        "src/pages/NetWorth.tsx",
+        "src/hooks/useTransactions*",
+        "src/hooks/useBudgets*",
+        "src/hooks/useCategories*",
+        "src/hooks/useRecurring*",
+        "src/hooks/usePortfolio*",
+        "src/lib/statistics/**",
+        "src/lib/constants.ts",
+        "src/lib/utils.ts",
+        "src/lib/import*",
+        "src/components/import/**",
+        "supabase/functions/update-prices/**",
+        "src/hooks/useTcgCards.ts",
+        "src/lib/recurringDetection.ts",
+        "src/hooks/useRecurringCandidates.ts",
+        "src/lib/netWorth.ts"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/finance/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/finance/**",
+        "app/src/androidTest/java/cc/savely/android/finance/**"
+      ]
+    },
+    {
+      "id": "couple",
+      "sources": [
+        "src/pages/CoupleBudget.tsx",
+        "src/hooks/useCouple*",
+        "src/components/couple/**",
+        "supabase/couple*",
+        "src/lib/coupleExpenses.ts"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/ui/**",
+        "app/src/main/java/cc/savely/android/data/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/data/Couple*Test.kt",
+        "app/src/androidTest/java/cc/savely/android/ui/CoupleScreenTest.kt"
+      ]
+    },
+    {
+      "id": "fire",
+      "sources": [
+        "src/pages/fire/**",
+        "src/lib/fire/**",
+        "src/components/fire/**",
+        "src/hooks/useFire*"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/modules/ModuleCalculations.kt",
+        "app/src/main/java/cc/savely/android/modules/ModuleScreen.kt",
+        "app/src/main/java/cc/savely/android/modules/FireParameters.kt"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/modules/ModuleCalculationsTest.kt",
+        "app/src/test/java/cc/savely/android/modules/FireParametersTest.kt",
+        "parity/fixtures/web-calculations.json",
+        "app/src/androidTest/java/cc/savely/android/modules/FirePersistenceTest.kt"
+      ]
+    },
+    {
+      "id": "poker",
+      "sources": [
+        "src/pages/Poker*",
+        "src/hooks/usePoker*",
+        "src/lib/utils.ts",
+        "src/lib/statistics/**"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/modules/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/modules/**"
+      ]
+    },
+    {
+      "id": "fumo",
+      "sources": [
+        "src/pages/Fumo*",
+        "src/components/fumo/**",
+        "src/lib/fumoCrud*"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/modules/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/modules/**",
+        "parity/fixtures/web-calculations.json"
+      ]
+    },
+    {
+      "id": "tcg",
+      "sources": [
+        "src/pages/tcg/**",
+        "src/components/tcg/**",
+        "src/hooks/useTcgCards.ts",
+        "src/hooks/useCardTrader*",
+        "supabase/functions/cardtrader-proxy/**"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/modules/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/modules/CatalogRepositoryTest.kt",
+        "app/src/test/java/cc/savely/android/modules/CollectionFiltersTest.kt"
+      ]
+    },
+    {
+      "id": "libreria",
+      "sources": [
+        "src/pages/libreria/**",
+        "src/components/libreria/**",
+        "src/hooks/useLibraryItems.ts",
+        "src/lib/googleBooks.ts"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/modules/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/modules/CatalogRepositoryTest.kt",
+        "app/src/test/java/cc/savely/android/modules/CollectionFiltersTest.kt"
+      ]
+    },
+    {
+      "id": "legal",
+      "sources": [
+        "src/pages/Privacy.tsx",
+        "src/pages/Cookies.tsx",
+        "src/pages/Termini.tsx",
+        "src/lib/legalContents.ts"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/ui/**"
+      ],
+      "tests": []
+    },
+    {
+      "id": "backend-contracts",
+      "sources": [
+        "src/integrations/supabase/**",
+        "src/lib/types.ts",
+        "supabase/migrations/**",
+        "src/hooks/useSupabaseData.ts"
+      ],
+      "android": [
+        "app/src/main/java/cc/savely/android/data/**"
+      ],
+      "tests": [
+        "app/src/test/java/cc/savely/android/data/**"
+      ]
+    }
+  ],
+  "unmappedPolicy": "Report every changed path not matched here; require human semantic review before advancing a feature baseline."
+}

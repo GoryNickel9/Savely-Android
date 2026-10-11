@@ -1,6 +1,6 @@
 # Roadmap Savely Android
 
-Data: 11 ottobre 2026. Stato: pianificazione, sviluppo non avviato.
+Data: 11 ottobre 2026. Stato: sviluppo avviato; alpha nativa generata, verifica del primo APK in corso.
 
 ## 1. Risultato richiesto e vincoli
 
@@ -187,7 +187,7 @@ Per il primo rilascio scegliere il meccanismo più semplice: link alla release e
 
 ## 8. File da implementare successivamente
 
-I percorsi seguenti sono previsti, non creati da questa attività di documentazione.
+I percorsi seguenti descrivono il piano. Sono già presenti app, wrapper, contratti per area, baseline, mapping JSON, fixture, workflow build/test e audit manuale. La distribuzione stabile resta subordinata ai gate della fase 5.
 
 | Percorso indicativo | Scopo | Quando |
 |---|---|---|
@@ -216,6 +216,6 @@ I percorsi seguenti sono previsti, non creati da questa attività di documentazi
 
 ## 10. Stato e prossimo lavoro
 
-Completato: audit iniziale in sola lettura, inventario dei moduli, piano dei subagent e documentazione della manutenzione. Nessun codice Android, workflow o test applicativo è stato eseguito nell'ambito della scrittura di questa roadmap.
+Completato: audit del riferimento web, progetto Kotlin/Compose, integrazione dei package auth/finanza/moduli, schermate native e APK alpha firmato ottimizzato installabile. Sono passati 171 test JVM e 26 test Android integrati; lint debug e release non hanno errori. Il mapping sorgenti e il workflow di audit leggono la repo web senza modificarla e non avanzano automaticamente la baseline.
 
-Il prossimo lavoro di sviluppo è la fase 1: dettagliare i contratti e i casi di parità prima di iniziare il progetto Gradle.
+M1 è ancora aperta per il login con password, la lettura dal browser web e la prova su telefono. Le registrazioni sono disabilitate anche per la creazione amministrativa; nessuna impostazione è stata cambiata. L'utente E2E documentato nel seed web esiste ed è confermato. Una sessione magic-link temporanea per quel solo account, ottenuta senza inviare email o cambiare password, ha permesso di eseguire un test Android sul backend reale: identità e permessi, Keystore e riapertura client/activity, dashboard, movimento di prova da 0,01 EUR, lettura, modifica a 0,02 EUR ed eliminazione. Il risultato registra `passed`, `hard_deleted=true`, `cleanup_pending=false`; la sessione è stata chiusa. È passato anche il ripristino in un nuovo processo dopo force-stop, con dashboard e logout; una prova di interruzione host conferma la pulizia della sola sessione QA. Non sono stati modificati dati preesistenti. Le lacune funzionali delle fasi 3-4 restano nei contratti e in `parity/web-baseline.json`; nessuna parità globale è certificata.

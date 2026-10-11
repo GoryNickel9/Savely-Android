@@ -1,0 +1,103 @@
+package cc.savely.android.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import cc.savely.android.data.ApiException
+import cc.savely.android.data.ApiError
+import cc.savely.android.data.Session
+import cc.savely.android.data.SupabaseApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.util.Base64
+
+data class AppState(
+    val initialized: Boolean = false,
+    val busy: Boolean = false,
+    val session: Session? = null,
+    val permissions: Map<String, Boolean> = emptyMap(),
+    val mfaFactor: String? = null,
+    val message: String? = null,
+    val error: String? = null,
+)
+
+class AppViewModel(val api: SupabaseApi) : ViewModel() {
+    private val mutable = MutableStateFlow(AppState())
+    val state = mutable.asStateFlow()
+
+    init { restore() }
+
+    fun restore() = runAction {
+        val session = api.session()
+        if (session == null) mutable.value = AppState(initialized = true)
+        else acceptSession(session)
+    }
+
+    fun signIn(email: String, password: String) = runAction { acceptSession(api.signIn(email, password)) }
+
+    fun signUp(email: String, password: String, fullName: String) = runAction {
+        val message = api.signUp(email, password, fullName)
+        val session = api.session()
+        if (session != null) acceptSession(session)
+        mutable.value = mutable.value.copy(message = message)
+    }
+
+    fun resetPassword(email: String) = runAction {
+        api.requestPasswordReset(email)
+        mutable.value = mutable.value.copy(message = "Controlla la tua email. Il link apre il recupero password di Savely nel browser.")
+    }
+
+    fun verifyMfa(code: String) = runAction {
+        val factor = mutable.value.mfaFactor ?: error("Nessun codice richiesto.")
+        acceptSession(api.verifyTotp(factor, code))
+    }
+
+    fun signOut() = runAction {
+        try { api.signOut() } finally { mutable.value = AppState(initialized = true) }
+    }
+
+    fun dismissMessage() { mutable.value = mutable.value.copy(message = null, error = null) }
+
+    override fun onCleared() {
+        api.close()
+        super.onCleared()
+    }
+
+    private suspend fun acceptSession(session: Session) {
+        // Verified factors require aal2 before any account data is displayed.
+        val factors = api.listMfaFactors()
+        if (factors.length() > 0 && assuranceLevel(session) != "aal2") {
+            mutable.value = AppState(initialized = true, session = session, mfaFactor = factors.getJSONObject(0).getString("id"))
+            return
+        }
+        val permissions = api.permissions()
+        mutable.value = AppState(initialized = true, session = session, permissions = permissions)
+    }
+
+    private fun runAction(block: suspend () -> Unit) {
+        if (mutable.value.busy) return
+        mutable.value = mutable.value.copy(busy = true, error = null, message = null)
+        viewModelScope.launch {
+            try { block() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                mutable.value = if (error is ApiException && error.kind in setOf(ApiError.AUTHENTICATION, ApiError.STORAGE)) {
+                    AppState(initialized = true, error = userMessage(error))
+                } else mutable.value.copy(initialized = true, error = userMessage(error))
+            } finally { mutable.value = mutable.value.copy(busy = false) }
+        }
+    }
+}
+
+fun userMessage(error: Throwable): String = when (error) {
+    is ApiException -> error.message ?: "Richiesta non riuscita. Riprova."
+    is IllegalArgumentException -> error.message ?: "Controlla i dati inseriti."
+    else -> "Operazione non riuscita. Controlla la connessione e riprova."
+}
+
+internal fun assuranceLevel(session: Session): String = runCatching {
+    val payload = session.accessToken.split('.')[1]
+    JSONObject(String(Base64.getUrlDecoder().decode(payload))).optString("aal", "aal1")
+}.getOrDefault("aal1")

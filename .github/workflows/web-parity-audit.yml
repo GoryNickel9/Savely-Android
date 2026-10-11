@@ -1,0 +1,31 @@
+name: Web parity source audit
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: android
+      - uses: actions/checkout@v4
+        with:
+          repository: GoryNickel9/Savely
+          path: web
+          fetch-depth: 0
+          token: ${{ secrets.SAVELY_WEB_READ_TOKEN || github.token }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Test classifier and compare sources
+        working-directory: android
+        run: |
+          python -m unittest discover -s tools -p 'test_web_parity_audit.py'
+          python tools/web_parity_audit.py --web-repo ../web --output artifacts/web-parity-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-parity-source-audit
+          path: android/artifacts/web-parity-audit.json
