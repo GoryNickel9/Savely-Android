@@ -12,6 +12,7 @@ Verifiche locali, senza CI GitHub. Sorgenti web invariati. JDK di Android Studio
 | Lint debug/release | Zero errori, 32 avvertenze e 5 suggerimenti | Report lint e `artifacts/verification-0.1.8-final-labels.log` |
 | Android 12 | 108 casi ordinari con esito finale positivo dopo riesecuzioni mirate; non è un singolo run finale completo | `artifacts/android12-0.1.8-aggregate.json` e tre log sorgente |
 | Android 15 | 108 casi, zero fallimenti/skip, singola suite completa finale: 375,253 s | `artifacts/android15-0.1.8-full-ime-final.txt` e relativo JSON |
+| Distribuzione pubblica | Quattro asset senza autenticazione; SHA-256 scaricato e commit coincidono; canale alpha verificato | `artifacts/public-release-verification-0.1.8.json` |
 | Guardie QA offline Android 12 | Tre fixture passano, inclusa serializzazione CAS booleana/numerica | `artifacts/android12-0.1.8-final-targets.txt`, `artifacts/roadmap-cleanup-boolean-fixture-0.1.8.txt` |
 | Riavvio processo reale Android 12 | Persistenza 1,550 s; ripristino 8,395 s; identità, Dashboard, nuovo PID e logout verificati | `artifacts/backend-process-death-host-0.1.8-final.log`, `artifacts/backend-process-death-result-0.1.8-final.json` |
 
