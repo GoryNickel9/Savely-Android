@@ -109,6 +109,7 @@ fun formatMoney(amount: BigDecimal, currency: String): String = NumberFormat.get
     this.currency = Currency.getInstance(currency)
     minimumFractionDigits = 2
     maximumFractionDigits = 2
+    roundingMode = RoundingMode.HALF_UP
 }.format(amount)
 
 fun currencyTotals(transactions: List<FinanceTransaction>): List<CurrencyTotals> = transactions
@@ -156,6 +157,32 @@ fun medianMonthlyExpense(
     if (totals.isEmpty()) return BigDecimal.ZERO
     val middle = totals.size / 2
     return if (totals.size % 2 == 1) totals[middle] else (totals[middle - 1] + totals[middle]).divide(BigDecimal("2"))
+}
+
+data class BudgetCurrencySummary(
+    val currency: String,
+    val totalBudget: BigDecimal,
+    val monthlyMedianExpense: BigDecimal,
+) {
+    /** Same sign as Budget.tsx: positive means spending above the planned budget. */
+    val difference: BigDecimal get() = monthlyMedianExpense - totalBudget
+}
+
+/** Global monthly totals include every expense category, including null/removed categories.
+ * Matches Budget.tsx/getGlobalMedianMonthlySpending, with separate currencies instead of a mixed EUR total.
+ */
+fun budgetCurrencySummaries(
+    budgets: List<FinanceBudget>,
+    transactions: List<FinanceTransaction>,
+    today: LocalDate,
+): List<BudgetCurrencySummary> {
+    val expenses = transactions.filter { it.type == TransactionType.EXPENSE && it.date > today.minusDays(730) }
+    val currencies = (budgets.map { it.currency } + expenses.map { it.currency }).toSortedSet()
+    return currencies.map { currency ->
+        BudgetCurrencySummary(currency,
+            budgets.filter { it.currency == currency }.fold(BigDecimal.ZERO) { total, budget -> total + budget.amount },
+            medianMonthlyExpense(expenses, today, currency = currency))
+    }
 }
 
 fun nextDueDate(date: LocalDate, frequency: RecurringFrequency, weekInterval: Int = 1): LocalDate {

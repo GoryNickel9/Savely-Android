@@ -104,11 +104,11 @@
         "sourceSchemaInspected": true,
         "nativeTestsRun": true,
         "backendFlowVerified": false,
-        "deviceFlowVerified": false,
-        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM models and repositories; Android TLS fixture test for Magic uppercase deduplication, Pokemon exact-case sets and Yugioh name-only search; backend pending"
       },
       "remaining": [
-        "device-and-backend-collection-filter-flows"
+        "real-backend-collection-filter-flows"
       ]
     },
     {
@@ -120,18 +120,19 @@
         "metadata-cover-url-persistence",
         "text-filter",
         "native-cover-images",
-        "author-publisher-year-filters"
+        "author-publisher-year-filters",
+        "manga-volume-ranges",
+        "manga-stable-UUID-reconciliation-and-explicit-resume"
       ],
       "verification": {
         "sourceSchemaInspected": true,
         "nativeTestsRun": true,
         "backendFlowVerified": false,
-        "deviceFlowVerified": false,
-        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM collection filters and fourteen Manga tests; three Android TLS fixture tests for invalid range, saved-composition resume after ambiguous commit and combined filters with invariant totals; backend pending"
       },
       "remaining": [
-        "manga-volume-ranges",
-        "device-and-backend-collection-filter-flows"
+        "real-backend-collection-filter-flows"
       ]
     },
     {
@@ -144,7 +145,11 @@
           "fixture-calculations-and-transaction-UI",
           "real-E2E-transaction-repository-CRUD-and-native-read-after-activity-recreation",
           "fixture-recurring-toggle-single-submit-partial-error-refresh-and-deduplicated-rerun",
-          "fixture-portfolio-TCG-valuation-and-explicit-exclusions"
+          "fixture-portfolio-TCG-valuation-and-explicit-exclusions",
+          "real-E2E-host-created-marker-read-on-canonical-deployed-web-with-cleanup",
+          "fixture-budget-global-monthly-median-and-currency-union",
+          "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup",
+          "fixture-budget-literal-half-cent-display-and-nine-currency-HALF_UP-regression"
         ]
       },
       "owner": "finance-agent",
@@ -216,6 +221,25 @@
       "sha256": "ada5e306ef285191ce6949e7d2be01d1e87a97466251acf458c12481cb58c035",
       "scope": [
         "signature-install-anonymous-login-layout"
+      ]
+    },
+    {
+      "version": "0.1.1-alpha",
+      "variant": "debug",
+      "jvmTests": 193,
+      "androidTests": 32,
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup"
+      ]
+    },
+    {
+      "version": "0.1.1-alpha",
+      "versionCode": 2,
+      "variant": "release",
+      "sha256": "2a53238a2a46cb96b0af0f5163675e7e87d2c27e4bfa58b3fff1f69135eb4e04",
+      "scope": [
+        "signature-versionCode1-to2-upgrade-and-anonymous-login-layout-on-AVD"
       ]
     }
   ]

@@ -136,7 +136,13 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 }
             }
             "budget" -> {
-                item { Text("Mediana dei mesi con movimenti negli ultimi 730 giorni. Budget personali in EUR.", style = MaterialTheme.typography.bodyMedium) }
+                item { Text("Mediana dei mesi con movimenti negli ultimi 730 giorni. Importi separati per valuta.", style = MaterialTheme.typography.bodyMedium) }
+                if (data.budgets.isNotEmpty()) {
+                    items(budgetCurrencySummaries(data.budgets, data.transactions, LocalDate.now()), key = { "summary-${it.currency}" }) { summary ->
+                        BudgetSummaryCard(summary)
+                    }
+                    item { Text("Il riepilogo include tutte le uscite, anche senza categoria o senza un budget dedicato.", style = MaterialTheme.typography.bodySmall) }
+                }
                 if (data.budgets.isEmpty()) item { EmptyCard("Nessun budget impostato") }
                 items(data.budgets, key = { it.id }) { budget ->
                     val median = medianMonthlyExpense(data.transactions, LocalDate.now(), budget.categoryId, budget.currency)
@@ -261,6 +267,19 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 model.mutate({ delete(request.table, request.id) }) { deleteRequest = null }
             }) { Text(if (state.saving) "Eliminazione…" else "Elimina") } },
             dismissButton = { TextButton(enabled = !state.saving, onClick = { deleteRequest = null }) { Text("Annulla") } })
+    }
+}
+
+@Composable
+private fun BudgetSummaryCard(summary: BudgetCurrencySummary) {
+    Card(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "Riepilogo budget ${summary.currency}" }) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Riepilogo mensile ${summary.currency}", style = MaterialTheme.typography.titleMedium)
+            Text("Spesa mensile prevista: ${formatMoney(summary.totalBudget, summary.currency)}")
+            Text("Spesa mediana mensile reale: ${formatMoney(summary.monthlyMedianExpense, summary.currency)}")
+            Text("Differenza: ${if (summary.difference.signum() > 0) "+" else ""}${formatMoney(summary.difference, summary.currency)}",
+                color = if (summary.difference.signum() > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 

@@ -105,8 +105,10 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
     }
     for (asset in data.assets.filter { it.soldAt == null }) {
         if (asset.purchasePrice.signum() <= 0) continue
+        // Compare the exact 85% price boundary before rounding the ratio used in the message/value.
+        if (asset.marketPrice * BigDecimal("100") > asset.purchasePrice * BigDecimal("85")) continue
         val change = (asset.marketPrice - asset.purchasePrice).divide(asset.purchasePrice, 10, RoundingMode.HALF_UP)
-        if (change <= BigDecimal("-0.15")) result.add(FinanceInsight("loss-${asset.id}", "Posizione in perdita: ${asset.name}",
+        result.add(FinanceInsight("loss-${asset.id}", "Posizione in perdita: ${asset.name}",
             "${asset.symbol ?: asset.name}: ${(change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP)}% rispetto al prezzo di acquisto.", true, change))
     }
     return result.sortedByDescending { it.value.abs() }

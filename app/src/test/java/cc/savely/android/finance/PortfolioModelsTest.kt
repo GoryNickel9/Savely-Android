@@ -81,4 +81,36 @@ class PortfolioModelsTest {
         assertEquals(1, insights.size)
         assertEquals("loss-asset-stock-EUR", insights.single().id)
     }
+
+    @Test fun `loss threshold rejects one cent above 85 percent before ratio rounding in every currency`() {
+        supportedCurrencies.forEach { currency ->
+            val data = FinanceData(assets = listOf(asset(purchase = "1000000000.00", current = "850000000.01", currency = currency)))
+            // Exact loss is 14.999999999%; rounding the ratio to 10 decimals would falsely reach 15%.
+            assertEquals("One cent above boundary in $currency must not trigger", emptyList<FinanceInsight>(),
+                financeInsights(data, LocalDate.parse("2026-10-11")))
+        }
+    }
+
+    @Test fun `loss threshold includes exact 85 percent and one cent below independently of currency`() {
+        supportedCurrencies.forEach { currency ->
+            listOf("850000000.00", "849999999.99").forEach { current ->
+                val row = asset(purchase = "1000000000.00", current = current, currency = currency)
+                val insight = financeInsights(FinanceData(assets = listOf(row)), LocalDate.parse("2026-10-11")).single()
+                assertEquals("loss-${row.id}", insight.id)
+                assertEquals(true, insight.warning)
+                assertEquals(BigDecimal("-0.1500000000"), insight.value)
+            }
+        }
+    }
+
+    @Test fun `loss detector still requires positive purchase and ignores missing current price and sold positions`() {
+        supportedCurrencies.forEach { currency ->
+            val rows = listOf(asset(purchase = "0", current = "0", currency = currency),
+                asset(purchase = "-100", current = "-200", currency = currency),
+                asset(purchase = "100", current = null, currency = currency),
+                asset(purchase = "100", current = "85", currency = currency, sold = "2026-10-01", soldPrice = "85"))
+            assertEquals("No invalid baseline or closed position in $currency may trigger", emptyList<FinanceInsight>(),
+                financeInsights(FinanceData(assets = rows), LocalDate.parse("2026-10-11")))
+        }
+    }
 }

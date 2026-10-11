@@ -47,6 +47,8 @@ class FinanceScreenTest {
     private val postedBody = AtomicReference("")
     private val patchedBody = AtomicReference("")
     private val recurringFixture = AtomicBoolean(false)
+    private val budgetFixture = AtomicBoolean(false)
+    private val budgetRoundingFixture = AtomicBoolean(false)
     private val processingFixture = AtomicBoolean(false)
     private val failRecurringAdvance = AtomicBoolean(false)
     private val dueQueries = AtomicInteger()
@@ -196,6 +198,52 @@ class FinanceScreenTest {
         assertEquals(0, rejectedRequests.get())
     }
 
+    @Test fun budgetMedianHalfCentDisplaysLiteralRoundedValuesWithoutRoundingSource() {
+        budgetRoundingFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "budget", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        val description = "Riepilogo budget EUR"
+        waitForFinanceCondition("budget half-cent fixture loaded") {
+            compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
+        }
+        transactionList().performScrollToNode(hasContentDescription(description))
+        compose.waitForIdle()
+        // Monthly totals 0.30 and 0.31 => exact median 0.305; budget 0.30 => exact difference 0.005.
+        // Literal assertions intentionally do not derive expectations through formatMoney.
+        compose.onNodeWithContentDescription(description).assertIsDisplayed()
+            .assertTextContains("Spesa mensile prevista: 0,30", substring = true)
+            .assertTextContains("Spesa mediana mensile reale: 0,31", substring = true)
+            .assertTextContains("Differenza: +0,01", substring = true)
+        assertEquals("Formatting must not write records", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun budgetSummaryUsesGlobalMonthlyMedianAndKeepsCurrenciesSeparate() {
+        budgetFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "budget", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForFinanceCondition("budget data loaded") {
+            compose.onAllNodesWithContentDescription("Riepilogo budget EUR").fetchSemanticsNodes().isNotEmpty()
+        }
+        fun assertSummary(currency: String, planned: String, median: String, difference: String, positive: Boolean) {
+            val description = "Riepilogo budget $currency"
+            transactionList().performScrollToNode(hasContentDescription(description))
+            compose.waitForIdle()
+            compose.onNodeWithContentDescription(description).assertIsDisplayed()
+                .assertTextContains("Spesa mensile prevista: ${formatMoney(planned.toBigDecimal(), currency)}", substring = true)
+                .assertTextContains("Spesa mediana mensile reale: ${formatMoney(median.toBigDecimal(), currency)}", substring = true)
+                .assertTextContains("Differenza: ${if (positive) "+" else ""}${formatMoney(difference.toBigDecimal(), currency)}", substring = true)
+        }
+        // EUR monthly totals 100, 100, 60 => median 100; sum of category medians would be 20.
+        assertSummary("EUR", "80.00", "100.00", "20.00", true)
+        assertSummary("GBP", "25.00", "0.00", "-25.00", false)
+        assertSummary("USD", "0.00", "40.00", "40.00", true)
+        assertEquals("Summary is read-only", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
     @Test fun recurringTogglePauseAndProcessPreventDuplicateSubmit() {
         processingFixture.set(true)
         compose.setContent {
@@ -330,6 +378,13 @@ class FinanceScreenTest {
                         json(JSONArray(categories.filter { id == null || it.getString("id") == id }).toString())
                     }
                     "/rest/v1/profiles" -> json("""[{"default_currency":"EUR"}]""")
+                    "/rest/v1/budgets" -> if (budgetRoundingFixture.get() && request.method == "GET") json(JSONArray()
+                        .put(JSONObject().put("id", "budget-rounding").put("category_id", FOOD_ID).put("amount", "0.30").put("currency", "EUR"))
+                        .toString()) else if (budgetFixture.get() && request.method == "GET") json(JSONArray()
+                        .put(JSONObject().put("id", "budget-food").put("category_id", FOOD_ID).put("amount", "60.00").put("currency", "EUR"))
+                        .put(JSONObject().put("id", "budget-transport").put("category_id", TRANSPORT_ID).put("amount", "20.00").put("currency", "EUR"))
+                        .put(JSONObject().put("id", "budget-gbp").put("category_id", FOOD_ID).put("amount", "25.00").put("currency", "GBP"))
+                        .toString()) else reject()
                     "/rest/v1/portfolio_assets", "/rest/v1/manual_price_updates" -> json("[]")
                     "/rest/v1/tgc_cards" -> json("""[
                         {"id":"priced","category":"magic","quantity":2,"purchase_price":"10.00","current_price":"12.50","currency":"EUR"},
@@ -375,7 +430,27 @@ class FinanceScreenTest {
                         else -> reject()
                     }
                     "/rest/v1/transactions" -> when (request.method) {
-                        "GET" -> if (url.queryParameter("description") != null) {
+                        "GET" -> if (budgetRoundingFixture.get()) {
+                            val month = LocalDate.now().withDayOfMonth(1)
+                            json(JSONArray()
+                                .put(transaction("rounding-previous", "0.30", "Spesa precedente", FOOD_ID).put("date", month.minusMonths(1).toString()))
+                                .put(transaction("rounding-current", "0.31", "Spesa corrente", FOOD_ID).put("date", month.toString()))
+                                .toString())
+                        } else if (budgetFixture.get()) {
+                            val month = LocalDate.now().withDayOfMonth(1)
+                            json(JSONArray()
+                                .put(transaction("budget-a1", "90.00", "Spesa A", FOOD_ID).put("date", month.minusMonths(2).toString()))
+                                .put(transaction("budget-b1", "10.00", "Spesa B", TRANSPORT_ID).put("date", month.minusMonths(2).toString()))
+                                .put(transaction("budget-a2", "10.00", "Spesa A", FOOD_ID).put("date", month.minusMonths(1).toString()))
+                                .put(transaction("budget-b2", "90.00", "Spesa B", TRANSPORT_ID).put("date", month.minusMonths(1).toString()))
+                                .put(transaction("budget-a3", "10.00", "Spesa A", FOOD_ID).put("date", month.toString()))
+                                .put(transaction("budget-b3", "10.00", "Spesa B", TRANSPORT_ID).put("date", month.toString()))
+                                .put(transaction("budget-uncategorized", "40.00", "Spesa senza categoria", FOOD_ID).put("category_id", JSONObject.NULL))
+                                .put(transaction("budget-usd", "40.00", "Spesa USD", FOOD_ID).put("currency", "USD"))
+                                .put(transaction("budget-boundary", "9000.00", "Spesa al confine", FOOD_ID).put("date", LocalDate.now().minusDays(730).toString()))
+                                .put(transaction("budget-income", "9000.00", "Entrata", FOOD_ID).put("type", "income"))
+                                .toString())
+                        } else if (url.queryParameter("description") != null) {
                             val name = url.queryParameter("description")!!.removePrefix("eq.")
                             val dates = url.queryParameterValues("date")
                             val start = dates.first { it!!.startsWith("gte.") }!!.removePrefix("gte.")

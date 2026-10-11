@@ -2,7 +2,7 @@
 
 ## Risultati eseguiti il 11 ottobre 2026
 
-Su Windows, JBR Android Studio 21, Gradle 8.13, SDK 36: APK debug e release ottimizzata compilati sull'AVD SavelyTest (Android 15/API 35, x86_64, Pixel 2, WHPX, GPU software). I 171 test JVM e 26 test Android integrati passano senza failure, errori o skip. Il test Python del mapping sorgenti passa; il report sul checkout web di riferimento indica zero file cambiati e lascia la parità non verificata.
+Su Windows, JBR Android Studio 21, Gradle 8.13, SDK 36: APK debug e release ottimizzata 0.1.1-alpha compilati e testati sull'AVD SavelyTest (Android 15/API 35, x86_64, Pixel 2, WHPX, GPU software). I 193 test JVM e 32 test Android integrati passano senza failure, errori o skip. Il test Python del mapping sorgenti passa; il report sul checkout web di riferimento indica zero file cambiati e lascia la parità non verificata. I report di questa versione sono conservati localmente in `artifacts/verified-0.1.1/` prima dei blocchi successivi.
 
 La prima esecuzione dei cinque test Android ha passato quattro casi e fallito il caso del ciphertext corrotto: il test scriveva in device-protected storage mentre lo store ricavava l'application context e leggeva un'altra area. Il test usa ora un ContextWrapper con namespace isolato. La seconda esecuzione ha passato tutti i nove casi, inclusi quattro flussi HTTPS con Keystore e JSON Android, senza skip.
 
@@ -10,13 +10,17 @@ Il primo lint completo ha rilevato un errore nel percorso SDK del file locale: i
 
 Il cold start misurato una volta con `adb shell am start -W` ha restituito 4696 ms, prima della stabilizzazione dell'emulatore e con Gradle attivo. È un'osservazione del dispositivo virtuale, non un benchmark del telefono.
 
-APK release: 1.784.528 byte, firma APK v2 verificata da apksigner, SHA-256 `ada5e306ef285191ce6949e7d2be01d1e87a97466251acf458c12481cb58c035`. L'installazione release e l'apertura senza account sono riuscite; una misura singola di cold start restituisce 1443 ms. Screenshot controllati in portrait, landscape e a 360×640 dp con font scale 1,5: campi e pulsanti restano raggiungibili scorrendo. Questa prova non copre le schermate dopo accesso o una tastiera su telefono reale.
+APK release 0.1.1-alpha: 1.800.912 byte, versionCode 2, firma APK v2 verificata da apksigner, SHA-256 `2a53238a2a46cb96b0af0f5163675e7e87d2c27e4bfa58b3fff1f69135eb4e04`. L'installazione sopra la 0.1.0-alpha con versionCode 1 e la stessa firma passa; avvio senza account e screenshot controllati, cold start singolo 1636 ms. Non verifica conservazione di una sessione reale né prestazioni del telefono. Sulla precedente 0.1.0, screenshot portrait, landscape e a 360×640 dp con font scale 1,5 mostrano campi e pulsanti raggiungibili scorrendo.
 
-L'APK aggiornato è stato installato sopra la precedente alpha interna con la stessa firma: entrambe le installazioni sono riuscite e l'accesso anonimo resta leggibile. Entrambe le alpha interne hanno versionCode 1 e non sono release pubblicate: questa sostituzione verifica la compatibilità della firma, senza certificare conservazione di una sessione reale o l'aggiornamento su telefono. Prima di distribuire una versione successiva occorre aumentare versionCode.
+La prima sostituzione fra alpha interne 0.1.0 usava versionCode 1 per entrambe. La prova successiva 0.1.0→0.1.1 verifica anche l'aumento reale a versionCode 2. Non sono release stabili pubblicate.
 
 I nuovi test FIRE e ricorrenze hanno richiesto correzioni del solo harness: attesa di fine scroll e coordinate stabili prima del touch, attesa del controllo abilitato dopo refresh e composizione dell'header prima dei messaggi. I nove casi mirati passano con touch normale; la successiva suite completa passa tutti i 26 test. La produzione ha ricevuto una regressione separata per l'etichetta della fase di validazione di una ricorrenza successiva a un record già salvato.
 
+La 0.1.1 aggiunge 22 test JVM e sei test Android: mediana globale Budget e mezzo centesimo, soglia perdita esatta, parser/persistenza/ripresa Manga e filtri Libreria/TCG. Il primo run collezioni si bloccava durante lo scroll perché il dispatcher manuale non eseguiva la coroutine accodata: corretto usando la regola Compose standard. Un matcher del totale Libreria selezionava anche i singoli record: ora identifica il riepilogo completo. La suite finale passa tutti i 32 casi con touch normali e timeout dei nuovi test, senza cambiamenti di produzione per queste due correzioni del harness.
+
 ## Comandi
+
+La CI GitHub del commit `020ac8161fcaeba3b2e1c75cdc6ae79edb90a7c8` passa sia build/lint/JVM sia instrumentation Android API 35: [esecuzione 38154018127](https://github.com/GoryNickel9/Savely-Android/actions/runs/38154018127). Questa revisione copre l'alpha 0.1.0, prima dei nuovi blocchi Budget/Manga. La prima esecuzione aveva fallito il setup SDK richiedendo il pacchetto rimosso `tools`; il workflow ora specifica platform-tools, platform Android 36 e build-tools 36.0.0.
 
 ```sh
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
@@ -25,7 +29,7 @@ python -m unittest discover -s tools -p 'test_web_parity_audit.py'
 python tools/web_parity_audit.py --web-repo ../Savely --output artifacts/web-parity-audit.json
 ```
 
-I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. Gli 26 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione.
+I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 32 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
 
 ## Smoke aggiuntivo sul backend reale
 
@@ -57,9 +61,15 @@ $env:JAVA_TOOL_OPTIONS = '-Djdk.net.unixdomain.tmpdir=C:/savely-nonexistent-sock
 
 Non creare quella directory e non modificare opzioni Java globali. Il percorso non è necessario su CI Linux.
 
+## Lettura sul sito distribuito
+
+Lo [smoke web](TESTING_WEB_READ.md) passa su `https://www.savely.cc/transactions`, origine canonica osservata tramite redirect HTTP 308. Edge usa un processo e contesto temporanei separati. Un movimento host da EUR 0,01 compare una sola volta con marker UUID e importo corretto; riga rimossa e sola sessione QA revocata, senza pulizia pendente. Non sono consentite scritture dal browser.
+
+È passato anche il [flusso unico Android→sito](TESTING_ANDROID_WEB.md), run `99480d6e-a832-4e35-a72b-5f6057e9599f`: creazione tramite repository nel processo Android, lettura nella vera MainActivity e lettura della stessa riga nel browser. Preparazione instrumentation 12,456 secondi, cleanup 2,821 secondi; questi tempi non misurano l'intero flusso. Il report finale conferma eliminazione, logout della sola sessione temporanea, clear locale e `cleanup_pending=false`. Screenshot della riga controllato. Submit della form Android, login con password, telefono e SHA del deploy restano non verificati.
+
 ## Gate prima di dichiarare stabile M1
 
-1. Account sintetico: login con password e lettura della transazione anche dal sito. Sessione temporanea, riavvio completo e logout reale sono verificati; il rinnovo con token scaduto è coperto da fixture.
+1. Account sintetico: login con password. CRUD repository nativo, flusso unico Android→sito, sessione temporanea, riavvio completo e logout reale sono verificati; il rinnovo con token scaduto è coperto da fixture. Il submit della form sul backend reale resta distinto dallo smoke repository.
 2. Emulatore: test senza skip, errori e rete assente, tastiera, orientamento, font grandi e navigazione; lint senza errori bloccanti.
 3. Telefono: installazione APK firmato e aggiornamento con la stessa chiave, senza perdita della sessione.
 

@@ -15,6 +15,21 @@ class FinanceModelsTest {
         currency: String = "EUR", category: String? = "food",
     ) = FinanceTransaction("id-$amount-$date", type, BigDecimal(amount), currency, LocalDate.parse(date), "Spesa", category)
 
+    @Test fun `currency display rounds halves up with two digits without changing exact input`() {
+        val cases = listOf("0.305" to "0,31", "0.005" to "0,01", "-0.305" to "-0,31", "-0.005" to "-0,01")
+        supportedCurrencies.forEach { currency ->
+            cases.forEach { (raw, expected) ->
+                val amount = raw.toBigDecimal()
+                val before = amount.toPlainString()
+                val formatted = formatMoney(amount, currency)
+                val numericText = Regex("-?\\d+,\\d+").find(formatted)?.value
+                assertEquals("$currency $raw display", expected, numericText)
+                assertEquals("Formatting must retain $currency exact input", before, amount.toPlainString())
+                assertEquals(3, amount.scale())
+            }
+        }
+    }
+
     @Test fun `Italian amount and SQL rounding preserve decimal value`() {
         assertEquals(BigDecimal("1234.56"), parseMoney("1.234,56"))
         assertEquals(BigDecimal("10.50"), parseMoney("10,50"))
@@ -93,6 +108,63 @@ class FinanceModelsTest {
     @Test fun `budget includes future populated months as web does`() {
         val rows = listOf(transaction("20", "2026-08-01"), transaction("80", "2026-12-01"))
         assertEquals(BigDecimal("50"), medianMonthlyExpense(rows, LocalDate.parse("2026-10-11")))
+    }
+
+    @Test fun `global budget median groups all categories before taking median`() {
+        val today = LocalDate.parse("2026-10-11")
+        val rows = listOf(
+            transaction("100", "2026-01-01", category = "food"), transaction("10", "2026-02-01", category = "food"),
+            transaction("10", "2026-03-01", category = "food"), transaction("10", "2026-01-01", category = "travel"),
+            transaction("100", "2026-02-01", category = "travel"), transaction("10", "2026-04-01", category = "travel"),
+            transaction("20", "2026-03-01", category = null),
+        )
+        val summary = budgetCurrencySummaries(listOf(FinanceBudget("b1", "food", BigDecimal("40"), "EUR"),
+            FinanceBudget("b2", "travel", BigDecimal("10"), "EUR")), rows, today).single()
+        assertEquals(BigDecimal("20"), medianMonthlyExpense(rows, today, "food") + medianMonthlyExpense(rows, today, "travel"))
+        // Global populated-month totals are 110, 110, 30, 10; median is 70, not the category median sum.
+        assertEquals(BigDecimal("70"), summary.monthlyMedianExpense)
+        assertEquals(BigDecimal("50"), summary.totalBudget)
+        assertEquals(BigDecimal("20"), summary.difference)
+    }
+
+    @Test fun `global budget preserves date boundary future dates and uncategorized expenses`() {
+        val today = LocalDate.parse("2026-10-11")
+        val rows = listOf(transaction("9000", today.minusDays(730).toString()),
+            transaction("8000", today.minusDays(731).toString()),
+            transaction("20", "2026-08-01", category = null),
+            transaction("80", "2026-12-01", category = "removed"),
+            transaction("7000", "2026-09-01", type = TransactionType.INCOME),
+            transaction("6000", "2020-01-01", currency = "JPY"))
+        val summary = budgetCurrencySummaries(listOf(FinanceBudget("b", "food", BigDecimal("60"), "EUR")), rows, today).single()
+        assertEquals("EUR", summary.currency)
+        assertEquals(BigDecimal("50"), summary.monthlyMedianExpense)
+        assertEquals(BigDecimal("-10"), summary.difference)
+    }
+
+    @Test fun `budget currencies include unbudgeted expenses and unspent budgets without conversion`() {
+        val rows = listOf(transaction("0.10", "2026-08-01"), transaction("0.20", "2026-08-01"),
+            transaction("0.31", "2026-10-01"), transaction("40.00", currency = "USD"))
+        val summaries = budgetCurrencySummaries(listOf(FinanceBudget("eur1", "food", BigDecimal("0.10"), "EUR"),
+            FinanceBudget("eur2", "removed", BigDecimal("0.20"), "EUR"),
+            FinanceBudget("gbp", "food", BigDecimal("10.00"), "GBP")), rows, LocalDate.parse("2026-10-11"))
+        assertEquals(listOf("EUR", "GBP", "USD"), summaries.map { it.currency })
+        assertEquals(BigDecimal("0.30"), summaries[0].totalBudget)
+        assertEquals(BigDecimal("0.305"), summaries[0].monthlyMedianExpense)
+        assertEquals(BigDecimal("0.005"), summaries[0].difference)
+        assertEquals(BigDecimal.ZERO, summaries[1].monthlyMedianExpense)
+        assertEquals(BigDecimal("-10.00"), summaries[1].difference)
+        assertEquals(BigDecimal.ZERO, summaries[2].totalBudget)
+        assertEquals(BigDecimal("40.00"), summaries[2].difference)
+    }
+
+    @Test fun `empty budget summary does not invent a currency or populate months with income`() {
+        assertEquals(emptyList<BudgetCurrencySummary>(), budgetCurrencySummaries(emptyList(),
+            listOf(transaction("100", type = TransactionType.INCOME, currency = "USD")), LocalDate.parse("2026-10-11")))
+        val zero = budgetCurrencySummaries(listOf(FinanceBudget("zero", "food", BigDecimal.ZERO, "EUR")),
+            emptyList(), LocalDate.parse("2026-10-11")).single()
+        assertEquals(BigDecimal.ZERO, zero.totalBudget)
+        assertEquals(BigDecimal.ZERO, zero.monthlyMedianExpense)
+        assertEquals(BigDecimal.ZERO, zero.difference)
     }
 
     @Test fun `monthly quarterly yearly dates clamp to end of month`() {

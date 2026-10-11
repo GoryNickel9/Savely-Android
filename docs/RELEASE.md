@@ -2,6 +2,8 @@
 
 La versione iniziale è un'alpha. Build e test locali non sostituiscono i gate backend e telefono in `TESTING.md`. Non è stata pubblicata una release stabile.
 
+Ultimo APK locale verificato: `artifacts/savely-0.1.1-alpha.apk`, versionCode 2, 1.800.912 byte, SHA-256 `2a53238a2a46cb96b0af0f5163675e7e87d2c27e4bfa58b3fff1f69135eb4e04`. Firma v2 verificata, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1`. Aggiornamento sopra la 0.1.0-alpha riuscito sul solo AVD SavelyTest, senza account; sessione reale e telefono restano aperti. La precedente alpha e i due checksum sono conservati in `artifacts/`, esclusa da Git.
+
 ## Debug
 
 `./gradlew :app:assembleDebug` produce `app/build/outputs/apk/debug/app-debug.apk`, firmato dalla chiave debug locale. Serve alle prove; una firma diversa richiede disinstallazione e può rimuovere la sessione e le preferenze. Non usare la chiave debug per la distribuzione definitiva.
@@ -25,7 +27,7 @@ Su questo checkout è stata generata una chiave locale RSA 3072 in `signing/save
 
 ## Distribuzione
 
-I workflow Android vivono solo in questa repo. Sono presenti build/test, audit sorgenti e `release.yml` per una build firmata manuale; non sono ancora stati eseguiti su GitHub. Il workflow di firma verifica APK e checksum e carica artifact, senza pubblicare una GitHub Release. Richiede variabili pubbliche Supabase e i secret `SAVELY_KEYSTORE_BASE64`, `SAVELY_STORE_PASSWORD`, `SAVELY_KEY_ALIAS`, `SAVELY_KEY_PASSWORD`; non sono ancora configurati. L'audit non cambia Savely o la baseline. Se Savely è privata, necessita di `SAVELY_WEB_READ_TOKEN` con accesso in sola lettura a quella repo.
+I workflow Android vivono solo in questa repo. Sono presenti build/test, audit sorgenti e `release.yml` per una build firmata manuale; build/test della versione 0.1.0-alpha passa su GitHub ([CI 38154018127](https://github.com/GoryNickel9/Savely-Android/actions/runs/38154018127)); firma e audit manuali non sono stati eseguiti. La prima CI ha fallito il setup SDK perché chiedeva il pacchetto rimosso tools; il workflow ora richiede esplicitamente i pacchetti Android 36 supportati. Il workflow di firma verifica APK e checksum e carica artifact, senza pubblicare una GitHub Release. Richiede variabili pubbliche Supabase e i secret `SAVELY_KEYSTORE_BASE64`, `SAVELY_STORE_PASSWORD`, `SAVELY_KEY_ALIAS`, `SAVELY_KEY_PASSWORD`; non sono ancora configurati. L'audit non cambia Savely o la baseline. Se Savely è privata, necessita di `SAVELY_WEB_READ_TOKEN` con accesso in sola lettura a quella repo.
 
 L'installazione diretta richiede il consenso Android per la sorgente usata per aprire l'APK. La schermata nativa Versione e aggiornamenti consulta le release stabili pubbliche e apre note e download nel browser; l'utente conferma l'installazione. Un controllo pubblico all'apertura della sessione mostra un collegamento quando esiste una versione stabile più recente; un errore non interrompe le funzioni finanziarie e può essere ritentato dalla schermata. Il controllo usa la [REST API GitHub](https://docs.github.com/en/rest/releases/releases#get-the-latest-release) senza credenziali; le prerelease non sono proposte automaticamente. Il download e l'installazione restano gestiti dal browser e da Android secondo il [normale intent web](https://developer.android.com/guide/components/intents-common#Browser).
 

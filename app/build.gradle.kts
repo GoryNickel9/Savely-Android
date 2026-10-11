@@ -37,11 +37,11 @@ android {
         applicationId = "cc.savely.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-alpha"
+        versionCode = 2
+        versionName = "0.1.1-alpha"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Real-backend smoke is invoked explicitly with a private synthetic-user session.
-        testInstrumentationRunnerArguments["notClass"] = "cc.savely.android.data.RealBackendSmokeTest,cc.savely.android.data.RealProcessDeathSmokeTest"
+        testInstrumentationRunnerArguments["notClass"] = "cc.savely.android.data.RealBackendSmokeTest,cc.savely.android.data.RealProcessDeathSmokeTest,cc.savely.android.data.RealAndroidWebSmokeTest"
         buildConfigField("String", "SUPABASE_URL", quoted(backendSetting("SUPABASE_URL")))
         buildConfigField("String", "SUPABASE_ANON_KEY", quoted(publicBackendKey))
         buildConfigField("String", "WEB_URL", quoted(backendSetting("WEB_URL", "https://savely.cc")))

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1-alpha — 11 ottobre 2026
+
+Budget con mediana mensile globale e riepiloghi separati per valuta; arrotondamento monetario `HALF_UP` e soglia di perdita del portafoglio confrontata prima di arrotondare. Manga con intervalli fino a 100 record, prezzi unitari, UUID stabili, riconciliazione delle risposte ambigue e ripresa esplicita della serie dopo ripristino dello stato della composizione.
+
+Passano 193 test JVM, 32 test Android e lint debug/release senza errori. Verificati i filtri Libreria/TCG su fixture TLS e il flusso reale della stessa transazione da Android al sito, con eliminazione e pulizia complete. APK firmato con versionCode 2; aggiornamento sopra la 0.1.0 verificato sull'AVD senza account. Login con password, telefono, sessione reale durante aggiornamento e parità completa restano aperti. Nessuna modifica al web o alla configurazione backend.
+
 ## 0.1.0-alpha — 11 ottobre 2026
 
 Prima app nativa Kotlin/Compose, con backend Savely condiviso, sessioni cifrate, permessi, finanza e moduli. Aggiunti import/export CSV con anteprima, testi legali nativi, persistenza FIRE per account, test dei contratti e fixture numeriche del web.

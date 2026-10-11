@@ -2,7 +2,7 @@
 
 App Android nativa di Savely in Kotlin e Jetpack Compose, con account e dati condivisi con il sito.
 
-Stato al 11 ottobre 2026: APK alpha firmato e ottimizzato generato e installato su emulatore Android 15; 171 test JVM, 26 test Android e smoke aggiuntivi sul backend reale superati, lint debug/release senza errori. Sessione E2E, dashboard, transazione CRUD e ripristino in un nuovo processo verificati sul backend condiviso. Login con password, telefono fisico e parità completa restano aperti.
+Stato al 11 ottobre 2026: APK 0.1.1-alpha firmato e ottimizzato, aggiornamento dalla 0.1.0 installato su emulatore Android 15; 193 test JVM, 32 test Android e smoke aggiuntivi sul backend reale superati, lint debug/release senza errori. Sessione E2E, dashboard, transazione CRUD, ripristino in un nuovo processo e lettura della stessa transazione Android sul sito verificati. Login con password, telefono fisico e parità completa restano aperti.
 
 Sono presenti accesso e sessione cifrata, dashboard, transazioni, categorie, budget, ricorrenze, grafici, portafoglio, patrimonio, import/export CSV, FIRE, Poker, Fumo, TCG, Libreria, Coppia e impostazioni. La presenza di una schermata non certifica tutti i flussi: i contratti e le lacune sono registrati nei documenti delle singole aree.
 

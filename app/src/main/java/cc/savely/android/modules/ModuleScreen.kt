@@ -425,6 +425,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
         var editRow by remember { mutableStateOf<JSONObject?>(null) }
         var seed by remember { mutableStateOf<JSONObject?>(null) }
         var formOpen by remember { mutableStateOf(false) }
+        var mangaCreationOpen by rememberSaveable { mutableStateOf(false) }
         var searchOpen by remember { mutableStateOf(false) }
         var filterText by rememberSaveable { mutableStateOf("") }
         var filterSet by rememberSaveable { mutableStateOf<String?>(null) }
@@ -451,7 +452,10 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
         }
         LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button({ editRow = null; seed = null; formOpen = true }, enabled = !loading && dataReady) { Text("Aggiungi") }
+                Button({ editRow = null; seed = null
+                    if (schema.table == "library_items" && schema.category == "manga") mangaCreationOpen = true
+                    else formOpen = true
+                }, enabled = !loading && dataReady) { Text("Aggiungi") }
                 OutlinedButton({ revision++ }, enabled = !loading) { Text("Aggiorna") }
             } }
             if (schema.table == "tgc_cards" || (schema.table == "library_items" && schema.category != "manga")) item {
@@ -553,7 +557,8 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
         if (searchOpen) CatalogSearchDialog(catalog, schema, { searchOpen = false }) {
             seed = it; editRow = null; searchOpen = false; formOpen = true
         }
-        if (formOpen) RecordForm(api, catalog, schema, editRow, seed, rows, { formOpen = false }) { revision++ }
+        if (formOpen || mangaCreationOpen) RecordForm(api, catalog, schema, editRow, seed, rows,
+            { formOpen = false; mangaCreationOpen = false }) { revision++ }
         deleteRow?.let { row ->
             AlertDialog(onDismissRequest = { if (!loading) { deleteRow = null; deleteError = null } }, title = { Text("Eliminare questo record?") },
                 text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -586,21 +591,55 @@ private fun readField(row: JSONObject, field: Field): String {
 @Composable
 private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: RecordSchema, row: JSONObject?, seed: JSONObject?, existing: List<JSONObject>, close: () -> Unit, saved: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val mangaCreation = row == null && schema.table == "library_items" && schema.category == "manga"
+    var volumeRange by rememberSaveable { mutableStateOf("") }
+    var batchSnapshot by rememberSaveable { mutableStateOf<String?>(null) }
+    val restoredBatch = remember(batchSnapshot) { runCatching { batchSnapshot?.let(MangaVolumeBatch::decode) } }
+    val batch = restoredBatch.getOrNull()
+    val rangeResult = remember(volumeRange) { runCatching { MangaVolumes.parse(volumeRange) } }
+    val volumeNumbers = rangeResult.getOrNull()
+    val mangaRepository = remember(api) { MangaVolumeRepository(api) }
     val values = remember { mutableStateMapOf<String, String>().apply { schema.fields.forEach { field ->
-        val initial = row ?: seed
-        put(field.key, if (initial != null && initial.has(field.key)) readField(initial, field) else field.default)
+        val initial = row ?: seed ?: batch?.volumes?.firstOrNull()?.body()
+        put(field.key, if (field.key == "title" && batch != null) batch.baseTitle
+            else if (initial != null && initial.has(field.key)) readField(initial, field) else field.default)
     } } }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var invalidField by remember { mutableStateOf<String?>(null) }
+    suspend fun saveSeries(plan: MangaVolumeBatch) {
+        var latest = plan
+        try {
+            mangaRepository.save(plan) { progress -> latest = progress; batchSnapshot = progress.encode() }
+        } finally {
+            if (latest.completed > plan.completed) saved()
+        }
+        close()
+    }
     AlertDialog(onDismissRequest = { if (!loading) close() }, title = { Text(if (row == null) "Aggiungi" else "Modifica") }, text = {
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (mangaCreation) {
+                OutlinedTextField(volumeRange, { volumeRange = it }, Modifier.fillMaxWidth(),
+                    label = { Text("Numero volume o intervallo (facoltativo)") }, placeholder = { Text("3 oppure 1-5") },
+                    singleLine = true, enabled = !loading && batchSnapshot == null, isError = rangeResult.isFailure)
+                if (batchSnapshot == null && rangeResult.isFailure) Text(rangeResult.exceptionOrNull()?.message ?: "Intervallo non valido", color = MaterialTheme.colorScheme.error)
+                if (batchSnapshot == null && volumeNumbers != null) Text(
+                    "${volumeNumbers.size} volumi separati, quantità 1 ciascuno. Prezzo di acquisto e rivendita sono per volume.",
+                    style = MaterialTheme.typography.bodySmall)
+                batch?.let { Text("${it.completed}/${it.total} volumi confermati · ${it.baseTitle}", style = MaterialTheme.typography.titleSmall) }
+                if (batchSnapshot != null) Text(
+                    "La serie è fissata. Riprendi verifica l'ultimo volume e continua. Chiudendo, i volumi già salvati restano nella collezione; controllala prima di aggiungere nuovamente la serie.",
+                    style = MaterialTheme.typography.bodySmall)
+                if (restoredBatch.isFailure) Text("Serie locale non leggibile. Chiudi e controlla la collezione prima di riprovare.", color = MaterialTheme.colorScheme.error)
+            }
             schema.fields.forEach { field ->
-                if (field.choices.isNotEmpty()) {
+                if (mangaCreation && field.key == "quantity" && (volumeNumbers != null || batchSnapshot != null)) {
+                    // Each expanded manga volume is a separate quantity-1 record, as in the web.
+                } else if (field.choices.isNotEmpty()) {
                     Text(field.label)
                     field.choices.forEach { choice -> FilterChip(values[field.key] == choice, { values[field.key] = choice }, label = { Text(choice.replace('_', ' ')) }) }
                 } else OutlinedTextField(values[field.key] ?: "", { values[field.key] = it; invalidField = null }, Modifier.fillMaxWidth(),
-                    label = { Text(field.label + if (field.optional) " (facoltativo)" else "") }, enabled = !loading,
+                    label = { Text(field.label + if (field.optional) " (facoltativo)" else "") }, enabled = !loading && batchSnapshot == null,
                     singleLine = field.key != "notes", isError = invalidField == field.key,
                     keyboardOptions = KeyboardOptions(keyboardType = if (field.type in listOf(FieldType.NUMBER, FieldType.INTEGER)) KeyboardType.Decimal else KeyboardType.Text))
             }
@@ -609,10 +648,17 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
         }
     }, confirmButton = { TextButton(onClick = {
         scope.launch {
+            if (loading) return@launch
             loading = true
             try {
+                if (mangaCreation && batchSnapshot != null) {
+                    saveSeries(batch ?: error("Serie locale non leggibile"))
+                    return@launch
+                }
+                if (mangaCreation) rangeResult.getOrThrow()
                 val payload = if (row == null && seed != null) JSONObject(seed.toString()) else JSONObject()
                 for (field in schema.fields) {
+                    if (mangaCreation && volumeNumbers != null && field.key == "quantity") { payload.put("quantity", 1); continue }
                     invalidField = field.key
                     val text = values[field.key].orEmpty().trim()
                     require(field.optional || text.isNotEmpty()) { "${field.label}: campo obbligatorio" }
@@ -647,6 +693,14 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                         .put("euro_al_giorno", derived.euroPerDay ?: JSONObject.NULL).put("costo_mensile", derived.monthlyCost ?: JSONObject.NULL)
                 }
                 schema.category?.let { payload.put("category", it) }
+                if (mangaCreation && volumeNumbers != null) {
+                    val owner = api.session()?.userId ?: error("Sessione scaduta")
+                    val plan = MangaVolumes.prepare(owner, payload, volumeNumbers)
+                    batchSnapshot = plan.encode()
+                    error = null
+                    saveSeries(plan)
+                    return@launch
+                }
                 if (row == null && schema.table == "tgc_cards" && seed != null && payload.isNull("current_price")) {
                     val price = try { catalog.cardPrice(seed.getString("card_id"), payload.getString("condition")) }
                         catch (failure: CancellationException) { throw failure }
@@ -660,7 +714,9 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
             catch (failure: Exception) { error = failure.message ?: "Salvataggio non riuscito" }
             finally { loading = false }
         }
-    }, enabled = !loading) { Text("Salva") } }, dismissButton = { TextButton(close, enabled = !loading) { Text("Annulla") } })
+    }, enabled = !loading && (!mangaCreation || (restoredBatch.isSuccess && (batchSnapshot != null || rangeResult.isSuccess)))) {
+        Text(when { batchSnapshot != null -> "Riprendi serie"; mangaCreation && volumeNumbers != null -> "Aggiungi ${volumeNumbers.size} volumi"; else -> "Salva" })
+    } }, dismissButton = { TextButton(close, enabled = !loading) { Text(if (batchSnapshot != null) "Chiudi serie" else "Annulla") } })
 }
 
 private fun yearlyMetrics(schema: RecordSchema, rows: List<JSONObject>, deal: Double): List<Pair<String, String>> {
