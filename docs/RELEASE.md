@@ -2,7 +2,7 @@
 
 La versione iniziale è un'alpha. Build e test locali non sostituiscono i gate backend e telefono in `TESTING.md`. Non è stata pubblicata una release stabile.
 
-Ultimo APK locale verificato: `artifacts/savely-0.1.2-alpha.apk`, versionCode 3, 1.800.912 byte, SHA-256 `080ed2c9da69779d5e64f2e19186bee537a4e4ade4c93c3edceead7cbbbdd384`. Firma v2 verificata, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1`. Aggiornamento sopra la 0.1.1-alpha riuscito sul solo AVD SavelyTest, senza account; sessione reale durante aggiornamento e telefono restano aperti. Le alpha precedenti e i checksum sono conservati in `artifacts/`, esclusa da Git.
+Ultimo APK locale verificato: `artifacts/savely-0.1.3-alpha.apk`, versionCode 4, 1.800.916 byte, SHA-256 `beb12d54d9660e18ae08ed01fac7177e2ca1f9d334a071a5edbd71ec38f5aaaf`. Firma v2 verificata, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1`. Aggiornamento sopra la 0.1.2-alpha riuscito sul solo AVD SavelyTest, senza account; sessione reale durante aggiornamento e telefono restano aperti. Le alpha precedenti e i checksum sono conservati in `artifacts/`, esclusa da Git.
 
 ## Debug
 

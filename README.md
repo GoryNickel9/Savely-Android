@@ -2,7 +2,7 @@
 
 App Android nativa di Savely in Kotlin e Jetpack Compose, con account e dati condivisi con il sito.
 
-Stato al 11 ottobre 2026: APK 0.1.2-alpha firmato e ottimizzato, aggiornamento dalla 0.1.1 installato su emulatore Android 15; 212 test JVM e 36 Android superati, lint debug/release senza errori. Verificati invalidazione immediata delle sessioni, tre rilevatori Insights su otto e flussi Guadagno orario Poker. Passano anche sincronizzazione della stessa transazione Android→sito e ripristino della sessione in un nuovo processo. Login con password, telefono fisico e parità completa restano aperti.
+Stato al 11 ottobre 2026: APK 0.1.3-alpha firmato e ottimizzato, aggiornamento dalla 0.1.2 installato su emulatore Android 15; 226 test JVM e 39 Android superati, lint debug/release senza errori. Corretta l’origine API per recupero password e Admin; Insights copre quattro rilevatori su otto. Verificati anche retry MFA e salvataggio/modifica Fumo su fixture. La 0.1.2 ha verificato sincronizzazione Android→sito e ripristino della sessione in un nuovo processo. Login con password, telefono fisico e parità completa restano aperti.
 
 Sono presenti accesso e sessione cifrata, dashboard, transazioni, categorie, budget, ricorrenze, grafici, portafoglio, patrimonio, import/export CSV, FIRE, Poker, Fumo, TCG, Libreria, Coppia e impostazioni. La presenza di una schermata non certifica tutti i flussi: i contratti e le lacune sono registrati nei documenti delle singole aree.
 

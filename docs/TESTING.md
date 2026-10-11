@@ -2,6 +2,10 @@
 
 ## Risultati eseguiti il 11 ottobre 2026
 
+La build integrata 0.1.3-alpha passa 226 test JVM e 39 Android, zero failure/errori/skip, lint debug/release zero errori e 24 avvertenze. I sorgenti app corrispondono allo snapshot prima della build. Aggiunge 14 JVM e tre Android: origine API canonica con callback/Origin invariati e redirect rifiutati, retry MFA, quarto segnale Insights e creazione/modifica Fumo con derivati null al reset. Suite Android: 281.334 secondi, osservazione locale sull’AVD Android 15. Report conservati in `artifacts/verified-0.1.3/`.
+
+APK 0.1.3-alpha: versionCode 4, 1.800.916 byte, SHA-256 `beb12d54d9660e18ae08ed01fac7177e2ca1f9d334a071a5edbd71ec38f5aaaf`, firma v2 e stessa chiave. Aggiornamento 0.1.2→0.1.3 e login anonimo verificati sull’AVD. Scansione entry APK senza credenziali privilegiate rilevate. Non sono stati ripetuti gli smoke finanziari reali del blocco 0.1.2. La prova HTTP anonima del routing ha osservato 308 dall’apex e 400/403 dalle API canoniche con body vuoto; non verifica email o ruoli Admin reali.
+
 Su Windows, JBR Android Studio 21, Gradle 8.13, SDK 36: APK debug e release ottimizzata 0.1.2-alpha compilati e testati sull'AVD SavelyTest (Android 15/API 35, x86_64, Pixel 2, WHPX, GPU software). I 212 test JVM e 36 Android integrati passano senza failure, errori o skip. Lint debug/release: zero errori e 23 avvertenze note. Il test Python del mapping sorgenti passa; il report sul checkout web indica zero file cambiati e lascia la parità non verificata. I report sono conservati in `artifacts/verified-0.1.2/`; quelli della 0.1.1 restano separati.
 
 La 0.1.2-alpha aggiunge 19 test JVM e quattro Android: invalidazione globale della sessione da chiamate esterne al ViewModel, protezione da risposte tardive e nuovi login, segnale saving_month con severità/filtri e Guadagno orario Poker con validazione, singolo submit e arrotondamento binario coerente con il web. La prima verifica completa passa in 10m31s; dopo la correzione dell'avvertenza Kotlin sul copy della data class, la verifica finale passa in 8m36s. XML finale: 212 JVM e 36 Android, zero failure/errori/skip; tempo della suite Android 212,027 secondi. Questi tempi descrivono esecuzioni locali, non benchmark del telefono.
@@ -26,6 +30,8 @@ La 0.1.1 aggiunge 22 test JVM e sei test Android: mediana globale Budget e mezzo
 
 ## Comandi
 
+La CI della 0.1.2-alpha, commit `8e6dd4ec9c013f9df7880491b3447ad43edd1f7f`, passa entrambi i job: [esecuzione 38160631288](https://github.com/GoryNickel9/Savely-Android/actions/runs/38160631288). Il report Android scaricato conferma 36 test, zero failure, zero skip e 100% di successo; report conservato in `artifacts/ci-38160631288-ui/`. Questa revisione precede il quarto rilevatore Insights e la correzione dell'origine delle API web.
+
 Anche la CI della 0.1.1-alpha, commit `3b086777d2104514e0cd7a797ffbe0c1d8dea723`, passa entrambi i job: [esecuzione 38157386878](https://github.com/GoryNickel9/Savely-Android/actions/runs/38157386878). Il report Android scaricato conferma 32 test, zero failure, zero skip e 100% di successo. Questo risultato precede il blocco 0.1.2 con invalidazione foreground e nuovo segnale Insights.
 
 La CI GitHub del commit `020ac8161fcaeba3b2e1c75cdc6ae79edb90a7c8` passa sia build/lint/JVM sia instrumentation Android API 35: [esecuzione 38154018127](https://github.com/GoryNickel9/Savely-Android/actions/runs/38154018127). Questa revisione copre l'alpha 0.1.0, prima dei nuovi blocchi Budget/Manga. La prima esecuzione aveva fallito il setup SDK richiedendo il pacchetto rimosso `tools`; il workflow ora specifica platform-tools, platform Android 36 e build-tools 36.0.0.
@@ -37,7 +43,7 @@ python -m unittest discover -s tools -p 'test_web_parity_audit.py'
 python tools/web_parity_audit.py --web-repo ../Savely --output artifacts/web-parity-audit.json
 ```
 
-I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 36 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
+I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 39 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
 
 ## Smoke aggiuntivo sul backend reale
 

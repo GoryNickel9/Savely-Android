@@ -6,6 +6,8 @@ Audit in sola lettura del repository web `Savely`, commit `1cfcf6297e85d56bfafe3
 
 `BackendConfig(url, anonKey, webUrl = "https://savely.cc")` accetta origini HTTPS; HTTP è ammesso soltanto per localhost nei test. La chiave è pubblicabile/anon. Le chiavi `sb_secret_*` e i JWT con ruolo diverso da `anon` vengono rifiutati. `apikey` va al backend Supabase; `/api/*` riceve soltanto il token dell'utente quando richiesto.
 
+`websiteApiUrl()` risolve soltanto l'origine di trasporto degli endpoint `/api/*`: l'origine HTTPS normalizzata `https://savely.cc/` usa `https://www.savely.cc/`. Origine canonica, domini personalizzati, localhost e porte diverse da 443 restano invariati. `websiteUrl()`, callback signup e header `Origin` mantengono il valore configurato, compresa l'origine apex prevista dalla allow-list recovery web. Non viene seguito alcun redirect HTTP e non cambia la configurazione globale. La prova reale del coordinatore ha osservato HTTP 308 dagli endpoint apex e HTTP 400/403 da quelli canonici con body vuoto e senza email o token: verifica il routing, non l'invio di email, l'accesso Admin o l'allow-list signup.
+
 `Session` contiene access token, refresh token, scadenza Unix in secondi, ID utente ed email. La rappresentazione testuale di sessione e configurazione esclude le chiavi e i token. `AndroidSessionStore` cifra il JSON con AES-GCM; la chiave vive in Android Keystore, il ciphertext nelle preferenze private. Il salvataggio usa `commit()` su dispatcher I/O. Il ripristino su un altro dispositivo o una chiave invalidata richiede un nuovo accesso. La configurazione Android deve escludere queste preferenze dal backup.
 
 `session()` rinnova i token 60 secondi prima della scadenza. Un mutex serializza rinnovo, login, signup, aggiornamento credenziali, verifica TOTP e logout. Dopo un 401, le richieste autenticate tentano un solo rinnovo e un solo retry. Non vengono ritentate scritture dopo timeout, disconnessioni o errori 5xx. Un errore di rete, un 5xx o una risposta malformata non elimina la sessione. Il refresh la elimina soltanto per codici espliciti di token/sessione revocati o scaduti, oppure `user_banned`/`user_not_found` con HTTP 400, 401 o 403. Questi casi richiedono una nuova autenticazione; un 403 generico non cancella le credenziali.
@@ -18,7 +20,7 @@ Audit in sola lettura del repository web `Savely`, commit `1cfcf6297e85d56bfafe3
 |---|---|---|
 | `signIn(email, password): Session` | `POST /auth/v1/token?grant_type=password`, email/password | Salva la sessione solo dopo risposta valida; conserva la sessione precedente se il login fallisce |
 | `signUp(email, password, fullName = ""): String` | RPC pubblica `get_registrations_enabled`, poi `POST /auth/v1/signup?redirect_to=<web>/auth/callback` | Conserva il toggle di registrazione; salva eventuale sessione oppure invita a confermare via email |
-| `requestPasswordReset(email)` | `POST <web>/api/reset-password`, `{email}`, senza token | Usa l'email branded esistente, con `Origin` uguale all'origine web configurata |
+| `requestPasswordReset(email)` | `POST <web API>/api/reset-password`, `{email}`, senza token | Usa l'email branded esistente, con `Origin` uguale all'origine web configurata |
 | `signOut()` | `POST /auth/v1/logout?scope=local` | Revoca la sessione corrente; cancella le credenziali locali anche se la revoca fallisce; restituisce l'errore di rete/server |
 | `updateAccount(email?, password?): JSONObject` | `PUT /auth/v1/user` | Restituisce utente aggiornato; aggiorna l'email locale secondo la risposta server |
 | `revokeSession(sessionId): Boolean` | RPC `delete_session`, `{p_session_id: <UUID>}` | Accetta solo un UUID canonico; `true` indica sessione corrente eliminata anche dallo store locale |
@@ -47,6 +49,8 @@ Il logout Android riguarda la sessione corrente; il default del SDK web revoca g
 | `unenrollTotp(factorId)` | `DELETE /auth/v1/factors/<id>` con token utente |
 
 La verifica accetta sei cifre, rimuovendo spazi e trattini. Segreti TOTP e URI non vengono registrati nei log. Il gate UI deve impedire la navigazione ai dati durante una verifica richiesta; il backend conserva la responsabilità dell'autorizzazione. I test JVM verificano challenge, corpo della verifica e sostituzione token, senza iscrivere fattori reali.
+
+Due nuove regressioni `AppViewModelTest` collegano il gate al client HTTP reale con MockWebServer. Il primo caso conserva sessione `aal1`, fattore e permessi vuoti dopo HTTP 400 `mfa_verification_failed`; un nuovo tentativo crea un altro challenge e legge il profilo soltanto dopo aver ricevuto `aal2` con lo stesso `session_id`. Il secondo conserva gate e store dopo HTTP 503, senza retry automatico, letture del profilo o logout. Questi due test passano nella build integrata 0.1.3-alpha di 226 test JVM; non verificano un autenticatore o account MFA reale.
 
 Riferimenti: `src/hooks/useMfa.ts`, `src/lib/mfa.ts` e implementazione HTTP del SDK `@supabase/auth-js` installato nel repository web.
 
@@ -101,7 +105,7 @@ Test aggiunti: sei casi puri `CoupleCalculationsTest`, sette casi con MockWebSer
 | `updateMinimal(table, id, body, query = "")` | PATCH `return=minimal,count=exact`; verifica `Content-Range` uguale a una riga, senza SELECT per soft delete |
 | `delete(table, id, query = "")` | Richiede esattamente una riga eliminata; zero righe diventa errore di record assente/non autorizzato |
 | `rpc(name, body = JSONObject())` | `Any`: `JSONObject`, `JSONArray`, stringa, numero, boolean o `JSONObject.NULL`, secondo il contratto RPC |
-| `webPost(path, body, authenticated = true)` | `JSONObject`; solo percorso `/api/<nome>` nell'origine configurata |
+| `webPost(path, body, authenticated = true)` | `JSONObject`; solo percorso `/api/<nome>` nell'origine API web risolta, con alias canonico limitato all'apex Savely |
 | `invokeFunction(name, body = JSONObject())` | Valore JSON della Edge Function; solo origine Supabase configurata |
 | `getFunction(name, query = "")` | GET autenticato della Edge Function; supporta `cardtrader-proxy` senza mutare il suo contratto |
 
@@ -114,6 +118,8 @@ Nomi di tabella/RPC/funzione e ID vengono validati prima del network. L'ID non p
 ## Verifica
 
 `SupabaseApiTest` usa un server locale MockWebServer e sessioni sintetiche. Copre login, toggle signup, redirect web, reset senza credenziali, refresh concorrente, refresh revocato/errore server, retry 401, filtri delle scritture, injection nei percorsi, parsing dei permessi, risultati RPC, verifica TOTP, logout fallito, redirect HTTP e payload malformato.
+
+Tre nuovi `BackendConfigTest` verificano alias, origine canonica e conservazione di domini/porte personalizzati e localhost. Due nuove fixture HTTPS `SupabaseApiTest` catturano l'URL di produzione prima di instradarlo solo a MockWebServer locale: reset senza credenziali, Admin con solo token utente, `Origin` e callback signup invariati, percorsi invalidi e rifiuto del redirect 308 senza inoltrare token. Questi cinque test passano nella build integrata 0.1.3-alpha di 226 test JVM; non chiamano il deploy o inviano email.
 
 Il blocco sull'invalidazione in primo piano aggiunge sette regressioni `AppViewModelTest`: refresh revocato chiamato fuori dal ViewModel, conservazione su rete e 503, revoca dopo rotazione trasparente, store illeggibile, risposta profilo sospesa e invalidazione in attesa mentre lo stesso utente effettua un nuovo accesso. Due test `AuthSecurityTest` coprono il proprietario precedente dello stesso o di un altro account, la pubblicazione tardiva e la revisione a ogni login. Usano solo MockWebServer e token sintetici. Passano nella build integrata 0.1.2-alpha di 212 test JVM: undici casi ViewModel e dodici AuthSecurity, senza failure, errori o skip.
 

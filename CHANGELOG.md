@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3-alpha — 11 ottobre 2026
+
+Gli endpoint recupero password e Admin usano il dominio canonico www per evitare il redirect 308 rifiutato dal client. Callback signup e Origin restano configurati come prima. Insights aggiunge possibili spese ricorrenti, con massimo tre candidati e copertura dichiarata 4/8.
+
+Passano 226 test JVM e 39 Android, inclusi retry MFA, filtri/esclusioni delle ricorrenze e salvataggio/modifica/reset dei derivati Fumo. Lint debug/release senza errori; APK firmato con versionCode 4 aggiornato sopra la 0.1.2 sul solo emulatore, senza account. Invio email reale, Admin reale, login con password, telefono e parità completa restano aperti.
+
 ## 0.1.2-alpha — 11 ottobre 2026
 
 Una sessione revocata o illeggibile azzera subito account e permessi anche da una chiamata diretta delle impostazioni; errori temporanei conservano la sessione. Eventi del vecchio login e risposte profilo tardive non sovrascrivono il nuovo stato. Insights aggiunge il mese di risparmio, severità e filtri, con copertura dichiarata 3/8. Guadagno orario Poker corregge ±0,125 in ±0,13 e conserva gli altri arrotondamenti del riferimento web.

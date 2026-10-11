@@ -4,9 +4,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import okhttp3.HttpUrl
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
@@ -14,6 +18,8 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.util.Base64
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 
 class SupabaseApiTest {
     private lateinit var server: MockWebServer
@@ -123,6 +129,57 @@ class SupabaseApiTest {
         assertNull(request.getHeader("Authorization"))
         assertNull(request.getHeader("apikey"))
         assertEquals(server.url("/").toString().removeSuffix("/"), request.getHeader("Origin"))
+    }
+
+    @Test fun productionApiAliasUsesCanonicalTlsTransportWithoutChangingSignupCallbackOrRecoveryOrigin() = runBlocking {
+        withWebTlsFixture { webClient, fixture, observed ->
+            store.save(liveSession())
+            fixture.enqueue(json("""{"ok":true}"""))
+            webClient.requestPasswordReset("person@example.com")
+            val reset = requireNotNull(fixture.takeRequest(5, TimeUnit.SECONDS))
+            assertEquals("https://www.savely.cc/api/reset-password", observed[0].toString())
+            assertEquals("POST", reset.method)
+            assertEquals("/api/reset-password", reset.path)
+            assertEquals("https://savely.cc", reset.getHeader("Origin"))
+            assertNull(reset.getHeader("Authorization"))
+            assertNull(reset.getHeader("apikey"))
+
+            fixture.enqueue(json("""{"users":[]}"""))
+            webClient.webPost("/api/admin", JSONObject().put("action", "get-users"))
+            val admin = requireNotNull(fixture.takeRequest(5, TimeUnit.SECONDS))
+            assertEquals("https://www.savely.cc/api/admin", observed[1].toString())
+            assertEquals("Bearer access", admin.getHeader("Authorization"))
+            assertEquals("https://savely.cc", admin.getHeader("Origin"))
+            assertNull(admin.getHeader("apikey"))
+
+            fixture.enqueue(json("true"))
+            fixture.enqueue(json("""{"user":{"id":"user-1"}}"""))
+            webClient.signUp("person@example.com", "StrongPassword12!")
+            assertEquals("/rest/v1/rpc/get_registrations_enabled", fixture.takeRequest(5, TimeUnit.SECONDS)?.path)
+            val signup = requireNotNull(fixture.takeRequest(5, TimeUnit.SECONDS))
+            assertEquals("/auth/v1/signup", signup.requestUrl?.encodedPath)
+            assertEquals("https://savely.cc/auth/callback", signup.requestUrl?.queryParameter("redirect_to"))
+            assertEquals(fixture.url("/").host, observed[3].host)
+            assertEquals(4, fixture.requestCount)
+        }
+    }
+
+    @Test fun canonicalWebApiRejectsInvalidPathsAndRedirectsWithoutForwardingCredentials() = runBlocking {
+        withWebTlsFixture { webClient, fixture, observed ->
+            store.save(liveSession())
+            for (path in listOf("https://untrusted.invalid/api/admin", "/api/../admin", "/api/admin?other=1", "//untrusted.invalid/api/admin")) {
+                assertEquals(ApiError.VALIDATION, failure { webClient.webPost(path, JSONObject()) }.kind)
+            }
+            assertEquals(0, fixture.requestCount)
+            assertTrue(observed.isEmpty())
+            fixture.enqueue(MockResponse().setResponseCode(308).setHeader("Location", "https://untrusted.invalid/collect"))
+            assertEquals(308, failure { webClient.webPost("/api/admin", JSONObject()) }.status)
+            val request = requireNotNull(fixture.takeRequest(5, TimeUnit.SECONDS))
+            assertEquals("Bearer access", request.getHeader("Authorization"))
+            assertEquals("https://www.savely.cc/api/admin", observed.single().toString())
+            assertEquals(1, fixture.requestCount)
+            assertEquals(liveSession().accessToken, store.load()?.accessToken)
+        }
     }
 
     @Test fun signupChecksPublicRegistrationToggleAndDoesNotClaimNativeCallback() = runBlocking {
@@ -254,6 +311,37 @@ class SupabaseApiTest {
         try { block(); fail("Expected ApiException") }
         catch (error: ApiException) { return error }
         throw AssertionError("Unreachable")
+    }
+
+    private suspend fun withWebTlsFixture(block: suspend (SupabaseApi, MockWebServer, List<HttpUrl>) -> Unit) {
+        val certificate = HeldCertificate.Builder().commonName("Savely web API fixture")
+            .addSubjectAlternativeName("localhost").addSubjectAlternativeName("127.0.0.1").build()
+        val serverCertificates = HandshakeCertificates.Builder().heldCertificate(certificate).build()
+        val trust = HandshakeCertificates.Builder().addTrustedCertificate(certificate.certificate).build()
+        val fixture = MockWebServer().apply { useHttps(serverCertificates.sslSocketFactory(), false); start() }
+        val observed = CopyOnWriteArrayList<HttpUrl>()
+        val client = OkHttpClient.Builder().sslSocketFactory(trust.sslSocketFactory(), trust.trustManager)
+            .connectTimeout(5, TimeUnit.SECONDS).readTimeout(5, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                observed.add(request.url)
+                // Capture the production URL, then route only the known API host to the local trusted TLS server.
+                val localRequest = when (request.url.host) {
+                    "www.savely.cc" -> request.newBuilder().url(request.url.newBuilder()
+                        .host(fixture.url("/").host).port(fixture.port).build()).build()
+                    fixture.url("/").host -> request
+                    else -> throw java.io.IOException("Unexpected fixture origin")
+                }
+                chain.proceed(localRequest)
+            }.build()
+        val webClient = SupabaseApi(BackendConfig(fixture.url("/").toString(), "public-key", "https://savely.cc"), store, client)
+        try { block(webClient, fixture, observed) }
+        finally {
+            webClient.close()
+            client.dispatcher.executorService.shutdown()
+            client.connectionPool.evictAll()
+            fixture.shutdown()
+        }
     }
 
     private fun json(body: String, status: Int = 200): MockResponse = MockResponse()

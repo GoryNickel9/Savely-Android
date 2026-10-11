@@ -53,7 +53,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val budgets = if (section in setOf("budget", "insights")) {
             rows("budgets", "select=*&$own&order=id.asc").map(::budgetFromJson)
         } else emptyList()
-        val recurring = if (section == "recurring") {
+        val recurring = if (section in setOf("recurring", "insights")) {
             rows("recurring_expenses", "select=*&$own&deleted_at=is.null&order=next_due_date.asc,id.asc").map(::recurringFromJson)
         } else emptyList()
         val assets = if (section in setOf("portfolio", "net-worth", "insights")) {
@@ -66,7 +66,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
             val logs = api.select("manual_price_updates", "select=updated_at&$own&order=updated_at.desc&limit=1")
             if (logs.length() == 0) null else Instant.parse(logs.getJSONObject(0).getString("updated_at"))
         } else null
-        val ignored = if (section == "recurring") withContext(Dispatchers.IO) { dismissals.keys(user) } else emptySet()
+        val ignored = if (section in setOf("recurring", "insights")) withContext(Dispatchers.IO) { dismissals.keys(user) } else emptySet()
         // Portfolio web reads the owner's cards even when the TCG navigation permission is disabled.
         val tcgCards = if (section == "portfolio") {
             rows("tgc_cards", "select=id,category,quantity,purchase_price,current_price,currency&$own&order=created_at.desc,id.asc")

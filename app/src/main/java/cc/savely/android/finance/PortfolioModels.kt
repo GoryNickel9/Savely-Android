@@ -122,7 +122,19 @@ internal fun savingMonthInsights(transactions: List<FinanceTransaction>, today: 
     }
 }
 
-/** Three web counterparts: budget_exceeded, portfolio_loss and saving_month; currencies never combine. */
+internal fun newRecurringInsights(data: FinanceData): List<FinanceInsight> = availableRecurringSuggestions(data).take(3).map { candidate ->
+    val cadence = when (candidate.frequency) {
+        RecurringFrequency.WEEKLY -> "una cadenza settimanale"
+        RecurringFrequency.MONTHLY -> "una cadenza mensile"
+        RecurringFrequency.QUARTERLY -> "una cadenza trimestrale"
+        RecurringFrequency.YEARLY -> "una cadenza annuale"
+    }
+    FinanceInsight("new-recurring-${candidate.key}", "Possibile spesa ricorrente: ${candidate.description}",
+        "Rilevata $cadence di ${formatMoney(candidate.medianAmount, candidate.currency)} (${candidate.occurrenceCount} occorrenze). Vuoi tenerla tracciata?",
+        false, candidate.medianAmount, InsightSeverity.INFO)
+}
+
+/** Four web counterparts: budget_exceeded, portfolio_loss, saving_month and new_recurring_detected. */
 fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List<FinanceInsight> {
     val result = mutableListOf<FinanceInsight>()
     for (budget in data.budgets) {
@@ -145,5 +157,7 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
             "${asset.symbol ?: asset.name}: ${(change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP)}% rispetto al prezzo di acquisto.", true, change))
     }
     result.addAll(savingMonthInsights(data.transactions, today))
+    // Select the global top three by confidence/count before the final severity/value ordering.
+    result.addAll(newRecurringInsights(data))
     return result.sortedWith(compareBy<FinanceInsight> { it.severity.ordinal }.thenByDescending { it.value.abs() })
 }

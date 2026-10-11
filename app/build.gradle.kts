@@ -37,8 +37,8 @@ android {
         applicationId = "cc.savely.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.1.2-alpha"
+        versionCode = 4
+        versionName = "0.1.3-alpha"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Real-backend smoke is invoked explicitly with a private synthetic-user session.
         testInstrumentationRunnerArguments["notClass"] = "cc.savely.android.data.RealBackendSmokeTest,cc.savely.android.data.RealProcessDeathSmokeTest,cc.savely.android.data.RealAndroidWebSmokeTest"
@@ -94,6 +94,7 @@ dependencies {
     testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

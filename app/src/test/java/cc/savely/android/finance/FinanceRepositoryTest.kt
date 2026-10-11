@@ -35,6 +35,57 @@ class FinanceRepositoryTest {
     @After fun tearDown() { server.shutdown() }
     private fun response(value: String) = MockResponse().setHeader("Content-Type", "application/json").setHeader("Content-Range", "0-0/1").setBody(value)
 
+    @Test fun `insights loads paginated own recurring including inactive rows and account dismissals`() = runBlocking {
+        dismissals.ignore(user, "EUR:ignored")
+        dismissals.ignore("another-account", "EUR:other")
+        repeat(4) { server.enqueue(response("[]")) }
+        fun recurring(id: String) = JSONObject().put("id", id).put("name", "Tracked")
+            .put("amount", "12.50").put("currency", "EUR").put("category_id", JSONObject.NULL)
+            .put("frequency", "monthly").put("week_interval", 1).put("next_due_date", "2026-10-01").put("is_active", false)
+        val page = JSONArray()
+        repeat(500) { page.put(recurring("r-$it")) }
+        server.enqueue(response(page.toString()))
+        server.enqueue(response(JSONArray().put(recurring("last")).toString()))
+        server.enqueue(response("[]"))
+        val data = repository.load("insights")
+        assertEquals(501, data.recurring.size)
+        assertTrue(data.recurring.none { it.active })
+        assertEquals(setOf("EUR:ignored"), data.ignoredRecurringSuggestions)
+        val requests = (0 until 7).map { server.takeRequest() }
+        assertEquals(listOf("categories", "profiles", "transactions", "budgets", "recurring_expenses", "recurring_expenses", "portfolio_assets"),
+            requests.map { it.requestUrl!!.pathSegments.last() })
+        requests.forEach { assertEquals("GET", it.method); assertEquals("eq.$user", it.requestUrl!!.queryParameter("user_id")) }
+        val first = requests[4].requestUrl!!
+        assertEquals("is.null", first.queryParameter("deleted_at"))
+        assertEquals(null, first.queryParameter("is_active"))
+        assertEquals("next_due_date.asc,id.asc", first.queryParameter("order"))
+        assertEquals("500", first.queryParameter("limit"))
+        assertEquals("0", first.queryParameter("offset"))
+        assertEquals("500", requests[5].requestUrl!!.queryParameter("offset"))
+    }
+
+    @Test fun `insights recurring query failure does not pretend there are no tracked candidates`() = runBlocking {
+        repeat(4) { server.enqueue(response("[]")) }
+        server.enqueue(MockResponse().setResponseCode(403).setHeader("Content-Type", "application/json").setBody("{}"))
+        val failure = try { repository.load("insights"); null } catch (exception: ApiException) { exception }
+        assertEquals(ApiError.PERMISSION, failure?.kind)
+        assertEquals(5, server.requestCount)
+        repeat(4) { server.takeRequest() }
+        assertEquals("/rest/v1/recurring_expenses", server.takeRequest().requestUrl!!.encodedPath)
+    }
+
+    @Test fun `insights dismissal read failure remains visible rather than exposing ignored candidates`() = runBlocking {
+        val failing = FinanceRepository(api, object : RecurringDismissals {
+            override fun keys(userId: String): Set<String> { assertEquals(user, userId); error("Preferenze illeggibili") }
+            override fun ignore(userId: String, key: String) = Unit
+        })
+        repeat(6) { server.enqueue(response("[]")) }
+        val failure = try { failing.load("insights"); null } catch (exception: IllegalStateException) { exception }
+        assertEquals("Preferenze illeggibili", failure?.message)
+        assertEquals(6, server.requestCount)
+        repeat(6) { assertEquals("GET", server.takeRequest().method) }
+    }
+
     @Test fun `pagination continues past a full page and filters owner and deletion`() = runBlocking {
         val page = JSONArray()
         repeat(500) { page.put(JSONObject().put("id", "category-$it").put("name", "Category $it").put("type", "expense")) }

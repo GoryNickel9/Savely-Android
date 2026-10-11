@@ -1,5 +1,6 @@
 package cc.savely.android.finance
 
+import android.content.Context
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -7,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.core.app.ApplicationProvider
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
@@ -50,6 +52,8 @@ class FinanceScreenTest {
     private val budgetFixture = AtomicBoolean(false)
     private val budgetRoundingFixture = AtomicBoolean(false)
     private val insightsFixture = AtomicBoolean(false)
+    private val recurringInsightsFixture = AtomicBoolean(false)
+    private val recurringReadRequests = AtomicInteger()
     private val processingFixture = AtomicBoolean(false)
     private val failRecurringAdvance = AtomicBoolean(false)
     private val dueQueries = AtomicInteger()
@@ -205,7 +209,7 @@ class FinanceScreenTest {
             SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
         }
         waitForText("Tutti (3)")
-        compose.onNodeWithText("Controlli disponibili (3 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Controlli disponibili (4 su 8)", substring = true).assertExists()
         compose.onNodeWithText("Attenzione (2)").assertExists()
         compose.onNodeWithText("Positivi (1)").assertExists()
         compose.onNodeWithText("Info (0)").assertExists()
@@ -236,7 +240,41 @@ class FinanceScreenTest {
         transactionList().performScrollToNode(hasContentDescription("Insight saving-month-EUR"))
         compose.onNodeWithContentDescription("Insight saving-month-EUR").assertIsDisplayed()
         assertEquals("Insights derive signals without writing records", 0, posts.get() + patches.get() + deletes.get())
+        org.junit.Assert.assertTrue("Insights must load tracked recurring records even when no candidate exists", recurringReadRequests.get() > 0)
         assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun insightsInfoShowsRecurringLiteralCadenceAmountAndExcludesTrackedAndIgnoredWithoutWrites() {
+        recurringInsightsFixture.set(true)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val preferences = context.getSharedPreferences("finance_recurring_suggestions", Context.MODE_PRIVATE)
+        check(preferences.edit().remove(USER_ID).commit())
+        PreferenceRecurringDismissals(context).ignore(USER_ID, "EUR:abbonamento ignorato insights")
+        try {
+            compose.setContent {
+                SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
+            }
+            waitForText("Tutti (1)")
+            compose.onNodeWithText("Controlli disponibili (4 su 8)", substring = true).assertExists()
+            compose.onNodeWithText("Attenzione (0)").assertExists()
+            compose.onNodeWithText("Positivi (0)").assertExists()
+            compose.onNodeWithText("Info (1)").performScrollTo()
+            recurringTouch(hasText("Info (1)"))
+            compose.onNodeWithText("Info (1)").assertIsSelected()
+            transactionList().performScrollToNode(hasContentDescription("Insight new-recurring-EUR:abbonamento disponibile insights"))
+            compose.onNodeWithContentDescription("Insight new-recurring-EUR:abbonamento disponibile insights")
+                .assertIsDisplayed().assertTextContains("Possibile spesa ricorrente: Abbonamento disponibile insights", substring = true)
+                .assertTextContains("Info", substring = true)
+                .assertTextContains("Rilevata una cadenza mensile di 12,50", substring = true)
+                .assertTextContains("(4 occorrenze). Vuoi tenerla tracciata?", substring = true)
+            compose.onNodeWithContentDescription("Insight new-recurring-EUR:abbonamento tracciato insights").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Insight new-recurring-EUR:abbonamento ignorato insights").assertDoesNotExist()
+            org.junit.Assert.assertTrue("Insights must read tracked recurring records", recurringReadRequests.get() > 0)
+            assertEquals("Reading and filtering suggestions must never mutate backend records", 0, posts.get() + patches.get() + deletes.get())
+            assertEquals(0, rejectedRequests.get())
+        } finally {
+            check(preferences.edit().remove(USER_ID).commit())
+        }
     }
 
     @Test fun budgetMedianHalfCentDisplaysLiteralRoundedValuesWithoutRoundingSource() {
@@ -419,7 +457,8 @@ class FinanceScreenTest {
                         json(JSONArray(categories.filter { id == null || it.getString("id") == id }).toString())
                     }
                     "/rest/v1/profiles" -> json("""[{"default_currency":"EUR"}]""")
-                    "/rest/v1/budgets" -> if (insightsFixture.get() && request.method == "GET") json(JSONArray()
+                    "/rest/v1/budgets" -> if (recurringInsightsFixture.get() && request.method == "GET") json("[]")
+                        else if (insightsFixture.get() && request.method == "GET") json(JSONArray()
                         .put(JSONObject().put("id", "insights-food").put("category_id", FOOD_ID).put("amount", "100.00").put("currency", "EUR"))
                         .toString()) else if (budgetRoundingFixture.get() && request.method == "GET") json(JSONArray()
                         .put(JSONObject().put("id", "budget-rounding").put("category_id", FOOD_ID).put("amount", "0.30").put("currency", "EUR"))
@@ -439,6 +478,12 @@ class FinanceScreenTest {
                     ]""")
                     "/rest/v1/recurring_expenses" -> when (request.method) {
                         "GET" -> {
+                            if (url.queryParameter("deleted_at") != "is.null" || url.queryParameter("limit") != "500") return reject()
+                            recurringReadRequests.incrementAndGet()
+                            if (recurringInsightsFixture.get() && recurring.isEmpty()) recurring[PROCESS_ID] = JSONObject()
+                                .put("id", PROCESS_ID).put("name", "Abbonamento tracciato insights").put("amount", "19.00").put("currency", "EUR")
+                                .put("category_id", JSONObject.NULL).put("frequency", "monthly").put("week_interval", 1)
+                                .put("next_due_date", LocalDate.now().plusDays(30).toString()).put("is_active", false)
                             if (processingFixture.get() && recurring.isEmpty()) recurring[PROCESS_ID] = JSONObject()
                                 .put("id", PROCESS_ID).put("name", PROCESS_NAME).put("amount", "12.50").put("currency", "EUR")
                                 .put("category_id", JSONObject.NULL).put("frequency", "monthly").put("week_interval", 1)
@@ -476,7 +521,15 @@ class FinanceScreenTest {
                         else -> reject()
                     }
                     "/rest/v1/transactions" -> when (request.method) {
-                        "GET" -> if (insightsFixture.get()) {
+                        "GET" -> if (recurringInsightsFixture.get()) {
+                            val rows = JSONArray()
+                            listOf("Abbonamento disponibile insights" to "12.50", "Abbonamento tracciato insights" to "19.00",
+                                "Abbonamento ignorato insights" to "29.00").forEach { (name, amount) ->
+                                repeat(4) { index -> rows.put(transaction("$name-$index", amount, name, FOOD_ID)
+                                    .put("date", LocalDate.now().minusDays((3L - index) * 30).toString())) }
+                            }
+                            json(rows.toString())
+                        } else if (insightsFixture.get()) {
                             val month = LocalDate.now().withDayOfMonth(1)
                             json(JSONArray()
                                 .put(transaction("insights-eur-previous", "100.00", "Entrata EUR", FOOD_ID).put("type", "income").put("date", month.minusMonths(1).toString()))

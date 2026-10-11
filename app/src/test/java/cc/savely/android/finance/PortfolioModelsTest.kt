@@ -6,9 +6,65 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PortfolioModelsTest {
+    private fun recurringHistory(description: String, amount: String, count: Int, currency: String = "EUR", gap: Long = 30) =
+        (0 until count).map { index -> FinanceTransaction("$description-$currency-$index", TransactionType.EXPENSE,
+            amount.toBigDecimal(), currency, LocalDate.parse("2026-06-15").minusDays((count - index - 1) * gap), description, null) }
+
+    @Test fun `new recurring selects global confidence count top three before sorting displayed amounts`() {
+        val mediumTen = recurringHistory("Medium ten", "30", 10).mapIndexed { index, row ->
+            if (index == 0) row.copy(amount = BigDecimal("31")) else row }
+        val rows = recurringHistory("High five", "10", 5) + recurringHistory("High four", "20", 4) +
+            mediumTen + recurringHistory("Excluded medium", "999", 3)
+        val data = FinanceData(transactions = rows)
+        assertEquals(listOf("new-recurring-EUR:high five", "new-recurring-EUR:high four", "new-recurring-EUR:medium ten"),
+            newRecurringInsights(data).map { it.id })
+        val display = financeInsights(data, reference)
+        assertEquals(listOf("new-recurring-EUR:medium ten", "new-recurring-EUR:high four", "new-recurring-EUR:high five"), display.map { it.id })
+        assertEquals(listOf(BigDecimal("30.00"), BigDecimal("20.00"), BigDecimal("10.00")), display.map { it.value })
+        assertEquals(listOf(InsightSeverity.INFO, InsightSeverity.INFO, InsightSeverity.INFO), display.map { it.severity })
+        assertFalse(display.any { it.warning })
+        assertEquals(listOf("loss-asset-stock-EUR", "new-recurring-EUR:medium ten", "new-recurring-EUR:high four", "new-recurring-EUR:high five"),
+            financeInsights(data.copy(assets = listOf(asset(purchase = "100", current = "85"))), reference).map { it.id })
+    }
+
+    @Test fun `new recurring removes inactive tracked and account ignored candidates before top three`() {
+        val rows = recurringHistory("Tracked", "10", 5) + recurringHistory("Ignored", "20", 5) + recurringHistory("Available", "30", 3)
+        val tracked = FinanceRecurring("r", "Pagamento Tracked 1234", BigDecimal.TEN, "EUR", null,
+            RecurringFrequency.MONTHLY, 1, reference, false)
+        val data = FinanceData(transactions = rows, recurring = listOf(tracked), ignoredRecurringSuggestions = setOf("EUR:ignored"))
+        assertEquals(listOf("new-recurring-EUR:available"), newRecurringInsights(data).map { it.id })
+        assertEquals(emptyList<FinanceInsight>(), newRecurringInsights(data.copy(ignoredRecurringSuggestions = setOf("EUR:ignored", "EUR:available"))))
+    }
+
+    @Test fun `new recurring global cap never combines or suppresses different currencies`() {
+        val rows = supportedCurrencies.flatMap { currency -> recurringHistory("Subscription", "12.50", 3, currency) }
+        val tracked = FinanceRecurring("r", "Subscription", BigDecimal("12.50"), "EUR", null,
+            RecurringFrequency.MONTHLY, 1, reference, false)
+        val data = FinanceData(transactions = rows, recurring = listOf(tracked), ignoredRecurringSuggestions = setOf("USD:subscription"))
+        val insights = newRecurringInsights(data)
+        // Existing deterministic key tie-break applies after equal confidence and occurrence count.
+        assertEquals(listOf("new-recurring-AUD:subscription", "new-recurring-CAD:subscription", "new-recurring-CHF:subscription"), insights.map { it.id })
+        assertEquals(3, insights.size)
+        supportedCurrencies.forEach { currency ->
+            val only = newRecurringInsights(FinanceData(transactions = recurringHistory("Subscription", "12.50", 3, currency))).single()
+            assertEquals("new-recurring-$currency:subscription", only.id)
+            assertEquals(BigDecimal("12.50"), only.value)
+            assertTrue(only.message.contains("12,50") && only.message.contains("3 occorrenze"))
+        }
+    }
+
+    @Test fun `new recurring labels all four cadences without changing date detection`() {
+        listOf(7L to "settimanale", 30L to "mensile", 90L to "trimestrale", 365L to "annuale").forEach { (gap, label) ->
+            val insight = newRecurringInsights(FinanceData(transactions = recurringHistory("Abbonamento", "10", 4, gap = gap))).single()
+            assertEquals("Possibile spesa ricorrente: Abbonamento", insight.title)
+            assertTrue(insight.message.startsWith("Rilevata una cadenza $label di 10,00"))
+            assertTrue(insight.message.endsWith("(4 occorrenze). Vuoi tenerla tracciata?"))
+        }
+    }
     private val reference = LocalDate.parse("2026-06-15")
     private fun transaction(date: String, amount: String, type: TransactionType = TransactionType.INCOME,
         currency: String = "EUR", category: String? = null) = FinanceTransaction("$date-$amount-$type-$currency",

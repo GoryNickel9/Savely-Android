@@ -80,8 +80,8 @@
         "webFixtureExecuted": true,
         "nativeTestsRun": true,
         "backendFlowVerified": false,
-        "deviceFlowVerified": false,
-        "nativeTestScope": "JVM formulas, parsing, repository contracts; not full device/backend flow"
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM formulas and repository contracts; two TLS fixture UI tests for liquid create, validation, single submit, derived amounts, editing and null reset; real backend unverified"
       },
       "differences": [
         "Reject finished date before arrival"
@@ -151,7 +151,8 @@
           "fixture-budget-global-monthly-median-and-currency-union",
           "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup",
           "fixture-budget-literal-half-cent-display-and-nine-currency-HALF_UP-regression",
-          "fixture-saving-month-currency-specific-baseline-severity-counts-and-filters"
+          "fixture-saving-month-currency-specific-baseline-severity-counts-and-filters",
+          "fixture-new-recurring-top-three-cadences-owner-pagination-inactive-and-account-dismissals"
         ]
       },
       "owner": "finance-agent",
@@ -172,7 +173,9 @@
           "fixture-auth-MFA-and-expiry-revocation",
           "real-E2E-temporary-session-identity-permissions-Keystore-reopen-and-logout",
           "real-E2E-new-process-session-restore-native-dashboard-and-logout",
-          "fixture-foreground-session-invalidation-transient-errors-token-rotation-and-stale-owner-guards"
+          "fixture-foreground-session-invalidation-transient-errors-token-rotation-and-stale-owner-guards",
+          "fixture-canonical-web-api-transport-original-callback-origin-and-rejected-redirect",
+          "fixture-MFA-invalid-code-and-transient-error-retry-without-premature-profile-read"
         ]
       },
       "owner": "auth-agent",
@@ -263,6 +266,24 @@
       "sha256": "080ed2c9da69779d5e64f2e19186bee537a4e4ade4c93c3edceead7cbbbdd384",
       "scope": [
         "signature-versionCode2-to3-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.3-alpha",
+      "variant": "debug",
+      "jvmTests": 226,
+      "androidTests": 39,
+      "scope": [
+        "fixture-unit-and-device-tests"
+      ]
+    },
+    {
+      "version": "0.1.3-alpha",
+      "versionCode": 4,
+      "variant": "release",
+      "sha256": "beb12d54d9660e18ae08ed01fac7177e2ca1f9d334a071a5edbd71ec38f5aaaf",
+      "scope": [
+        "signature-versionCode3-to4-upgrade-and-anonymous-login-layout-on-AVD"
       ]
     }
   ]

@@ -8,6 +8,10 @@ import java.util.Base64
 data class BackendConfig(val url: String, val anonKey: String, val webUrl: String = "https://savely.cc") {
     internal fun backendUrl(): HttpUrl = validateUrl(url)
     internal fun websiteUrl(): HttpUrl = validateUrl(webUrl)
+    internal fun websiteApiUrl(): HttpUrl = websiteUrl().let { origin ->
+        // The production API lives on www; auth callback/recovery origins keep their configured allow-list.
+        if (origin.toString() == "https://savely.cc/") origin.newBuilder().host("www.savely.cc").build() else origin
+    }
 
     internal fun validate() {
         backendUrl()

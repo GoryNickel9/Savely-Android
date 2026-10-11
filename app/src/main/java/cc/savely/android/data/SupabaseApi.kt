@@ -58,11 +58,13 @@ class SupabaseApi(
     val sessionInvalidation = mutableSessionInvalidation.asStateFlow()
     private val base: HttpUrl
     private val web: HttpUrl
+    private val webApi: HttpUrl
 
     init {
         config.validate()
         base = config.backendUrl()
         web = config.websiteUrl()
+        webApi = config.websiteApiUrl()
     }
 
     suspend fun signIn(email: String, password: String): Session = authMutex.withLock {
@@ -248,7 +250,7 @@ class SupabaseApi(
     /** Only the configured site's /api endpoints are reachable; no administrative key is used. */
     suspend fun webPost(path: String, body: JSONObject, authenticated: Boolean = true): JSONObject {
         if (!WEB_ENDPOINT.matches(path)) throw ApiException(ApiError.VALIDATION, "Endpoint non valido.")
-        val url = endpoint(web, path.removePrefix("/"))
+        val url = endpoint(webApi, path.removePrefix("/"))
         return objectValue(if (authenticated) authorized(url, "POST", body, backend = false)
         else request(url, "POST", body, token = null, backend = false))
     }

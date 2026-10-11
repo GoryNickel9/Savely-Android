@@ -8,6 +8,7 @@ import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
 import cc.savely.android.data.SessionStore
 import cc.savely.android.data.SupabaseApi
+import cc.savely.android.data.authSessionId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -24,6 +25,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.SocketPolicy
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -135,6 +137,105 @@ class AppViewModelTest {
         assertFalse(state.busy)
         assertEquals(1, server.requestCount)
         assertEquals("/auth/v1/user", takeRequest().requestUrl?.encodedPath)
+    }
+
+    @Test fun rejectedMfaCodeKeepsGateAndRetryLoadsPermissionsOnlyAfterAal2() = runTest {
+        val original = requireNotNull(store.load())
+        val verifiedFactor = """{"factors":[{"id":"factor-1","factor_type":"totp","status":"verified"}]}"""
+        server.enqueue(json(verifiedFactor))
+        val model = createViewModel()
+        val pending = awaitIdle(model)
+        val owner = requireNotNull(api.sessionOwnerRevision(original))
+        assertEquals(original, pending.session)
+        assertEquals("factor-1", pending.mfaFactor)
+        assertTrue(pending.permissions.isEmpty())
+        assertEquals("/auth/v1/user", takeRequest().requestUrl?.encodedPath)
+
+        server.enqueue(json("""{"id":"challenge-first"}"""))
+        server.enqueue(json("""{"code":"mfa_verification_failed","message":"private MFA diagnostic"}""", 400))
+        model.verifyMfa("000000")
+        val rejected = awaitIdle(model)
+        assertEquals(original, rejected.session)
+        assertEquals(original, store.load())
+        assertEquals("factor-1", rejected.mfaFactor)
+        assertTrue(rejected.permissions.isEmpty())
+        assertEquals("Codice di verifica non corretto o scaduto.", rejected.error)
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(3, server.requestCount) // No profile read and no automatic verification retry.
+        val firstChallenge = takeRequest()
+        assertEquals("POST", firstChallenge.method)
+        assertEquals("/auth/v1/factors/factor-1/challenge", firstChallenge.requestUrl?.encodedPath)
+        val firstVerify = takeRequest()
+        val firstBody = JSONObject(firstVerify.body.readUtf8())
+        assertEquals("POST", firstVerify.method)
+        assertEquals("/auth/v1/factors/factor-1/verify", firstVerify.requestUrl?.encodedPath)
+        assertEquals("challenge-first", firstBody.getString("challenge_id"))
+        assertEquals("000000", firstBody.getString("code"))
+        assertEquals("Bearer ${original.accessToken}", firstVerify.getHeader("Authorization"))
+
+        val elevated = original.copy(accessToken = liveSession(aal = "aal2").accessToken, refreshToken = "mfa-refresh")
+        server.enqueue(json("""{"id":"challenge-retry"}"""))
+        server.enqueue(json(elevated.toJson().toString()))
+        server.enqueue(json(verifiedFactor))
+        server.enqueue(json("""[{"user_id":"user-1","permissions":{"poker":true,"admin":false}}]"""))
+        model.verifyMfa("123456")
+        val accepted = awaitIdle(model)
+        assertEquals("aal2", assuranceLevel(requireNotNull(accepted.session)))
+        assertEquals(elevated, accepted.session)
+        assertEquals(elevated, store.load())
+        assertEquals(requireNotNull(original.authSessionId()), elevated.authSessionId())
+        assertEquals(owner, api.sessionOwnerRevision(elevated))
+        assertNull(accepted.mfaFactor)
+        assertNull(accepted.error)
+        assertEquals(true, accepted.permissions["poker"])
+        assertEquals(false, accepted.permissions["admin"])
+        assertEquals(7, server.requestCount)
+        assertEquals("/auth/v1/factors/factor-1/challenge", takeRequest().requestUrl?.encodedPath)
+        val retryVerify = takeRequest()
+        val retryBody = JSONObject(retryVerify.body.readUtf8())
+        assertEquals("/auth/v1/factors/factor-1/verify", retryVerify.requestUrl?.encodedPath)
+        assertEquals("challenge-retry", retryBody.getString("challenge_id"))
+        assertEquals("123456", retryBody.getString("code"))
+        assertEquals("Bearer ${original.accessToken}", retryVerify.getHeader("Authorization"))
+        val factorRead = takeRequest()
+        assertEquals("/auth/v1/user", factorRead.requestUrl?.encodedPath)
+        assertEquals("Bearer ${elevated.accessToken}", factorRead.getHeader("Authorization"))
+        val profileRead = takeRequest()
+        assertEquals("/rest/v1/profiles", profileRead.requestUrl?.encodedPath)
+        assertEquals("eq.${original.userId}", profileRead.requestUrl?.queryParameter("user_id"))
+        assertEquals("Bearer ${elevated.accessToken}", profileRead.getHeader("Authorization"))
+    }
+
+    @Test fun mfaVerificationServerFailurePreservesGateAndSessionWithoutRetry() = runTest {
+        val original = requireNotNull(store.load())
+        server.enqueue(json("""{"factors":[{"id":"factor-1","factor_type":"totp","status":"verified"}]}"""))
+        val model = createViewModel()
+        val pending = awaitIdle(model)
+        val owner = requireNotNull(api.sessionOwnerRevision(original))
+        assertEquals("factor-1", pending.mfaFactor)
+        assertTrue(pending.permissions.isEmpty())
+        server.enqueue(json("""{"id":"challenge-server-failure"}"""))
+        server.enqueue(json("""{"message":"private MFA server diagnostic"}""", 503))
+
+        model.verifyMfa("123456")
+        val failed = awaitIdle(model)
+        assertTrue(failed.initialized)
+        assertFalse(failed.busy)
+        assertEquals(original, failed.session)
+        assertEquals(original, store.load())
+        assertEquals("aal1", assuranceLevel(requireNotNull(failed.session)))
+        assertEquals("factor-1", failed.mfaFactor)
+        assertTrue(failed.permissions.isEmpty())
+        assertEquals("Servizio temporaneamente non disponibile. Riprova.", failed.error)
+        assertEquals(owner, api.sessionOwnerRevision(original))
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(3, server.requestCount) // Only restore, challenge and verification; no profile or refresh/logout.
+        assertEquals("/auth/v1/user", takeRequest().requestUrl?.encodedPath)
+        assertEquals("/auth/v1/factors/factor-1/challenge", takeRequest().requestUrl?.encodedPath)
+        val verification = takeRequest()
+        assertEquals("POST", verification.method)
+        assertEquals("/auth/v1/factors/factor-1/verify", verification.requestUrl?.encodedPath)
+        assertEquals("challenge-server-failure", JSONObject(verification.body.readUtf8()).getString("challenge_id"))
     }
 
     @Test fun paneRefreshRevocationClearsForegroundAccountWithoutRestoreOrResume() = runTest {
@@ -319,8 +420,8 @@ class AppViewModelTest {
     private fun takeRequest() = server.takeRequest(1, TimeUnit.SECONDS) ?: throw AssertionError("Expected a local mock request")
     private fun json(body: String, status: Int = 200): MockResponse = MockResponse()
         .setResponseCode(status).setHeader("Content-Type", "application/json").setBody(body)
-    private fun liveSession(sessionId: String = "11111111-1111-4111-8111-111111111111"): Session {
-        val payload = Base64.getUrlEncoder().withoutPadding().encodeToString("""{"aal":"aal1","session_id":"$sessionId"}""".toByteArray(Charsets.UTF_8))
+    private fun liveSession(sessionId: String = "11111111-1111-4111-8111-111111111111", aal: String = "aal1"): Session {
+        val payload = Base64.getUrlEncoder().withoutPadding().encodeToString("""{"aal":"$aal","session_id":"$sessionId"}""".toByteArray(Charsets.UTF_8))
         return Session("header.$payload.signature", "synthetic-refresh", System.currentTimeMillis() / 1000 + 3600, "user-1", "device@example.test")
     }
 
