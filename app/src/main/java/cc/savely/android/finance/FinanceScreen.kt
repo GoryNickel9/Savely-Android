@@ -233,7 +233,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 }
             }
             "insights" -> {
-                item { Text("Controlli disponibili (4 su 8): budget superati, posizioni con perdita di almeno 15%, mesi di risparmio sopra la media e possibili spese ricorrenti. Gli altri rilevatori web sono in costruzione.") }
+                item { Text("Controlli disponibili (5 su 8): budget superati, posizioni con perdita di almeno 15%, mesi di risparmio sopra la media, possibili spese ricorrenti e variazioni dei loro importi. Gli altri rilevatori web sono in costruzione.") }
                 val insights = financeInsights(data)
                 val filtered = insights.filter { insightFilter == "all" || it.severity.name == insightFilter }
                 item { Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -244,7 +244,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                             label = { Text("$label (${insights.count { it.severity == severity }})") })
                     }
                 } }
-                if (filtered.isEmpty()) item { EmptyCard(if (insights.isEmpty()) "Nessun segnale nei quattro controlli disponibili" else "Nessun segnale nel filtro selezionato") }
+                if (filtered.isEmpty()) item { EmptyCard(if (insights.isEmpty()) "Nessun segnale nei cinque controlli disponibili" else "Nessun segnale nel filtro selezionato") }
                 items(filtered, key = { it.id }) { insight ->
                     FinanceInsightCard(insight)
                 }

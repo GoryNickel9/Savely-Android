@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4-alpha — 11 ottobre 2026
+
+Admin rimuove utenti, controlli e dialoghi dopo un diniego locale o HTTP 403, conservando la sessione. Un errore temporaneo mantiene dati e dialogo con possibilità di retry esplicito. Insights aggiunge la variazione del prezzo ricorrente, con soglia esatta del 10% e limiti della pipeline dichiarati; copertura 5/8.
+
+Passano 232 test JVM e 43 Android. Le nuove fixture verificano Admin e il flusso TCG con servizio prezzi HTTP 503, prezzo null e valore al costo di acquisto. Lint debug/release senza errori; APK firmato/versionCode 5 aggiornato sopra la 0.1.3 sul solo emulatore, senza account. Login con password, telefono e parità completa restano aperti.
+
 ## 0.1.3-alpha — 11 ottobre 2026
 
 Gli endpoint recupero password e Admin usano il dominio canonico www per evitare il redirect 308 rifiutato dal client. Callback signup e Origin restano configurati come prima. Insights aggiunge possibili spese ricorrenti, con massimo tre candidati e copertura dichiarata 4/8.

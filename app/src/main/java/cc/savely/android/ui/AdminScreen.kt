@@ -8,6 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cc.savely.android.data.SupabaseApi
+import cc.savely.android.data.ApiError
+import cc.savely.android.data.ApiException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -25,8 +27,19 @@ fun AdminScreen(api: SupabaseApi) {
     var editedPermissions by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var deleteUser by remember { mutableStateOf<JSONObject?>(null) }
     val scope = rememberCoroutineScope()
+    fun clearAdminState() {
+        users = JSONArray()
+        registrations = null
+        myId = ""
+        selected = null
+        deleteUser = null
+        editedPermissions = emptyMap()
+        message = null
+    }
     suspend fun refresh() {
-        require(api.permissions()["admin"] == true) { "Sono necessari i permessi di amministratore." }
+        if (api.permissions()["admin"] != true) {
+            throw ApiException(ApiError.PERMISSION, "Sono necessari i permessi di amministratore.")
+        }
         myId = api.session()?.userId ?: throw IllegalArgumentException("Accedi di nuovo.")
         users = api.webPost("/api/admin", JSONObject().put("action", "get-users")).getJSONArray("users")
         registrations = api.rpc("get_registrations_enabled") as? Boolean
@@ -37,7 +50,10 @@ fun AdminScreen(api: SupabaseApi) {
         scope.launch {
             try { block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { error = userMessage(failure) }
+            catch (failure: Exception) {
+                if (failure is ApiException && (failure.kind == ApiError.PERMISSION || failure.status == 403)) clearAdminState()
+                error = userMessage(failure)
+            }
             finally { busy = false }
         }
     }

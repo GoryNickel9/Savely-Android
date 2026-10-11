@@ -53,6 +53,7 @@ class FinanceScreenTest {
     private val budgetRoundingFixture = AtomicBoolean(false)
     private val insightsFixture = AtomicBoolean(false)
     private val recurringInsightsFixture = AtomicBoolean(false)
+    private val recurringPriceInsightsFixture = AtomicBoolean(false)
     private val recurringReadRequests = AtomicInteger()
     private val processingFixture = AtomicBoolean(false)
     private val failRecurringAdvance = AtomicBoolean(false)
@@ -209,7 +210,7 @@ class FinanceScreenTest {
             SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
         }
         waitForText("Tutti (3)")
-        compose.onNodeWithText("Controlli disponibili (4 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Controlli disponibili (5 su 8)", substring = true).assertExists()
         compose.onNodeWithText("Attenzione (2)").assertExists()
         compose.onNodeWithText("Positivi (1)").assertExists()
         compose.onNodeWithText("Info (0)").assertExists()
@@ -255,7 +256,7 @@ class FinanceScreenTest {
                 SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
             }
             waitForText("Tutti (1)")
-            compose.onNodeWithText("Controlli disponibili (4 su 8)", substring = true).assertExists()
+            compose.onNodeWithText("Controlli disponibili (5 su 8)", substring = true).assertExists()
             compose.onNodeWithText("Attenzione (0)").assertExists()
             compose.onNodeWithText("Positivi (0)").assertExists()
             compose.onNodeWithText("Info (1)").performScrollTo()
@@ -275,6 +276,38 @@ class FinanceScreenTest {
         } finally {
             check(preferences.edit().remove(USER_ID).commit())
         }
+    }
+
+    @Test fun insightsRecurringPriceShowsExactTenPercentAndSeverityFiltersWithoutWrites() {
+        recurringPriceInsightsFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("Tutti (2)")
+        compose.onNodeWithText("Controlli disponibili (5 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Attenzione (1)").assertExists()
+        compose.onNodeWithText("Positivi (0)").assertExists()
+        compose.onNodeWithText("Info (1)").assertExists()
+        recurringTouch(hasText("Attenzione (1)"))
+        compose.onNodeWithText("Attenzione (1)").assertIsSelected()
+        transactionList().performScrollToNode(hasContentDescription("Insight recurring-price-EUR:netflix sintetico"))
+        compose.onNodeWithContentDescription("Insight recurring-price-EUR:netflix sintetico").assertIsDisplayed()
+            .assertTextContains("Spesa ricorrente aumentato: Netflix sintetico", substring = true)
+            .assertTextContains("Attenzione", substring = true)
+            .assertTextContains("L'ultimo importo (11,00", substring = true)
+            .assertTextContains("è 10% rispetto al solito (10,00", substring = true)
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Info (1)").performScrollTo()
+        recurringTouch(hasText("Info (1)"))
+        compose.onNodeWithText("Info (1)").assertIsSelected()
+        transactionList().performScrollToNode(hasContentDescription("Insight new-recurring-EUR:netflix sintetico"))
+        compose.onNodeWithContentDescription("Insight new-recurring-EUR:netflix sintetico").assertIsDisplayed()
+            .assertTextContains("Rilevata una cadenza mensile di 10,00", substring = true)
+            .assertTextContains("(3 occorrenze)", substring = true)
+        compose.onNodeWithContentDescription("Insight recurring-price-EUR:netflix sintetico").assertDoesNotExist()
+        org.junit.Assert.assertTrue("Price insights reuse tracked recurring reads", recurringReadRequests.get() > 0)
+        assertEquals("Price insights must not create or alter backend data", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
     }
 
     @Test fun budgetMedianHalfCentDisplaysLiteralRoundedValuesWithoutRoundingSource() {
@@ -457,7 +490,7 @@ class FinanceScreenTest {
                         json(JSONArray(categories.filter { id == null || it.getString("id") == id }).toString())
                     }
                     "/rest/v1/profiles" -> json("""[{"default_currency":"EUR"}]""")
-                    "/rest/v1/budgets" -> if (recurringInsightsFixture.get() && request.method == "GET") json("[]")
+                    "/rest/v1/budgets" -> if ((recurringInsightsFixture.get() || recurringPriceInsightsFixture.get()) && request.method == "GET") json("[]")
                         else if (insightsFixture.get() && request.method == "GET") json(JSONArray()
                         .put(JSONObject().put("id", "insights-food").put("category_id", FOOD_ID).put("amount", "100.00").put("currency", "EUR"))
                         .toString()) else if (budgetRoundingFixture.get() && request.method == "GET") json(JSONArray()
@@ -521,7 +554,13 @@ class FinanceScreenTest {
                         else -> reject()
                     }
                     "/rest/v1/transactions" -> when (request.method) {
-                        "GET" -> if (recurringInsightsFixture.get()) {
+                        "GET" -> if (recurringPriceInsightsFixture.get()) {
+                            val rows = JSONArray()
+                            (2 downTo 0).forEach { index -> rows.put(transaction("price-insight-$index",
+                                if (index == 2) "11.00" else "10.00", "Netflix sintetico", FOOD_ID)
+                                .put("date", LocalDate.now().minusDays((2L - index) * 30).toString())) }
+                            json(rows.toString())
+                        } else if (recurringInsightsFixture.get()) {
                             val rows = JSONArray()
                             listOf("Abbonamento disponibile insights" to "12.50", "Abbonamento tracciato insights" to "19.00",
                                 "Abbonamento ignorato insights" to "29.00").forEach { (name, amount) ->

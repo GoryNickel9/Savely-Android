@@ -134,7 +134,36 @@ internal fun newRecurringInsights(data: FinanceData): List<FinanceInsight> = ava
         false, candidate.medianAmount, InsightSeverity.INFO)
 }
 
-/** Four web counterparts: budget_exceeded, portfolio_loss, saving_month and new_recurring_detected. */
+internal fun recurringPriceChangeInsights(
+    transactions: List<FinanceTransaction>, candidates: List<RecurringSuggestion>,
+): List<FinanceInsight> {
+    val keys = candidates.map { it.key }.toSet()
+    val latestByKey = mutableMapOf<String, FinanceTransaction>()
+    for (transaction in transactions) {
+        if (transaction.type != TransactionType.EXPENSE) continue
+        val key = recurringSuggestionKey(transaction.description, transaction.currency)
+        if (key !in keys) continue
+        val previous = latestByKey[key]
+        // Like web, the first input wins a date tie; there is no upper date bound.
+        if (previous == null || transaction.date > previous.date) latestByKey[key] = transaction
+    }
+    return candidates.mapNotNull { candidate ->
+        if (candidate.medianAmount.signum() <= 0) return@mapNotNull null
+        val latest = latestByKey[candidate.key] ?: return@mapNotNull null
+        val difference = latest.amount - candidate.medianAmount
+        if (difference.abs() * BigDecimal.TEN < candidate.medianAmount) return@mapNotNull null
+        val increased = difference.signum() > 0
+        // Math.round rounds negative half-percent ties toward positive infinity.
+        val percent = (difference * BigDecimal("100")).divide(candidate.medianAmount, 0,
+            if (increased) RoundingMode.HALF_UP else RoundingMode.HALF_DOWN)
+        val direction = if (increased) "aumentato" else "diminuito"
+        FinanceInsight("recurring-price-${candidate.key}", "Spesa ricorrente $direction: ${candidate.description}",
+            "L'ultimo importo (${formatMoney(latest.amount, candidate.currency)}) è $percent% rispetto al solito (${formatMoney(candidate.medianAmount, candidate.currency)}).",
+            increased, difference, if (increased) InsightSeverity.WARNING else InsightSeverity.INFO)
+    }
+}
+
+/** Five web counterparts; monetary groups retain their currencies. */
 fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List<FinanceInsight> {
     val result = mutableListOf<FinanceInsight>()
     for (budget in data.budgets) {
@@ -159,5 +188,6 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
     result.addAll(savingMonthInsights(data.transactions, today))
     // Select the global top three by confidence/count before the final severity/value ordering.
     result.addAll(newRecurringInsights(data))
+    result.addAll(recurringPriceChangeInsights(data.transactions, availableRecurringSuggestions(data)))
     return result.sortedWith(compareBy<FinanceInsight> { it.severity.ordinal }.thenByDescending { it.value.abs() })
 }

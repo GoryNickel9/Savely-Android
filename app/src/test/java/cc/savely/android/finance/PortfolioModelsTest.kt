@@ -10,6 +10,92 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PortfolioModelsTest {
+    private fun priceHistory(first: String = "10.00", latest: String = "11.00", currency: String = "EUR") =
+        recurringHistory("Netflix", first, 3, currency).mapIndexed { index, row ->
+            if (index == 2) row.copy(amount = latest.toBigDecimal()) else row }
+    private fun priceSignals(data: FinanceData) = financeInsights(data, reference).filter { it.id.startsWith("recurring-price-") }
+
+    @Test fun `recurring price uses exact inclusive ten percent before percentage display rounding`() {
+        val exact = priceSignals(FinanceData(transactions = priceHistory())).single()
+        assertEquals("recurring-price-EUR:netflix", exact.id)
+        assertEquals(InsightSeverity.WARNING, exact.severity)
+        assertTrue(exact.warning)
+        assertEquals(BigDecimal("1.00"), exact.value)
+        assertTrue(exact.message.contains("11,00") && exact.message.contains("10%") && exact.message.contains("10,00"))
+        assertEquals(emptyList<FinanceInsight>(), priceSignals(FinanceData(transactions = priceHistory(latest = "10.99"))))
+        // The original web detector suppresses this exact boundary because Number computes 0.09999999999999995.
+        val decimal = priceSignals(FinanceData(transactions = priceHistory("0.10", "0.11"))).single()
+        assertEquals(BigDecimal("0.01"), decimal.value)
+        assertTrue(decimal.message.contains("10%"))
+    }
+
+    @Test fun `recurring price preserves candidate variance gate instead of widening accepted history`() {
+        val tooHigh = FinanceData(transactions = priceHistory(latest = "11.01"))
+        assertEquals(emptyList<RecurringSuggestion>(), availableRecurringSuggestions(tooHigh))
+        assertEquals(emptyList<FinanceInsight>(), priceSignals(tooHigh))
+        val decreasing = FinanceData(transactions = priceHistory("11.00", "10.00"))
+        assertEquals(1, availableRecurringSuggestions(decreasing).size)
+        assertEquals(emptyList<FinanceInsight>(), priceSignals(decreasing))
+    }
+
+    @Test fun `recurring price considers future latest expenses and ignores income and normalizes description`() {
+        val rows = priceHistory().map { it.copy(date = it.date.plusYears(4)) }
+        val latest = rows.last().copy(description = "Pagamento Netflix 1234")
+        val income = latest.copy(id = "income", type = TransactionType.INCOME, amount = BigDecimal("100"), date = latest.date.plusMonths(1))
+        val data = FinanceData(transactions = listOf(income, latest) + rows.dropLast(1).reversed())
+        assertEquals(BigDecimal("1.00"), priceSignals(data).single().value)
+    }
+
+    @Test fun `recurring price latest date ties preserve first input while candidates still traverse real pipeline`() {
+        fun row(id: String, amount: String, date: String) = FinanceTransaction(id, TransactionType.EXPENSE,
+            amount.toBigDecimal(), "EUR", LocalDate.parse(date), "Netflix", null)
+        val newest = row("z", "11.00", "2026-01-22")
+        val tied = row("a", "10.00", "2026-01-22")
+        val old = listOf(row("old-a", "10.00", "2026-01-01"), row("old-b", "10.00", "2026-01-08"))
+        val risingFirst = FinanceData(transactions = listOf(newest, tied) + old)
+        val baselineFirst = FinanceData(transactions = listOf(tied, newest) + old)
+        assertEquals(1, availableRecurringSuggestions(risingFirst).size)
+        assertEquals(1, availableRecurringSuggestions(baselineFirst).size)
+        assertEquals(BigDecimal("1.00"), priceSignals(risingFirst).single().value)
+        assertEquals(emptyList<FinanceInsight>(), priceSignals(baselineFirst))
+    }
+
+    @Test fun `recurring price keeps all currencies and candidates rather than inheriting top three cap`() {
+        val data = FinanceData(transactions = supportedCurrencies.flatMap { currency -> priceHistory(currency = currency) })
+        val all = priceSignals(data)
+        assertEquals(9, all.size)
+        assertEquals(supportedCurrencies.map { "recurring-price-$it:netflix" }.sorted(), all.map { it.id }.sorted())
+        assertTrue(all.all { it.severity == InsightSeverity.WARNING && it.value == BigDecimal("1.00") })
+        assertEquals(3, newRecurringInsights(data).size)
+        val tracked = FinanceRecurring("tracked", "Netflix", BigDecimal.TEN, "EUR", null, RecurringFrequency.MONTHLY, 1, reference, false)
+        val remaining = priceSignals(data.copy(recurring = listOf(tracked), ignoredRecurringSuggestions = setOf("USD:netflix")))
+        assertEquals(7, remaining.size)
+        assertFalse(remaining.any { it.id == "recurring-price-EUR:netflix" || it.id == "recurring-price-USD:netflix" })
+    }
+
+    @Test fun `isolated recurring price decrease uses info and web negative half percentage convention`() {
+        val candidate = detectRecurringSuggestions(recurringHistory("Netflix", "10", 3)).single()
+        val latest = priceHistory().last().copy(amount = BigDecimal("9.00"))
+        val down = recurringPriceChangeInsights(listOf(latest), listOf(candidate)).single()
+        assertEquals(InsightSeverity.INFO, down.severity)
+        assertFalse(down.warning)
+        assertEquals(BigDecimal("-1.00"), down.value)
+        assertTrue(down.message.contains("-10%"))
+        // Injected candidates test the detector separately; this drop does not pass the variance gate.
+        val half = recurringPriceChangeInsights(listOf(latest.copy(amount = BigDecimal("179"))),
+            listOf(candidate.copy(medianAmount = BigDecimal("200")))).single()
+        assertTrue(half.message.contains("-10%"))
+        val positiveHalf = recurringPriceChangeInsights(listOf(latest.copy(amount = BigDecimal("221"))),
+            listOf(candidate.copy(medianAmount = BigDecimal("200")))).single()
+        assertTrue(positiveHalf.message.contains("11%"))
+        val huge = candidate.copy(medianAmount = BigDecimal("1000000000.00"))
+        assertEquals(emptyList<FinanceInsight>(), recurringPriceChangeInsights(
+            listOf(latest.copy(amount = BigDecimal("900000000.01"))), listOf(huge)))
+        assertEquals(1, recurringPriceChangeInsights(listOf(latest.copy(amount = BigDecimal("900000000.00"))), listOf(huge)).size)
+        assertEquals(emptyList<FinanceInsight>(), recurringPriceChangeInsights(listOf(latest), listOf(candidate.copy(medianAmount = BigDecimal.ZERO))))
+        assertEquals(emptyList<FinanceInsight>(), recurringPriceChangeInsights(listOf(latest.copy(description = "Unrelated")), listOf(candidate)))
+        assertEquals(emptyList<FinanceInsight>(), recurringPriceChangeInsights(emptyList(), listOf(candidate)))
+    }
     private fun recurringHistory(description: String, amount: String, count: Int, currency: String = "EUR", gap: Long = 30) =
         (0 until count).map { index -> FinanceTransaction("$description-$currency-$index", TransactionType.EXPENSE,
             amount.toBigDecimal(), currency, LocalDate.parse("2026-06-15").minusDays((count - index - 1) * gap), description, null) }

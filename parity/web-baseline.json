@@ -106,7 +106,10 @@
         "nativeTestsRun": true,
         "backendFlowVerified": false,
         "deviceFlowVerified": true,
-        "nativeTestScope": "JVM models and repositories; Android TLS fixture test for Magic uppercase deduplication, Pokemon exact-case sets and Yugioh name-only search; backend pending"
+        "nativeTestScope": "JVM models and repositories; Android TLS fixture test for Magic uppercase deduplication, Pokemon exact-case sets and Yugioh name-only search; backend pending",
+        "verificationScope": [
+          "fixture-selected-card-price503-single-insert-null-price-purchase-cost-value-fallback"
+        ]
       },
       "remaining": [
         "real-backend-collection-filter-flows"
@@ -152,7 +155,8 @@
           "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup",
           "fixture-budget-literal-half-cent-display-and-nine-currency-HALF_UP-regression",
           "fixture-saving-month-currency-specific-baseline-severity-counts-and-filters",
-          "fixture-new-recurring-top-three-cadences-owner-pagination-inactive-and-account-dismissals"
+          "fixture-new-recurring-top-three-cadences-owner-pagination-inactive-and-account-dismissals",
+          "fixture-recurring-price-exact-threshold-pipeline-limits-currencies-ties-and-read-only-UI"
         ]
       },
       "owner": "finance-agent",
@@ -175,7 +179,8 @@
           "real-E2E-new-process-session-restore-native-dashboard-and-logout",
           "fixture-foreground-session-invalidation-transient-errors-token-rotation-and-stale-owner-guards",
           "fixture-canonical-web-api-transport-original-callback-origin-and-rejected-redirect",
-          "fixture-MFA-invalid-code-and-transient-error-retry-without-premature-profile-read"
+          "fixture-MFA-invalid-code-and-transient-error-retry-without-premature-profile-read",
+          "fixture-Admin-denial-clears-data-and-dialogs-transient503-preserves-session"
         ]
       },
       "owner": "auth-agent",
@@ -284,6 +289,24 @@
       "sha256": "beb12d54d9660e18ae08ed01fac7177e2ca1f9d334a071a5edbd71ec38f5aaaf",
       "scope": [
         "signature-versionCode3-to4-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.4-alpha",
+      "variant": "debug",
+      "jvmTests": 232,
+      "androidTests": 43,
+      "scope": [
+        "fixture-unit-and-device-tests"
+      ]
+    },
+    {
+      "version": "0.1.4-alpha",
+      "versionCode": 5,
+      "variant": "release",
+      "sha256": "c70de53adc8732ccd46b38a17749d5d236a6776e4b3a1d56290ea46bb8c74789",
+      "scope": [
+        "signature-versionCode4-to5-upgrade-and-anonymous-login-layout-on-AVD"
       ]
     }
   ]

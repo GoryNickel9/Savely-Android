@@ -2,6 +2,10 @@
 
 ## Risultati eseguiti il 11 ottobre 2026
 
+La build integrata 0.1.4-alpha passa 232 test JVM e 43 Android, zero failure/errori/skip, lint debug/release zero errori e 24 avvertenze. Snapshot sorgenti invariato durante la build; report in `artifacts/verified-0.1.4/`. Aggiunge sei JVM per variazione del prezzo ricorrente e quattro Android per lo stesso rilevatore, diniego Admin con sessione conservata e TCG con prezzi HTTP 503. Suite Android: 274.014 secondi, osservazione locale sull’AVD Android 15.
+
+APK 0.1.4-alpha: versionCode 5, 1.800.912 byte, SHA-256 `c70de53adc8732ccd46b38a17749d5d236a6776e4b3a1d56290ea46bb8c74789`, firma v2 e stessa chiave. Aggiornamento 0.1.3→0.1.4 e login anonimo controllati sull’AVD. Scansione APK senza credenziali privilegiate rilevate. Le nuove prove usano esclusivamente fixture locali; gli smoke reali della 0.1.2 restano evidenza separata.
+
 La build integrata 0.1.3-alpha passa 226 test JVM e 39 Android, zero failure/errori/skip, lint debug/release zero errori e 24 avvertenze. I sorgenti app corrispondono allo snapshot prima della build. Aggiunge 14 JVM e tre Android: origine API canonica con callback/Origin invariati e redirect rifiutati, retry MFA, quarto segnale Insights e creazione/modifica Fumo con derivati null al reset. Suite Android: 281.334 secondi, osservazione locale sull’AVD Android 15. Report conservati in `artifacts/verified-0.1.3/`.
 
 APK 0.1.3-alpha: versionCode 4, 1.800.916 byte, SHA-256 `beb12d54d9660e18ae08ed01fac7177e2ca1f9d334a071a5edbd71ec38f5aaaf`, firma v2 e stessa chiave. Aggiornamento 0.1.2→0.1.3 e login anonimo verificati sull’AVD. Scansione entry APK senza credenziali privilegiate rilevate. Non sono stati ripetuti gli smoke finanziari reali del blocco 0.1.2. La prova HTTP anonima del routing ha osservato 308 dall’apex e 400/403 dalle API canoniche con body vuoto; non verifica email o ruoli Admin reali.
@@ -30,6 +34,8 @@ La 0.1.1 aggiunge 22 test JVM e sei test Android: mediana globale Budget e mezzo
 
 ## Comandi
 
+La CI della 0.1.3-alpha, commit `2bc75672eafd22cbbc75b12f72b43bf2b03bfe80`, passa entrambi i job: [esecuzione 38162299922](https://github.com/GoryNickel9/Savely-Android/actions/runs/38162299922). Il report Android scaricato conferma 39 test, zero failure, zero skip e 100% di successo; conservato in `artifacts/ci-38162299922-ui/`. Questa revisione precede il quinto rilevatore Insights e la correzione della cache Admin sul diniego.
+
 La CI della 0.1.2-alpha, commit `8e6dd4ec9c013f9df7880491b3447ad43edd1f7f`, passa entrambi i job: [esecuzione 38160631288](https://github.com/GoryNickel9/Savely-Android/actions/runs/38160631288). Il report Android scaricato conferma 36 test, zero failure, zero skip e 100% di successo; report conservato in `artifacts/ci-38160631288-ui/`. Questa revisione precede il quarto rilevatore Insights e la correzione dell'origine delle API web.
 
 Anche la CI della 0.1.1-alpha, commit `3b086777d2104514e0cd7a797ffbe0c1d8dea723`, passa entrambi i job: [esecuzione 38157386878](https://github.com/GoryNickel9/Savely-Android/actions/runs/38157386878). Il report Android scaricato conferma 32 test, zero failure, zero skip e 100% di successo. Questo risultato precede il blocco 0.1.2 con invalidazione foreground e nuovo segnale Insights.
@@ -43,7 +49,7 @@ python -m unittest discover -s tools -p 'test_web_parity_audit.py'
 python tools/web_parity_audit.py --web-repo ../Savely --output artifacts/web-parity-audit.json
 ```
 
-I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 39 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
+I report sono in `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/androidTests/connected/debug/` e `app/build/reports/lint-results-debug.html`. I 43 test device ordinari usano preferenze isolate e un server HTTPS locale con certificato temporaneo; non creano utenti o transazioni in produzione. Le tre classi smoke reali sono escluse da questa suite e richiedono un avvio esplicito.
 
 ## Smoke aggiuntivo sul backend reale
 
