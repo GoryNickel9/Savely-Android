@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import java.util.UUID
 
 enum class ImportStatus { READY, DUPLICATE, IMPORTED, FAILED, UNCERTAIN }
+data class TransferNotice(val template: String, val values: List<Pair<String, Any?>>)
 data class PreviewTransaction(
     val transaction: ImportTransaction,
     val selected: Boolean,
@@ -33,6 +34,8 @@ data class TransferState(
     val skipped: Int = 0,
     val message: String? = null,
     val export: ExportData? = null,
+    val progressNotice: TransferNotice? = null,
+    val messageNotice: TransferNotice? = null,
 )
 
 class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
@@ -42,7 +45,7 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
 
     fun prepare(read: suspend () -> String, format: ImportFormat, currency: String) {
         if (mutable.value.busy) return
-        mutable.update { it.copy(busy = true, message = null, progress = "Leggo e controllo il file…") }
+        mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, message = null, progress = "Leggo e controllo il file…") }
         viewModelScope.launch {
             try {
                 val parsed = withContext(Dispatchers.IO) { TransferCsv.parse(read(), format, currency) }
@@ -59,8 +62,8 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
                 mutable.update { it.copy(context = context, preview = preview, problems = parsed.problems, skipped = parsed.skipped,
                     message = "Anteprima pronta. Nessun dato è stato scritto.") }
             } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { mutable.update { it.copy(message = safeMessage(error)) } }
-            finally { mutable.update { it.copy(busy = false, progress = "") } }
+            catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
+            finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }
         }
     }
 
@@ -84,18 +87,19 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
         if (initial.busy) return
         val context = initial.context ?: return
         val selected = initial.preview.filter { it.selected && it.status in setOf(ImportStatus.READY, ImportStatus.FAILED) }
-        if (selected.isEmpty()) { mutable.update { it.copy(message = "Seleziona almeno una transazione.") }; return }
+        if (selected.isEmpty()) { mutable.update { it.copy(messageNotice = null, message = "Seleziona almeno una transazione.") }; return }
         try {
             selected.forEach { validate(it, context) }
-        } catch (error: Exception) { mutable.update { it.copy(message = safeMessage(error)) }; return }
-        mutable.update { it.copy(busy = true, message = null, progress = "Ricontrollo i duplicati…") }
+        } catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) }; return }
+        mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, message = null, progress = "Ricontrollo i duplicati…") }
         viewModelScope.launch {
             try {
                 val fresh = repository.importContext()
                 if (fresh.userId != context.userId) throw TransferException("Account cambiato. Riapri il file con l'account corretto.")
                 val seen = fresh.existingKeys.toMutableSet()
                 for ((index, row) in selected.withIndex()) {
-                    mutable.update { it.copy(progress = "Importazione ${index + 1} / ${selected.size}") }
+                    mutable.update { it.copy(progress = "Importazione ${index + 1} / ${selected.size}",
+                        progressNotice = TransferNotice("Importazione {{current}} / {{total}}", listOf("current" to index + 1, "total" to selected.size))) }
                     if (!seen.add(row.transaction.duplicateKey())) {
                         result(row.transaction.row, ImportStatus.DUPLICATE, "Già presente; saltata.")
                         continue
@@ -120,17 +124,20 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
                 mutable.update { it.copy(message = "${current.count { it.status == ImportStatus.IMPORTED }} importate, " +
                     "${current.count { it.status == ImportStatus.DUPLICATE }} duplicate, " +
                     "${current.count { it.status == ImportStatus.FAILED }} fallite, " +
-                    "${current.count { it.status == ImportStatus.UNCERTAIN }} con esito da verificare.") }
+                    "${current.count { it.status == ImportStatus.UNCERTAIN }} con esito da verificare.",
+                    messageNotice = TransferNotice("{{imported}} importate, {{duplicates}} duplicate, {{failed}} fallite, {{uncertain}} con esito da verificare.",
+                        listOf("imported" to current.count { it.status == ImportStatus.IMPORTED }, "duplicates" to current.count { it.status == ImportStatus.DUPLICATE },
+                            "failed" to current.count { it.status == ImportStatus.FAILED }, "uncertain" to current.count { it.status == ImportStatus.UNCERTAIN }))) }
             } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { mutable.update { it.copy(message = safeMessage(error)) } }
-            finally { mutable.update { it.copy(busy = false, progress = "") } }
+            catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
+            finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }
         }
     }
 
     fun recheckDuplicates() {
         if (mutable.value.busy) return
         val old = mutable.value.context ?: return
-        mutable.update { it.copy(busy = true, progress = "Verifico le righe con esito incerto…", message = null) }
+        mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, progress = "Verifico le righe con esito incerto…", message = null) }
         viewModelScope.launch {
             try {
                 val fresh = repository.importContext()
@@ -141,38 +148,40 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
                     } else row
                 }, message = "Dati riletti. Se una riga resta incerta, non viene ritentata: verifica prima dal conto.") }
             } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { mutable.update { it.copy(message = safeMessage(error)) } }
-            finally { mutable.update { it.copy(busy = false, progress = "") } }
+            catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
+            finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }
         }
     }
 
     fun prepareExport() {
         if (mutable.value.busy) return
-        mutable.update { it.copy(busy = true, progress = "Raccolgo tutte le tabelle dell'account…", message = null, export = null) }
+        mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, progress = "Raccolgo tutte le tabelle dell'account…", message = null, export = null) }
         viewModelScope.launch {
             try {
                 val data = withContext(Dispatchers.IO) { repository.export() }
-                mutable.update { it.copy(export = data, message = "${data.counts.values.sum()} righe in ${data.counts.size} tabelle. Scegli dove salvare il CSV.") }
+                mutable.update { it.copy(export = data, message = "${data.counts.values.sum()} righe in ${data.counts.size} tabelle. Scegli dove salvare il CSV.",
+                    messageNotice = TransferNotice("{{rows}} righe in {{tables}} tabelle. Scegli dove salvare il CSV.", listOf("rows" to data.counts.values.sum(), "tables" to data.counts.size))) }
             } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { mutable.update { it.copy(message = safeMessage(error)) } }
-            finally { mutable.update { it.copy(busy = false, progress = "") } }
+            catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
+            finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }
         }
     }
 
-    fun exportSaved(message: String) { mutable.update { it.copy(message = message) } }
+    fun exportSaved(message: String) { mutable.update { it.copy(messageNotice = null, message = message) } }
     fun saveExport(write: suspend (String) -> Unit) {
         val initial = mutable.value
         if (initial.busy) return
         val export = initial.export ?: return
-        mutable.update { it.copy(busy = true, progress = "Salvo il documento CSV…", message = null) }
+        mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, progress = "Salvo il documento CSV…", message = null) }
         viewModelScope.launch {
             try {
                 if (api.session()?.userId != export.userId) throw TransferException("Account cambiato. Prepara di nuovo l'export.")
                 write(export.csv)
-                mutable.update { it.copy(message = "CSV salvato: ${export.counts.values.sum()} righe da ${export.counts.size} tabelle.") }
+                mutable.update { it.copy(message = "CSV salvato: ${export.counts.values.sum()} righe da ${export.counts.size} tabelle.",
+                    messageNotice = TransferNotice("CSV salvato: {{rows}} righe da {{tables}} tabelle.", listOf("rows" to export.counts.values.sum(), "tables" to export.counts.size))) }
             } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { mutable.update { it.copy(message = safeMessage(error)) } }
-            finally { mutable.update { it.copy(busy = false, progress = "") } }
+            catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
+            finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }
         }
     }
     private fun result(row: Int, status: ImportStatus, message: String) = mutable.update { state ->

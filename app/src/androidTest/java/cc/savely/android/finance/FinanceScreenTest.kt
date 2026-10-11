@@ -50,8 +50,15 @@ class FinanceScreenTest {
     private val patchedBody = AtomicReference("")
     private val recurringFixture = AtomicBoolean(false)
     private val budgetFixture = AtomicBoolean(false)
+    private val dashboardComparisonFixture = AtomicBoolean(false)
+    private val calendarFixture = AtomicBoolean(false)
     private val budgetRoundingFixture = AtomicBoolean(false)
     private val insightsFixture = AtomicBoolean(false)
+    private val anomalyInsightsFixture = AtomicBoolean(false)
+    private val trendInsightsFixture = AtomicBoolean(false)
+    private val milestoneInsightsFixture = AtomicBoolean(false)
+    private val failSnapshotRead = AtomicBoolean(false)
+    private val snapshotReadRequests = AtomicInteger()
     private val recurringInsightsFixture = AtomicBoolean(false)
     private val recurringPriceInsightsFixture = AtomicBoolean(false)
     private val recurringReadRequests = AtomicInteger()
@@ -59,6 +66,9 @@ class FinanceScreenTest {
     private val failRecurringAdvance = AtomicBoolean(false)
     private val dueQueries = AtomicInteger()
     private val advanceRequests = AtomicInteger()
+    private val positionClosureFixture = AtomicBoolean(false)
+    private val failPositionRefresh = AtomicBoolean(false)
+    private val positionRefreshRequests = AtomicInteger()
 
     @Before fun setup() {
         val certificate = HeldCertificate.Builder().commonName("Savely finance UI fixture")
@@ -156,6 +166,8 @@ class FinanceScreenTest {
         compose.setContent {
             SavelyTheme("light") { FinanceScreen(api, "recurring", Modifier.fillMaxSize(), accountKey = USER_ID) }
         }
+        waitForText("Elabora ora")
+        transactionList().performScrollToNode(hasText("Suggerimenti dalla cronologia"))
         waitForText("Suggerimenti dalla cronologia")
         transactionList().performScrollToNode(hasText("Crea ricorrenza"))
         compose.onNodeWithText("Crea ricorrenza").performClick()
@@ -204,13 +216,123 @@ class FinanceScreenTest {
         assertEquals(0, rejectedRequests.get())
     }
 
+    @Test fun insightsServerMilestoneUsesRecordedValueFutureDateAndLiteralPositiveWithoutCurrencyOrWrites() {
+        milestoneInsightsFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("Tutti (1)")
+        compose.onNodeWithText("Controlli disponibili (8 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Attenzione (0)").assertExists()
+        compose.onNodeWithText("Info (0)").assertExists()
+        compose.onNodeWithText("Positivi (1)").performScrollTo()
+        recurringTouch(hasText("Positivi (1)"))
+        compose.onNodeWithText("Positivi (1)").assertIsSelected()
+        val description = "Insight net-worth-milestone"
+        transactionList().performScrollToNode(hasContentDescription(description))
+        compose.onNodeWithContentDescription(description).assertIsDisplayed()
+            .assertTextContains("Nuovo massimo del valore registrato dal server", substring = true)
+            .assertTextContains("Positivo", substring = true)
+            .assertTextContains("ha raggiunto 201,00, almeno 1 sopra il massimo precedente", substring = true)
+            .assertTextContains("La serie server non distingue le valute", substring = true)
+            .assertTextContains("non è confrontabile con i totali nativi per valuta", substring = true)
+        compose.onNode(hasText("201,00", substring = true) and hasText("EUR", substring = true)).assertDoesNotExist()
+        compose.onNode(hasText("201,00", substring = true) and hasText("USD", substring = true)).assertDoesNotExist()
+        compose.onNode(hasText("201,00", substring = true) and hasText("€", substring = true)).assertDoesNotExist()
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Info (0)").performScrollTo()
+        recurringTouch(hasText("Info (0)"))
+        compose.onNodeWithText("Info (0)").assertIsSelected()
+        waitForText("Nessun segnale nel filtro selezionato")
+        compose.onNodeWithContentDescription(description).assertDoesNotExist()
+        org.junit.Assert.assertTrue("Insights must read server snapshots", snapshotReadRequests.get() > 0)
+        assertEquals("Reading server history must never mutate records", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun insightsSnapshotFailureShowsAnErrorRatherThanAnEmptyMilestoneListWithoutWrites() {
+        milestoneInsightsFixture.set(true)
+        failSnapshotRead.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("Non hai il permesso per questa operazione.")
+        compose.onNodeWithText("Riprova").assertExists()
+        compose.onNodeWithText("Nessun segnale negli otto controlli disponibili").assertDoesNotExist()
+        compose.onNodeWithText("Tutti (0)").assertDoesNotExist()
+        org.junit.Assert.assertTrue(snapshotReadRequests.get() > 0)
+        assertEquals(0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun insightsCategoryTrendUsesIndividualMedianFutureCurrencyAndLiteralInfoWithoutWrites() {
+        trendInsightsFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("Tutti (1)")
+        compose.onNodeWithText("Controlli disponibili (8 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Attenzione (0)").assertExists()
+        compose.onNodeWithText("Positivi (0)").assertExists()
+        compose.onNodeWithText("Info (1)").performScrollTo()
+        recurringTouch(hasText("Info (1)"))
+        compose.onNodeWithText("Info (1)").assertIsSelected()
+        val description = "Insight category-trend-EUR-$FOOD_ID"
+        transactionList().performScrollToNode(hasContentDescription(description))
+        compose.onNodeWithContentDescription(description).assertIsDisplayed()
+            .assertTextContains("Alimentari in trend crescente: EUR", substring = true)
+            .assertTextContains("Info", substring = true)
+            .assertTextContains("La mediana dei singoli importi in Alimentari è cresciuta del 25%", substring = true)
+            .assertTextContains("50,00", substring = true)
+            .assertTextContains("rispetto a 40,00", substring = true)
+        compose.onNodeWithContentDescription("Insight category-trend-USD-$FOOD_ID").assertDoesNotExist()
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Attenzione (0)").performScrollTo()
+        recurringTouch(hasText("Attenzione (0)"))
+        compose.onNodeWithText("Attenzione (0)").assertIsSelected()
+        waitForText("Nessun segnale nel filtro selezionato")
+        compose.onNodeWithContentDescription(description).assertDoesNotExist()
+        assertEquals("Category trend reads the existing pipeline without mutations", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun insightsSpendingAnomalyUsesIndividualMedianCurrencyAndBoundaryWithLiteralValuesWithoutWrites() {
+        anomalyInsightsFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("Tutti (1)")
+        compose.onNodeWithText("Controlli disponibili (8 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Attenzione (1)").assertExists()
+        compose.onNodeWithText("Positivi (0)").assertExists()
+        compose.onNodeWithText("Info (0)").assertExists()
+        recurringTouch(hasText("Attenzione (1)"))
+        compose.onNodeWithText("Attenzione (1)").assertIsSelected()
+        val description = "Insight spending-anomaly-EUR-$FOOD_ID"
+        transactionList().performScrollToNode(hasContentDescription(description))
+        compose.onNodeWithContentDescription(description).assertIsDisplayed()
+            .assertTextContains("Spesa anomala in Alimentari: EUR", substring = true)
+            .assertTextContains("Attenzione", substring = true)
+            .assertTextContains("Hai speso 70,00", substring = true)
+            .assertTextContains("+40% rispetto alla mediana dei singoli importi (50,00", substring = true)
+        compose.onNodeWithContentDescription("Insight spending-anomaly-USD-$FOOD_ID").assertDoesNotExist()
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Positivi (0)").performScrollTo()
+        recurringTouch(hasText("Positivi (0)"))
+        compose.onNodeWithText("Positivi (0)").assertIsSelected()
+        waitForText("Nessun segnale nel filtro selezionato")
+        compose.onNodeWithContentDescription(description).assertDoesNotExist()
+        assertEquals("Spending anomalies only read the existing data", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
     @Test fun insightsShowSavingMonthAndSeverityFiltersWithLiteralValuesWithoutWrites() {
         insightsFixture.set(true)
         compose.setContent {
             SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
         }
         waitForText("Tutti (3)")
-        compose.onNodeWithText("Controlli disponibili (5 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Controlli disponibili (8 su 8)", substring = true).assertExists()
         compose.onNodeWithText("Attenzione (2)").assertExists()
         compose.onNodeWithText("Positivi (1)").assertExists()
         compose.onNodeWithText("Info (0)").assertExists()
@@ -255,9 +377,10 @@ class FinanceScreenTest {
             compose.setContent {
                 SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
             }
-            waitForText("Tutti (1)")
-            compose.onNodeWithText("Controlli disponibili (5 su 8)", substring = true).assertExists()
-            compose.onNodeWithText("Attenzione (0)").assertExists()
+            // These categorized recurring expenses also produce the newly supported spending anomaly.
+            waitForText("Tutti (2)")
+            compose.onNodeWithText("Controlli disponibili (8 su 8)", substring = true).assertExists()
+            compose.onNodeWithText("Attenzione (1)").assertExists()
             compose.onNodeWithText("Positivi (0)").assertExists()
             compose.onNodeWithText("Info (1)").performScrollTo()
             recurringTouch(hasText("Info (1)"))
@@ -270,6 +393,13 @@ class FinanceScreenTest {
                 .assertTextContains("(4 occorrenze). Vuoi tenerla tracciata?", substring = true)
             compose.onNodeWithContentDescription("Insight new-recurring-EUR:abbonamento tracciato insights").assertDoesNotExist()
             compose.onNodeWithContentDescription("Insight new-recurring-EUR:abbonamento ignorato insights").assertDoesNotExist()
+            transactionList().performScrollToIndex(0)
+            compose.onNodeWithText("Attenzione (1)").performScrollTo()
+            recurringTouch(hasText("Attenzione (1)"))
+            transactionList().performScrollToNode(hasContentDescription("Insight spending-anomaly-EUR-$FOOD_ID"))
+            compose.onNodeWithContentDescription("Insight spending-anomaly-EUR-$FOOD_ID").assertIsDisplayed()
+                .assertTextContains("Spesa anomala in Alimentari: EUR", substring = true)
+            compose.onNodeWithContentDescription("Insight new-recurring-EUR:abbonamento disponibile insights").assertDoesNotExist()
             org.junit.Assert.assertTrue("Insights must read tracked recurring records", recurringReadRequests.get() > 0)
             assertEquals("Reading and filtering suggestions must never mutate backend records", 0, posts.get() + patches.get() + deletes.get())
             assertEquals(0, rejectedRequests.get())
@@ -284,7 +414,7 @@ class FinanceScreenTest {
             SavelyTheme("light") { FinanceScreen(api, "insights", Modifier.fillMaxSize(), accountKey = USER_ID) }
         }
         waitForText("Tutti (2)")
-        compose.onNodeWithText("Controlli disponibili (5 su 8)", substring = true).assertExists()
+        compose.onNodeWithText("Controlli disponibili (8 su 8)", substring = true).assertExists()
         compose.onNodeWithText("Attenzione (1)").assertExists()
         compose.onNodeWithText("Positivi (0)").assertExists()
         compose.onNodeWithText("Info (1)").assertExists()
@@ -427,6 +557,138 @@ class FinanceScreenTest {
         assertEquals(0, rejectedRequests.get())
     }
 
+    @Test fun dashboardCustomPeriodComparesLiteralAmountsValidatesInputAndKeepsCurrentMonthBudget() {
+        dashboardComparisonFixture.set(true)
+        compose.setContent { SavelyTheme("light") { FinanceScreen(api, "dashboard", Modifier.fillMaxSize(), accountKey = USER_ID) } }
+        waitForText("Periodo: Mese corrente")
+        compose.onNodeWithText("Periodo: Mese corrente").performClick()
+        compose.onNodeWithText("Personalizzato").performClick()
+        transactionList().performScrollToNode(hasText("Dal"))
+        compose.onNodeWithText("Dal").performTextReplacement("2024-06-01")
+        compose.onNodeWithText("Al").performTextReplacement("2024-06-15")
+        transactionList().performScrollToNode(hasText("Applica intervallo"))
+        compose.onNodeWithText("Applica intervallo").performClick()
+        transactionList().performScrollToNode(hasText("Periodo precedente: 2024-05-17 – 2024-05-31"))
+        compose.onNodeWithText("Periodo precedente: 2024-05-17 – 2024-05-31").assertIsDisplayed()
+        transactionList().performScrollToNode(hasContentDescription("Statistiche EUR"))
+        compose.onNodeWithContentDescription("Statistiche EUR")
+            .assertTextContains("180,00", substring = true).assertTextContains("120,00", substring = true)
+            .assertTextContains("30,00", substring = true).assertTextContains("90,00", substring = true)
+            .assertTextContains("20% rispetto al periodo precedente", substring = true)
+            .assertTextContains("75% del totale entrate", substring = true)
+        transactionList().performScrollToNode(hasText("Spesa delle categorie con budget: ", substring = true))
+        compose.onNodeWithText("Spesa delle categorie con budget: ", substring = true).assertTextContains("25,00", substring = true)
+        compose.onNodeWithText("Disponibile: ", substring = true).assertTextContains("25,00", substring = true)
+        transactionList().performScrollToNode(hasText("Dal"))
+        compose.onNodeWithText("Dal").performTextReplacement("2024-02-30")
+        transactionList().performScrollToNode(hasText("Applica intervallo"))
+        compose.onNodeWithText("Applica intervallo").performClick()
+        compose.onNodeWithText("Inserisci date valide nel formato YYYY-MM-DD").assertExists()
+        compose.onNodeWithText("Periodo selezionato: 2024-06-01 – 2024-06-15").assertExists()
+        assertEquals(0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun dashboardCategoryDonutAndOperationLinksUseProductionScreenWithoutWrites() {
+        dashboardComparisonFixture.set(true)
+        val destination = AtomicReference("")
+        compose.setContent { SavelyTheme("light") { FinanceScreen(api, "dashboard", Modifier.fillMaxSize(), accountKey = USER_ID,
+            onNavigate = { destination.set(it) }) } }
+        waitForText("Periodo: Mese corrente")
+        transactionList().performScrollToNode(hasText("Spese per categoria"))
+        compose.onNodeWithText("Spese per categoria").assertIsDisplayed()
+        transactionList().performScrollToNode(hasText("Totale spese: ", substring = true))
+        compose.onNodeWithText("Totale spese: ", substring = true).assertTextContains("25,00", substring = true)
+        transactionList().performScrollToNode(hasText("Vedi tutti"))
+        compose.waitForIdle()
+        compose.onNodeWithText("Vedi tutti").performClick()
+        assertEquals("budget", destination.get())
+        transactionList().performScrollToNode(hasText("Vedi tutte"))
+        compose.waitForIdle()
+        compose.onNodeWithText("Vedi tutte").performClick()
+        assertEquals("transactions", destination.get())
+        assertEquals(0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun recurringCalendarProjectsSavedDateNavigatesMonthAndExcludesPausedWithoutWrites() {
+        calendarFixture.set(true)
+        compose.setContent { SavelyTheme("light") { FinanceScreen(api, "recurring", Modifier.fillMaxSize(), accountKey = USER_ID) } }
+        waitForText("Elabora ora")
+        val first = LocalDate.now().withDayOfMonth(1)
+        transactionList().performScrollToNode(hasContentDescription("$first: 1 scadenze"))
+        compose.onNodeWithContentDescription("$first: 1 scadenze").performClick()
+        transactionList().performScrollToNode(hasText("Scadenze del $first"))
+        compose.onNodeWithText("Quota calendario · ", substring = true).assertTextContains("12,50", substring = true)
+        compose.onNodeWithText("Quota in pausa · ", substring = true).assertDoesNotExist()
+        transactionList().performScrollToNode(hasText("Mese successivo"))
+        compose.onNodeWithText("Mese successivo").performClick()
+        val next = first.plusMonths(1)
+        transactionList().performScrollToNode(hasText("Scadenze del $next"))
+        compose.onNodeWithText("Quota calendario · ", substring = true).assertTextContains("12,50", substring = true)
+        compose.onNodeWithText("Quota in pausa · ", substring = true).assertDoesNotExist()
+        assertEquals(0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun collectiveClosureSavesBothPurchasesOnceAndFailedRefreshKeepsWritesBlockedUntilReconciliation() {
+        positionClosureFixture.set(true)
+        compose.setContent { SavelyTheme("light") { FinanceScreen(api, "portfolio", Modifier.fillMaxSize(), accountKey = USER_ID) } }
+        waitForFinanceCondition("portfolio fixture loaded before scrolling to grouped purchases") {
+            compose.onAllNodesWithText("Nuovo acquisto").fetchSemanticsNodes().any { !it.config.contains(SemanticsProperties.Disabled) }
+        }
+        transactionList().performScrollToNode(hasText("Chiudi tutti gli acquisti"))
+        compose.onNodeWithText("Chiudi tutti gli acquisti").assertIsEnabled().performClick()
+        compose.onNodeWithText("Chiudi Titolo collettivo QA").assertIsDisplayed()
+        compose.onNodeWithText("Verranno chiusi 2 acquisti, per 5 unità.", substring = true).assertExists()
+        assertEquals("Opening the dialog cannot close a purchase", 0, patches.get())
+        compose.onNodeWithText("Annulla").performClick()
+        assertEquals("Cancel preserves both purchases", 0, patches.get())
+        compose.onNodeWithText("Chiudi tutti gli acquisti").performClick()
+        compose.onNodeWithText("Conferma chiusura collettiva").performClick()
+        waitForFinanceCondition("both closures confirmed and automatic refresh requested") {
+            patches.get() == 2 && positionRefreshRequests.get() == 2
+        }
+        transactionList().performScrollToIndex(0)
+        waitForText("Riprova")
+        assertEquals("Each purchase is patched exactly once", 2, patches.get())
+        assertEquals("One initial load and one intentional reconciliation, excluding continuation pages", 2, positionRefreshRequests.get())
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Nuovo acquisto").assertIsNotEnabled()
+        compose.onNodeWithText("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce.").assertExists()
+        transactionList().performScrollToNode(hasText("Chiudi tutti gli acquisti"))
+        compose.onNodeWithText("Chiudi tutti gli acquisti").assertIsNotEnabled()
+        transactionList().performScrollToIndex(0)
+        transactionList().performScrollToNode(hasText("Riprova"))
+        compose.onNodeWithText("Riprova").performClick()
+        waitForFinanceCondition("second failed read leaves the reconciliation gate") {
+            positionRefreshRequests.get() == 3 && compose.onAllNodesWithText("Riprova").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals("Retry refresh is a read and must not repeat either closure", 2, patches.get())
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Nuovo acquisto").assertIsNotEnabled()
+        failPositionRefresh.set(false)
+        transactionList().performScrollToNode(hasText("Riprova"))
+        compose.onNodeWithText("Riprova").performClick()
+        waitForFinanceCondition("successful refresh releases reconciliation") {
+            positionRefreshRequests.get() == 4 && compose.onAllNodesWithText("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce.").fetchSemanticsNodes().isEmpty()
+        }
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Nuovo acquisto").assertIsEnabled()
+        transactionList().performScrollToNode(hasText("Nessuna posizione aperta"))
+        compose.onNodeWithText("Nessuna posizione aperta").assertExists()
+        transactionList().performScrollToNode(hasText("Chiuse"))
+        compose.onNodeWithText("Chiuse").performClick()
+        listOf("2", "3").forEach { quantity ->
+            val purchase = hasText("Quantità $quantity", substring = true) and hasText("Vendita ${LocalDate.now()}", substring = true)
+            transactionList().performScrollToNode(purchase)
+            compose.onNode(purchase).assertExists()
+        }
+        assertEquals(2, patches.get())
+        assertEquals(0, posts.get() + deletes.get())
+        assertEquals("Headers, owner IDs, selected purchase IDs and closure CAS predicates must match", 0, rejectedRequests.get())
+    }
+
     private fun transactionList() = compose.onNode(hasScrollToIndexAction())
     private fun waitForText(text: String) = waitForFinanceCondition("text: $text") {
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
@@ -478,19 +740,30 @@ class FinanceScreenTest {
             TRAIN_ID to transaction(TRAIN_ID, "30.00", "Biglietto treno", TRANSPORT_ID),
         )
         val recurring = linkedMapOf<String, JSONObject>()
+        val positionAssets = linkedMapOf(
+            POSITION_FIRST_ID to positionAsset(POSITION_FIRST_ID, "2", "10.00"),
+            POSITION_SECOND_ID to positionAsset(POSITION_SECOND_ID, "3", "11.00"),
+        )
         return object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val url = request.requestUrl ?: return reject()
+                if ((anomalyInsightsFixture.get() || trendInsightsFixture.get() || milestoneInsightsFixture.get() || dashboardComparisonFixture.get() || calendarFixture.get()) && request.method != "GET") return reject()
                 if (request.getHeader("Authorization") != "Bearer finance-device-access" ||
                     request.getHeader("apikey") != "public-test-key") return reject()
                 if (request.method != "POST" && url.queryParameter("user_id") != "eq.$USER_ID") return reject()
-                return when (url.encodedPath) {
+                val offsetText = url.queryParameter("offset")
+                val offset = offsetText?.toIntOrNull()
+                if (request.method == "GET" && offsetText != null &&
+                    (offset == null || offset < 0 || offset > 100_000 || url.queryParameter("limit") != "500")) return reject()
+                val response = when (url.encodedPath) {
                     "/rest/v1/categories" -> {
                         val id = url.queryParameter("id")?.removePrefix("eq.")
                         json(JSONArray(categories.filter { id == null || it.getString("id") == id }).toString())
                     }
                     "/rest/v1/profiles" -> json("""[{"default_currency":"EUR"}]""")
-                    "/rest/v1/budgets" -> if ((recurringInsightsFixture.get() || recurringPriceInsightsFixture.get()) && request.method == "GET") json("[]")
+                    "/rest/v1/budgets" -> if (dashboardComparisonFixture.get() && request.method == "GET") json(JSONArray()
+                        .put(JSONObject().put("id", "dashboard-budget").put("category_id", FOOD_ID).put("amount", "50.00").put("currency", "EUR")).toString())
+                        else if ((milestoneInsightsFixture.get() || trendInsightsFixture.get() || anomalyInsightsFixture.get() || recurringInsightsFixture.get() || recurringPriceInsightsFixture.get()) && request.method == "GET") json("[]")
                         else if (insightsFixture.get() && request.method == "GET") json(JSONArray()
                         .put(JSONObject().put("id", "insights-food").put("category_id", FOOD_ID).put("amount", "100.00").put("currency", "EUR"))
                         .toString()) else if (budgetRoundingFixture.get() && request.method == "GET") json(JSONArray()
@@ -500,10 +773,52 @@ class FinanceScreenTest {
                         .put(JSONObject().put("id", "budget-transport").put("category_id", TRANSPORT_ID).put("amount", "20.00").put("currency", "EUR"))
                         .put(JSONObject().put("id", "budget-gbp").put("category_id", FOOD_ID).put("amount", "25.00").put("currency", "GBP"))
                         .toString()) else reject()
-                    "/rest/v1/portfolio_assets" -> if (insightsFixture.get()) json("""[
+                    "/rest/v1/portfolio_assets" -> if (positionClosureFixture.get()) when (request.method) {
+                        "GET" -> {
+                            val id = url.queryParameter("id")?.removePrefix("eq.")
+                            if (id == null && offset == 0) positionRefreshRequests.incrementAndGet()
+                            if (failPositionRefresh.get()) MockResponse().setResponseCode(503).setBody("{}")
+                            else json(JSONArray(positionAssets.values.filter { id == null || it.getString("id") == id }).toString())
+                        }
+                        "PATCH" -> {
+                            val id = url.queryParameter("id")?.removePrefix("eq.") ?: return reject()
+                            val asset = positionAssets[id] ?: return reject()
+                            val expected = mapOf("type" to "eq.stock", "currency" to "eq.EUR", "symbol" to "eq.QASTOCK",
+                                "quantity" to "eq.${asset.getString("quantity")}", "purchase_price" to "eq.${asset.getString("purchase_price")}",
+                                "purchase_date" to "eq.${asset.getString("purchase_date")}", "sold_at" to "is.null", "sold_price" to "is.null")
+                            if (expected.any { (field, value) -> url.queryParameter(field) != value } || !asset.isNull("sold_at")) return reject()
+                            val body = JSONObject(request.body.readUtf8())
+                            if (body.keys().asSequence().toSet() != setOf("sold_at", "sold_price") ||
+                                body.getString("sold_at") != LocalDate.now().toString() || body.getString("sold_price") != "12.00") return reject()
+                            asset.put("sold_at", body.getString("sold_at")).put("sold_price", body.getString("sold_price"))
+                            patches.incrementAndGet()
+                            // Both confirmed writes succeed; the following read fails until the test explicitly restores it.
+                            if (id == POSITION_SECOND_ID) failPositionRefresh.set(true)
+                            json(JSONArray().put(asset).toString())
+                        }
+                        else -> reject()
+                    } else if (insightsFixture.get()) json("""[
                         {"id":"insights-loss","name":"Posizione sintetica","symbol":"TEST","type":"stock","quantity":"2","purchase_price":"100.00","current_price":"85.00","currency":"USD","purchase_date":"2026-01-01","sold_at":null,"sold_price":null,"notes":null}
                     ]""") else json("[]")
                     "/rest/v1/manual_price_updates" -> json("[]")
+                    "/rest/v1/asset_price_history" -> if (request.method == "GET") json("[]") else reject()
+                    "/rest/v1/net_worth_snapshots" -> {
+                        if (request.method != "GET" || url.queryParameter("select") != "id,date,net_worth,components" ||
+                            url.queryParameter("order") != "date.asc,id.asc" || url.queryParameter("limit") != "500" ||
+                            offset == null || url.queryParameter("date") != null ||
+                            url.queryParameter("deleted_at") != null) return reject()
+                        if (offset == 0) snapshotReadRequests.incrementAndGet()
+                        if (failSnapshotRead.get()) MockResponse().setResponseCode(403).setHeader("Content-Type", "application/json").setBody("{}")
+                        else if (milestoneInsightsFixture.get()) {
+                            val today = LocalDate.now()
+                            json(JSONArray()
+                                .put(JSONObject().put("id", "server-old-peak").put("date", today.minusMonths(6).toString()).put("net_worth", "200.00").put("components", JSONObject.NULL))
+                                .put(JSONObject().put("id", "server-recent-low").put("date", today.minusMonths(1).toString()).put("net_worth", "100.00").put("components", JSONObject.NULL))
+                                .put(JSONObject().put("id", "server-future-max").put("date", today.plusYears(1).toString()).put("net_worth", "201.00")
+                                    .put("components", JSONObject().put("currency", "USD").put("cashflow", "999999.00")))
+                                .toString())
+                        } else json("[]")
+                    }
                     "/rest/v1/tgc_cards" -> json("""[
                         {"id":"priced","category":"magic","quantity":2,"purchase_price":"10.00","current_price":"12.50","currency":"EUR"},
                         {"id":"unpriced","category":"pokemon","quantity":1,"purchase_price":"100.00","current_price":null,"currency":null},
@@ -512,7 +827,13 @@ class FinanceScreenTest {
                     "/rest/v1/recurring_expenses" -> when (request.method) {
                         "GET" -> {
                             if (url.queryParameter("deleted_at") != "is.null" || url.queryParameter("limit") != "500") return reject()
-                            recurringReadRequests.incrementAndGet()
+                            if (offset == 0) recurringReadRequests.incrementAndGet()
+                            if (calendarFixture.get() && recurring.isEmpty()) {
+                                listOf(PROCESS_ID to true, CREATED_ID to false).forEach { (id, active) -> recurring[id] = JSONObject()
+                                    .put("id", id).put("name", if (active) "Quota calendario" else "Quota in pausa").put("amount", "12.50").put("currency", "EUR")
+                                    .put("category_id", JSONObject.NULL).put("frequency", "monthly").put("week_interval", 1)
+                                    .put("next_due_date", LocalDate.now().withDayOfMonth(1).toString()).put("is_active", active) }
+                            }
                             if (recurringInsightsFixture.get() && recurring.isEmpty()) recurring[PROCESS_ID] = JSONObject()
                                 .put("id", PROCESS_ID).put("name", "Abbonamento tracciato insights").put("amount", "19.00").put("currency", "EUR")
                                 .put("category_id", JSONObject.NULL).put("frequency", "monthly").put("week_interval", 1)
@@ -523,10 +844,10 @@ class FinanceScreenTest {
                                 .put("next_due_date", LocalDate.now().withDayOfMonth(1).toString()).put("is_active", true)
                             val due = url.queryParameter("next_due_date")?.removePrefix("lte.")
                             val active = url.queryParameter("is_active") == "eq.true"
-                            if (due != null) dueQueries.incrementAndGet()
+                            if (due != null && offset == 0) dueQueries.incrementAndGet()
                             val rows = recurring.values.filter { (!active || it.getBoolean("is_active")) &&
                                 (due == null || it.getString("next_due_date") <= due) }
-                            json(JSONArray(rows).toString()).apply { if (due != null) setBodyDelay(1200, TimeUnit.MILLISECONDS) }
+                            json(JSONArray(rows).toString()).apply { if (due != null && offset == 0) setBodyDelay(1200, TimeUnit.MILLISECONDS) }
                         }
                         "POST" -> {
                             val raw = request.body.readUtf8()
@@ -554,7 +875,53 @@ class FinanceScreenTest {
                         else -> reject()
                     }
                     "/rest/v1/transactions" -> when (request.method) {
-                        "GET" -> if (recurringPriceInsightsFixture.get()) {
+                        "GET" -> if (dashboardComparisonFixture.get()) json(JSONArray()
+                            .put(transaction("dashboard-opening", "30.00", "Saldo iniziale", FOOD_ID).put("type", "income").put("date", "2024-04-01"))
+                            .put(transaction("dashboard-previous-income", "100.00", "Entrata precedente", FOOD_ID).put("type", "income").put("date", "2024-05-17"))
+                            .put(transaction("dashboard-previous-expense", "40.00", "Spesa precedente", FOOD_ID).put("date", "2024-05-31"))
+                            .put(transaction("dashboard-current-income", "120.00", "Entrata selezionata", FOOD_ID).put("type", "income").put("date", "2024-06-01"))
+                            .put(transaction("dashboard-current-expense", "30.00", "Spesa selezionata", FOOD_ID).put("date", "2024-06-15"))
+                            .put(transaction("dashboard-month-budget", "25.00", "Spesa mese attuale", FOOD_ID).put("date", LocalDate.now().withDayOfMonth(1).toString())).toString())
+                        else if (milestoneInsightsFixture.get()) json("[]") else if (trendInsightsFixture.get()) {
+                            val today = LocalDate.now()
+                            val month = today.withDayOfMonth(1)
+                            val rows = JSONArray()
+                            // Five older 40s plus two recent 50s and one future 50 => baseline40, recent50.
+                            repeat(5) { index -> rows.put(transaction("trend-old-$index", "40.00", "Storico categoria $index", FOOD_ID)
+                                .put("date", month.minusMonths(6).plusDays(index.toLong()).toString())) }
+                            repeat(2) { index -> rows.put(transaction("trend-recent-$index", "50.00", "Recente categoria $index", FOOD_ID)
+                                .put("date", month.minusMonths(1).plusDays(index.toLong()).toString())) }
+                            rows.put(transaction("trend-future", "50.00", "Importo di un mese futuro", FOOD_ID)
+                                .put("date", month.plusMonths(1).toString()))
+                            // Same-month expense excluded from both medians, below the anomaly minimum.
+                            rows.put(transaction("trend-current", "49.00", "Mese corrente escluso dal trend", FOOD_ID))
+                            rows.put(transaction("trend-boundary", "9000.00", "Confine dodici mesi escluso", FOOD_ID)
+                                .put("date", insightWindowStart(today, 12).toString()))
+                            rows.put(transaction("trend-income", "9999.00", "Entrata storica esclusa", FOOD_ID)
+                                .put("type", "income").put("date", month.minusMonths(1).toString()))
+                            repeat(3) { index -> rows.put(transaction("trend-usd-old-$index", "100.00", "Storico USD $index", FOOD_ID)
+                                .put("currency", "USD").put("date", month.minusMonths(6).plusDays(index.toLong()).toString())) }
+                            repeat(2) { index -> rows.put(transaction("trend-usd-recent-$index", "100.00", "Recente USD $index", FOOD_ID)
+                                .put("currency", "USD").put("date", month.minusMonths(1).plusDays(index.toLong()).toString())) }
+                            rows.put(transaction("trend-null", "9000.00", "Categoria assente", FOOD_ID)
+                                .put("category_id", JSONObject.NULL).put("date", month.minusMonths(1).toString()))
+                            json(rows.toString())
+                        } else if (anomalyInsightsFixture.get()) {
+                            val today = LocalDate.now()
+                            val month = today.withDayOfMonth(1)
+                            json(JSONArray()
+                                .put(transaction("anomaly-old-one", "40.00", "Primo importo storico", FOOD_ID).put("date", month.minusMonths(1).toString()))
+                                .put(transaction("anomaly-old-two", "60.00", "Secondo importo storico", FOOD_ID).put("date", month.minusMonths(1).plusDays(1).toString()))
+                                .put(transaction("anomaly-current-one", "35.00", "Prima uscita corrente", FOOD_ID))
+                                .put(transaction("anomaly-current-future", "35.00", "Uscita a fine mese", FOOD_ID).put("date", month.plusMonths(1).minusDays(1).toString()))
+                                .put(transaction("anomaly-usd-old", "100.00", "Importo USD precedente", FOOD_ID).put("currency", "USD").put("date", month.minusMonths(1).toString()))
+                                .put(transaction("anomaly-usd-current", "100.00", "Importo USD corrente", FOOD_ID).put("currency", "USD"))
+                                .put(transaction("anomaly-boundary", "9000.00", "Uscita esclusa al confine", FOOD_ID).put("date", today.minusDays(730).toString()))
+                                .put(transaction("anomaly-income", "9999.00", "Entrata esclusa dallo storico", FOOD_ID).put("type", "income").put("date", month.minusMonths(1).toString()))
+                                .put(transaction("anomaly-null-old", "10.00", "Storico senza categoria", FOOD_ID).put("category_id", JSONObject.NULL).put("date", month.minusMonths(1).toString()))
+                                .put(transaction("anomaly-null-current", "500.00", "Corrente senza categoria", FOOD_ID).put("category_id", JSONObject.NULL))
+                                .toString())
+                        } else if (recurringPriceInsightsFixture.get()) {
                             val rows = JSONArray()
                             (2 downTo 0).forEach { index -> rows.put(transaction("price-insight-$index",
                                 if (index == 2) "11.00" else "10.00", "Netflix sintetico", FOOD_ID)
@@ -637,6 +1004,15 @@ class FinanceScreenTest {
                     }
                     else -> reject()
                 }
+                // Repository reads until an empty page, including datasets shorter than its requested limit.
+                // Keep every path's validation/error status above; only slice successful paginated GET bodies.
+                if (request.method == "GET" && offset != null && response.status.startsWith("HTTP/1.1 200")) {
+                    val all = JSONArray(response.getBody()!!.readUtf8())
+                    val page = JSONArray()
+                    for (index in offset until minOf(all.length(), offset + 500)) page.put(all.get(index))
+                    response.setBody(page.toString())
+                }
+                return response
             }
         }
     }
@@ -646,6 +1022,10 @@ class FinanceScreenTest {
         .put("currency", "EUR").put("date", LocalDate.now().toString()).put("description", description)
         .put("category_id", categoryId).put("exchange_rate_eur", "1").put("deleted_at", JSONObject.NULL)
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
+    private fun positionAsset(id: String, quantity: String, cost: String) = JSONObject()
+        .put("id", id).put("user_id", USER_ID).put("name", "Titolo collettivo QA").put("symbol", "QASTOCK").put("type", "stock")
+        .put("quantity", quantity).put("purchase_price", cost).put("current_price", "12.00").put("currency", "EUR")
+        .put("purchase_date", LocalDate.now().minusDays(30).toString()).put("sold_at", JSONObject.NULL).put("sold_price", JSONObject.NULL).put("notes", JSONObject.NULL)
     private fun reject(): MockResponse { rejectedRequests.incrementAndGet(); return MockResponse().setResponseCode(403).setBody("{}") }
 
     private companion object {
@@ -657,5 +1037,7 @@ class FinanceScreenTest {
         const val CREATED_ID = "10000000-0000-4000-8000-000000000006"
         const val PROCESS_ID = "10000000-0000-4000-8000-000000000007"
         const val PROCESS_NAME = "Ricorrenza sintetica da elaborare"
+        const val POSITION_FIRST_ID = "10000000-0000-4000-8000-000000000008"
+        const val POSITION_SECOND_ID = "10000000-0000-4000-8000-000000000009"
     }
 }

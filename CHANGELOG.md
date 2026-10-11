@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.8-alpha — 12 ottobre 2026
+
+Conferma email e recupero password hanno callback nativi PKCE, con stato e verifier cifrati e consumo prima dello scambio; una sessione di recupero resta separata finché la nuova password non è salvata. Aggiunti archivio dei collegamenti Coppia revocati, donut categorie e collegamenti Dashboard, icona originale web, palette, Inter/Space Grotesk e cinque destinazioni di navigazione. Completate le traduzioni Show/Hide della password. Gli insert delle tabelle note generano UUID nel client nativo, senza dipendere da default mancanti nel servizio distribuito.
+
+Gli aggiornamenti leggono una repository pubblica separata per APK: le alpha possono scoprire nuove prerelease. La prima installazione sopra la 0.1.7 resta manuale; nessuna installazione silenziosa. Backup della firma portabile, cifrato e verificato, ancora sullo stesso computer.
+
+399 JVM e 108 casi Android 12 con esito finale positivo dopo riesecuzioni mirate; lint debug/release senza errori. La singola suite finale Android 15 passa 108/108, senza skip; l’APK definitivo e la verifica della firma sono registrati in TESTING.md e RELEASE.md. Passano 42 contratti backend su 43, CRUD QA isolato e riavvio reale della sessione. Google Books riceve HTTP 429. La prima pulizia è stata bloccata dal confronto booleano del solo guard di test: regressione aggiunta e recovery esatta completata, nessun dato temporaneo pendente. Conservati i report falliti. Nessuna CI GitHub, modifica alla repo web, migrazione o cambio di password QA.
+
+La parità globale e i flussi reali con password, email/MFA, due utenti Coppia e ruolo Admin restano non certificati. Bank PDF è un’estensione separata; mapping ISIN/categorie e XLS/XLSX conservano i limiti dichiarati.
+
+## 0.1.7-alpha — 11 ottobre 2026
+
+Grafici e periodi Dashboard, calendario delle ricorrenze, storico Portafoglio/Patrimonio, chiusure CAS, panoramiche collezioni, condivisione/importazione FIRE e IT/EN. Insights copre otto rilevatori. Le valute restano separate e lo storico ricostruito usa i prezzi salvati, senza feed storico.
+
+366 JVM e 87 Android superati, lint senza errori. APK firmato aggiornato sopra la 0.1.5 sul solo emulatore, senza account. Installazione e uso generale sul Doogee S100 Android 12 confermati dall’utente; parità globale aperta.
+
 ## 0.1.5-alpha — 11 ottobre 2026
 
 Libreria rende facoltativi i prezzi di acquisto e rivendita: modificare note o quantità di un record senza prezzi conserva JSON null. Una fixture TLS verifica input malformato/negativo, singolo PATCH, metadati e isolamento della riga estranea.

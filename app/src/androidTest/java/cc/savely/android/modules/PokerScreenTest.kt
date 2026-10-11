@@ -17,6 +17,8 @@ import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
 import cc.savely.android.data.SupabaseApi
 import cc.savely.android.ui.SavelyTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -48,9 +50,13 @@ import java.util.concurrent.atomic.AtomicInteger
  * Real Compose touch and Android TLS, synthetic ownership fixtures; no deployed RLS claim.
  */
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class, ExperimentalCoroutinesApi::class)
 class PokerScreenTest {
     @get:Rule(order = 0) val timeout: Timeout = Timeout.seconds(90)
-    @get:Rule(order = 1) val compose = createComposeRule()
+    private val effectDispatcher = StandardTestDispatcher()
+    // Queue HTTP resumptions for the test clock/UI thread. The default unconfined test
+    // dispatcher can resume the test frame from OkHttp while Android is measuring.
+    @get:Rule(order = 1) val compose = createComposeRule(effectContext = effectDispatcher)
     private lateinit var server: MockWebServer
     private lateinit var client: OkHttpClient
     private lateinit var api: SupabaseApi
@@ -59,6 +65,7 @@ class PokerScreenTest {
     private val rows = ConcurrentHashMap<String, JSONObject>()
     private val posts = CopyOnWriteArrayList<JSONObject>()
     private val hourlyReads = AtomicInteger()
+    private val rakebackReads = AtomicInteger()
     private val denied = AtomicInteger()
     private val foreignScopeRequests = AtomicInteger()
     private val blockPost = AtomicBoolean(false)
@@ -145,13 +152,13 @@ class PokerScreenTest {
         replace(MINUTES, "60")
         replace(NET_WON, "1,2,3")
         touch(button("Salva"))
-        compose.onNodeWithText("Inserisci un numero valido").performScrollTo().assertIsDisplayed()
+        scrollVisible(hasText("Inserisci un numero valido")).assertIsDisplayed()
         assertEquals(0, posts.size)
         replace(NET_WON, "-12,50")
         replace(NET_EV, "3,75")
         replace(MINUTES, "-1")
         touch(button("Salva"))
-        compose.onNodeWithText("Tempo giocato (minuti): valore negativo").performScrollTo().assertIsDisplayed()
+        scrollVisible(hasText("Tempo giocato (minuti): valore negativo")).assertIsDisplayed()
         assertEquals(0, posts.size)
         replace(MINUTES, "0")
         touch(button("Salva"))
@@ -174,7 +181,7 @@ class PokerScreenTest {
         replace(MINUTES, "60")
         replace(NET_WON, "10,25")
         touch(button("Salva"))
-        compose.onNodeWithText("Esiste già un record per questo mese").performScrollTo().assertIsDisplayed()
+        scrollVisible(hasText("Esiste già un record per questo mese")).assertIsDisplayed()
         assertEquals("A known duplicate month must not issue another POST", 1, posts.size)
         touch(button("Annulla"))
         assertEquals(1, rows.values.count { it.getString("user_id") == OWNER })
@@ -212,13 +219,77 @@ class PokerScreenTest {
         assertScope()
     }
 
-    private fun mountHourly() {
+    @Test fun hourlyMonthlyDetailsExcludePreviousYearWhileBothAnnualSummariesRemain() {
+        val previousYear = LocalDate.now().year - 1
+        val previousId = "33000000-0000-4000-8000-000000000006"
+        rows[CREATED_ROW] = earning(CREATED_ROW, OWNER, "1", "20", "30")
+        rows[previousId] = earning(previousId, OWNER, "2", "50", "60")
+            .put("date", "$previousYear-05-01")
+        val before = rows.mapValues { it.value.toString() }
+        mountHourly()
+        refresh()
+        list().performScrollToIndex(1)
+        compose.onNodeWithText(LocalDate.now().year.toString()).assertIsDisplayed()
+        compose.onNode(hasText("1,0 h · Net Won", substring = true)).assertIsDisplayed()
+            .assertTextContains("Net Won ${euro("20")}", substring = true)
+            .assertTextContains("Orario dopo deal ${euro("12")}", substring = true)
+        list().performScrollToIndex(2)
+        compose.onNodeWithText(previousYear.toString()).assertIsDisplayed()
+        compose.onNode(hasText("2,0 h · Net Won", substring = true)).assertIsDisplayed()
+            .assertTextContains("Net Won ${euro("50")}", substring = true)
+            .assertTextContains("Orario dopo deal ${euro("15")}", substring = true)
+        list().performScrollToIndex(4)
+        compose.onNodeWithText("$MONTH: $month").assertIsDisplayed()
+        scrollVisible(button("Modifica")).assertIsDisplayed()
+        compose.onAllNodes(button("Modifica")).assertCountEquals(1)
+        compose.onNodeWithText("$MONTH: $previousYear-05").assertDoesNotExist()
+        compose.onNodeWithText("Tempo giocato (minuti): 120.0").assertDoesNotExist()
+        assertEquals(before, rows.mapValues { it.value.toString() })
+        assertEquals(0, posts.size)
+        assertScope()
+    }
+
+    @Test fun rakebackMonthlyDetailsExcludePreviousYearWithoutLosingYearlyTotals() {
+        val previousYear = LocalDate.now().year - 1
+        val previousId = "33000000-0000-4000-8000-000000000006"
+        rows[CREATED_ROW] = JSONObject().put("id", CREATED_ROW).put("user_id", OWNER).put("date", firstDay)
+            .put("rake_generated", 100).put("rakeback_received", 25).put("created_at", firstDay)
+        rows[previousId] = JSONObject().put("id", previousId).put("user_id", OWNER).put("date", "$previousYear-05-01")
+            .put("rake_generated", 200).put("rakeback_received", 60).put("created_at", "$previousYear-05-01")
+        val before = rows.mapValues { it.value.toString() }
+        mountPoker()
+        touch(button("Rakeback"))
+        await("Owner rakeback loaded") { rakebackReads.get() >= 2 && enabled(button("Aggiungi")) }
+        val beforeRefresh = rakebackReads.get()
+        touch(button("Aggiorna"))
+        await("Explicit rakeback owner GET completed") { rakebackReads.get() >= beforeRefresh + 2 && enabled(button("Aggiungi")) }
+        list().performScrollToIndex(1)
+        compose.onNodeWithText(LocalDate.now().year.toString()).assertIsDisplayed()
+        compose.onNodeWithText("Rake ${euro("100")} · ricevuto ${euro("25")} · 25,0%").assertIsDisplayed()
+        list().performScrollToIndex(2)
+        compose.onNodeWithText(previousYear.toString()).assertIsDisplayed()
+        compose.onNodeWithText("Rake ${euro("200")} · ricevuto ${euro("60")} · 30,0%").assertIsDisplayed()
+        list().performScrollToIndex(4)
+        compose.onNodeWithText("$MONTH: $month").assertIsDisplayed()
+        scrollVisible(button("Modifica")).assertIsDisplayed()
+        compose.onAllNodes(button("Modifica")).assertCountEquals(1)
+        compose.onNodeWithText("$MONTH: $previousYear-05").assertDoesNotExist()
+        compose.onNodeWithText("Rake generato (€): 200").assertDoesNotExist()
+        assertEquals(before, rows.mapValues { it.value.toString() })
+        assertEquals(0, posts.size)
+        assertScope()
+    }
+
+    private fun mountPoker() {
         compose.setContent {
             val localFocus = LocalFocusManager.current
             val localKeyboard = LocalSoftwareKeyboardController.current
             SideEffect { focus = localFocus; keyboard = localKeyboard }
             SavelyTheme("light") { ModuleScreen(api, "poker", Modifier.fillMaxSize()) }
         }
+    }
+    private fun mountHourly() {
+        mountPoker()
         touch(button("Guadagno orario"))
         await("Owner hourly collection loaded") { hourlyReads.get() > 0 && enabled(button("Aggiungi")) }
         assertEquals(0, posts.size)
@@ -263,7 +334,35 @@ class PokerScreenTest {
     private fun clearInput() { compose.runOnIdle { focus.clearFocus(force = true); keyboard?.hide() } }
     private fun replace(label: String, value: String) {
         clearInput()
-        compose.onNodeWithText(label).performScrollTo().performTextReplacement(value)
+        scrollVisible(hasText(label)).performTextReplacement(value)
+    }
+    private fun scrollVisible(matcher: SemanticsMatcher): SemanticsNodeInteraction {
+        var swipes = 0
+        await("Visible scroll target: $matcher") {
+            val node = compose.onNode(matcher).fetchSemanticsNode()
+            val scrollable = generateSequence(node.parent) { it.parent }.firstOrNull {
+                it.config.contains(SemanticsProperties.VerticalScrollAxisRange)
+            }
+            val viewport = scrollable?.boundsInRoot
+            val targetY = node.positionInRoot.y + node.size.height / 2f
+            if (compose.onNode(matcher).isDisplayed() &&
+                (viewport == null || targetY in viewport.top..viewport.bottom)) true
+            else {
+                check(scrollable != null && swipes < 8) {
+                    "Poker target could not be exposed: $matcher, targetY=$targetY, viewport=$viewport, swipes=$swipes"
+                }
+                // performScrollTo repeatedly calls ScrollBy before queued effects are drained.
+                // A real gesture lets the UI/test clock complete each scroll before the next check.
+                compose.onNode(SemanticsMatcher("Scrollable ancestor ${scrollable.id}") {
+                    it.id == scrollable.id
+                }).performTouchInput {
+                    if (targetY > scrollable.boundsInRoot.center.y) swipeUp() else swipeDown()
+                }
+                swipes++
+                false
+            }
+        }
+        return compose.onNode(matcher).assertIsDisplayed()
     }
     private fun touch(matcher: SemanticsMatcher, taps: Int = 1) {
         clearInput()
@@ -293,7 +392,13 @@ class PokerScreenTest {
         }
     }
     private fun await(label: String, predicate: () -> Boolean) {
-        try { compose.waitUntil(15_000, predicate) }
+        try {
+            compose.waitUntil(15_000) {
+                // A queued launch/HTTP response can precede the first observable snapshot update.
+                compose.runOnUiThread { effectDispatcher.scheduler.runCurrent() }
+                predicate()
+            }
+        }
         catch (failure: ComposeTimeoutException) {
             val trees = compose.onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().indices.map { index ->
                 runCatching { compose.onAllNodes(isRoot(), useUnmergedTree = true)[index].printToString() }
@@ -330,6 +435,13 @@ class PokerScreenTest {
                     if (url.queryParameter("limit") != "500" || url.queryParameter("order") != "created_at.desc") return reject()
                     val offset = url.queryParameter("offset")?.toIntOrNull()?.takeIf { it >= 0 } ?: return reject()
                     hourlyReads.incrementAndGet()
+                    json(200, JSONArray(rows.values.filter { it.getString("user_id") == OWNER }
+                        .sortedByDescending { it.getString("date") }.drop(offset).take(500)))
+                }
+                "poker_rakeback" -> {
+                    if (url.queryParameter("limit") != "500" || url.queryParameter("order") != "created_at.desc") return reject()
+                    val offset = url.queryParameter("offset")?.toIntOrNull()?.takeIf { it >= 0 } ?: return reject()
+                    rakebackReads.incrementAndGet()
                     json(200, JSONArray(rows.values.filter { it.getString("user_id") == OWNER }
                         .sortedByDescending { it.getString("date") }.drop(offset).take(500)))
                 }

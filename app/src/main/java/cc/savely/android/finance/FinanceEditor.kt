@@ -1,5 +1,6 @@
 package cc.savely.android.finance
 
+import cc.savely.android.ui.localized
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -82,55 +83,55 @@ internal fun FinanceEditor(
     }
 
     AlertDialog(onDismissRequest = onDismiss,
-        title = { Text(if (id == null) "Nuovo elemento" else "Modifica elemento") },
+        title = { Text(localized(if (id == null) "Nuovo elemento" else "Modifica elemento")) },
         text = {
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (section == "categories" || section == "recurring") OutlinedTextField(name, { name = it },
-                    label = { Text("Nome") }, enabled = !saving, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    label = { Text(localized("Nome")) }, enabled = !saving, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 if (section == "transactions" || section == "categories") Selection("Tipo", typeWire,
-                    TransactionType.entries.map { it.wire to it.label }, enabled = !saving) { typeWire = it; categoryId = "" }
-                if (section != "categories") OutlinedTextField(amount, { amount = it }, label = { Text("Importo") },
+                    TransactionType.entries.map { it.wire to localized(it.label) }, enabled = !saving) { typeWire = it; categoryId = "" }
+                if (section != "categories") OutlinedTextField(amount, { amount = it }, label = { Text(localized("Importo")) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), enabled = !saving,
-                    modifier = Modifier.fillMaxWidth(), singleLine = true, supportingText = { Text("Arrotondamento a 2 decimali") })
+                    modifier = Modifier.fillMaxWidth(), singleLine = true, supportingText = { Text(localized("Arrotondamento a 2 decimali")) })
                 if (section == "transactions" || section == "recurring") Selection("Valuta", currency,
                     supportedCurrencies.map { it to it }, enabled = !saving) { currency = it; rate = if (it == "EUR") "1" else "" }
                 if (section == "transactions" && currency != "EUR") OutlinedTextField(rate, { rate = it },
-                    label = { Text("Valore di 1 $currency in EUR") }, enabled = !saving,
+                    label = { Text(localized("Valore di 1 {{value0}} in EUR", "value0" to (currency))) }, enabled = !saving,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text("Inserisci il cambio della data della transazione") }, singleLine = true)
+                    supportingText = { Text(localized("Inserisci il cambio della data della transazione")) }, singleLine = true)
                 if (section != "categories" && !(section == "budget" && id != null)) {
                     Selection("Categoria", categoryId,
-                        (if (section == "budget") emptyList() else listOf("" to "Senza categoria")) + availableCategories.map { it.id to it.name }, enabled = !saving) { categoryId = it }
-                    if (section == "budget" && availableCategories.isEmpty()) Text("Crea una categoria di uscita senza budget per continuare.")
+                        (if (section == "budget") emptyList() else listOf("" to localized("Senza categoria"))) + availableCategories.map { it.id to it.name }, enabled = !saving) { categoryId = it }
+                    if (section == "budget" && availableCategories.isEmpty()) Text(localized("Crea una categoria di uscita senza budget per continuare."))
                 }
                 if (section == "transactions") {
-                    OutlinedTextField(description, { description = it }, label = { Text("Descrizione facoltativa") },
+                    OutlinedTextField(description, { description = it }, label = { Text(localized("Descrizione facoltativa")) },
                         enabled = !saving, modifier = Modifier.fillMaxWidth())
                     DateField("Data", date, enabled = !saving) { date = it }
                 }
                 if (section == "categories") {
-                    OutlinedTextField(icon, { icon = it }, label = { Text("Simbolo facoltativo") }, enabled = !saving,
+                    OutlinedTextField(icon, { icon = it }, label = { Text(localized("Simbolo facoltativo")) }, enabled = !saving,
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(color, { color = it }, label = { Text("Colore #RRGGBB") }, enabled = !saving,
+                    OutlinedTextField(color, { color = it }, label = { Text(localized("Colore #RRGGBB")) }, enabled = !saving,
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
                 }
                 if (section == "recurring") {
-                    Selection("Frequenza", frequencyWire, RecurringFrequency.entries.map { it.wire to it.label }, enabled = !saving) { frequencyWire = it }
-                    if (frequency == RecurringFrequency.WEEKLY) OutlinedTextField(interval, { interval = it }, label = { Text("Ogni quante settimane") },
+                    Selection("Frequenza", frequencyWire, RecurringFrequency.entries.map { it.wire to localized(it.label) }, enabled = !saving) { frequencyWire = it }
+                    if (frequency == RecurringFrequency.WEEKLY) OutlinedTextField(interval, { interval = it }, label = { Text(localized("Ogni quante settimane")) },
                         enabled = !saving, modifier = Modifier.fillMaxWidth(), singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     DateField("Prossima scadenza", date, enabled = !saving) { date = it }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Ricorrenza attiva", Modifier.weight(1f))
+                        Text(localized("Ricorrenza attiva"), Modifier.weight(1f))
                         Switch(checked = active, onCheckedChange = { active = it }, enabled = !saving)
                     }
                 }
-                (validationError ?: error)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                Text("Le modifiche sono sincronizzate con l’account Savely.", style = MaterialTheme.typography.bodySmall)
+                (validationError ?: error)?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+                Text(localized("Le modifiche sono sincronizzate con l’account Savely."), style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = { TextButton(onClick = ::save, enabled = !saving && (section != "budget" || id != null || availableCategories.isNotEmpty())) {
-            Text(if (saving) "Salvataggio…" else "Salva")
+            Text(localized(if (saving) "Salvataggio…" else "Salva"))
         } },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("Annulla") } })
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text(localized("Annulla")) } })
 }

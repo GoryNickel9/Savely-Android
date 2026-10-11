@@ -31,18 +31,26 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
 
     private suspend fun rows(table: String, query: String): List<JSONObject> {
         val result = mutableListOf<JSONObject>()
+        val identifiers = mutableSetOf<String>()
         var offset = 0
         while (true) {
             val page: JSONArray = api.select(table, "$query&limit=500&offset=$offset")
-            repeat(page.length()) { result.add(page.getJSONObject(it)) }
-            if (page.length() < 500) return result
+            if (page.length() == 0) return result
+            check(page.length() <= 500 && result.size + page.length() <= 100_000) {
+                "Archivio oltre il limite: caricamento interrotto senza mostrare totali parziali."
+            }
+            repeat(page.length()) {
+                val row = page.getJSONObject(it)
+                check(identifiers.add(row.getString("id"))) { "Archivio modificato durante la lettura. Aggiorna i dati." }
+                result.add(row)
+            }
             offset += page.length()
-            check(offset < 100_000) { "Archivio oltre 100.000 righe: caricamento interrotto senza mostrare totali parziali." }
         }
     }
 
     suspend fun load(section: String): FinanceData {
         val user = userId()
+        val ownerRevision = api.sessionOwnerRevision()
         val own = "user_id=eq.$user"
         val categories = rows("categories", "select=*&$own&deleted_at=is.null&order=name.asc,id.asc").map(::categoryFromJson)
         val profile = api.select("profiles", "select=default_currency&$own&limit=1")
@@ -50,7 +58,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val transactions = if (section in setOf("dashboard", "transactions", "budget", "charts", "net-worth", "insights", "recurring")) {
             rows("transactions", "select=*&$own&deleted_at=is.null&order=date.desc,id.asc").map(::transactionFromJson)
         } else emptyList()
-        val budgets = if (section in setOf("budget", "insights")) {
+        val budgets = if (section in setOf("dashboard", "budget", "insights")) {
             rows("budgets", "select=*&$own&order=id.asc").map(::budgetFromJson)
         } else emptyList()
         val recurring = if (section in setOf("recurring", "insights")) {
@@ -59,8 +67,9 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val assets = if (section in setOf("portfolio", "net-worth", "insights")) {
             rows("portfolio_assets", "select=*&$own&order=created_at.desc,id.asc").map(::assetFromJson)
         } else emptyList()
-        val snapshots = if (section == "net-worth") {
-            rows("net_worth_snapshots", "select=id,date,net_worth,components&$own&order=date.desc,id.asc").map(::snapshotFromJson)
+        val snapshots = if (section in setOf("net-worth", "insights")) {
+            val order = if (section == "insights") "date.asc,id.asc" else "date.desc,id.asc"
+            rows("net_worth_snapshots", "select=id,date,net_worth,components&$own&order=$order").map(::snapshotFromJson)
         } else emptyList()
         val lastUpdate = if (section == "portfolio") {
             val logs = api.select("manual_price_updates", "select=updated_at&$own&order=updated_at.desc&limit=1")
@@ -72,8 +81,13 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
             rows("tgc_cards", "select=id,category,quantity,purchase_price,current_price,currency&$own&order=created_at.desc,id.asc")
                 .map(::tcgCardFromJson)
         } else emptyList()
+        val history = if (section == "portfolio") {
+            rows("asset_price_history", "select=id,asset_id,price,recorded_at&$own&order=recorded_at.asc,id.asc")
+                .map(::priceHistoryFromJson)
+        } else emptyList()
+        check(userId() == user && api.sessionOwnerRevision() == ownerRevision) { "Account cambiato durante il caricamento. Aggiorna i dati." }
         loadedUserId = user
-        return FinanceData(transactions, categories, budgets, recurring, currency, assets, snapshots, lastUpdate, ignored, tcgCards)
+        return FinanceData(transactions, categories, budgets, recurring, currency, assets, snapshots, lastUpdate, ignored, tcgCards, history)
     }
 
     suspend fun dismissRecurringSuggestion(key: String) {
@@ -207,10 +221,66 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
     }
 
     suspend fun closeAsset(asset: FinanceAsset, soldAt: String, soldPrice: String) {
+        closeAssetGroup(listOf(asset), soldAt, soldPrice)
+    }
+
+    /** Sequential optimistic writes, not a database transaction. Stop on the first uncertain result. */
+    suspend fun closeAssetGroup(assets: List<FinanceAsset>, soldAt: String, soldPrice: String) {
+        require(assets.isNotEmpty() && assets.size <= 100_000) { "Seleziona una posizione aperta" }
+        require(assets.map { it.id }.distinct().size == assets.size) { "Acquisti duplicati nella selezione" }
+        require(portfolioPositionGroups(assets).size == 1 && assets.none { it.closed }) { "La selezione contiene strumenti diversi o acquisti già chiusi" }
+        require(assets.all { it.currency in supportedCurrencies }) { "Valuta non supportata" }
         val date = LocalDate.parse(soldAt)
         val price = parseMoney(soldPrice)
-        validatePositionClosure(date, price, asset.purchaseDate)
-        save("portfolio_assets", asset.id, JSONObject().put("sold_at", date.toString()).put("sold_price", price.toPlainString()))
+        assets.forEach { validatePositionClosure(date, price, it.purchaseDate) }
+        val owner = userId()
+        val revision = api.sessionOwnerRevision()
+        val nullCurrencies = mutableSetOf<String>()
+        suspend fun checkOwner() {
+            check(userId() == owner && api.sessionOwnerRevision() == revision) { "Account cambiato. Aggiorna i dati prima di continuare." }
+        }
+        // Validate every selected row before the first write; the PATCH predicates guard later races.
+        assets.forEach { expected ->
+            try {
+                checkOwner()
+                val id = UUID.fromString(expected.id).toString()
+                val rows = api.select("portfolio_assets", "select=*&id=eq.$id&user_id=eq.$owner&limit=1")
+                require(rows.length() == 1 && rows.getJSONObject(0).getString("user_id") == owner &&
+                    samePositionPurchase(expected, assetFromJson(rows.getJSONObject(0)))) {
+                    "Un acquisto è cambiato o non è più disponibile. Aggiorna i dati prima di chiudere la posizione."
+                }
+                if (rows.getJSONObject(0).isNull("currency")) nullCurrencies.add(expected.id)
+                checkOwner()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                throw PositionCloseException(0, assets.size, expected.id, exception, attemptedWrite = false)
+            }
+        }
+        var confirmed = 0
+        for (asset in assets) {
+            try {
+                checkOwner()
+                val symbol = asset.symbol?.let { "eq." + URLEncoder.encode(it, StandardCharsets.UTF_8.name()) } ?: "is.null"
+                val soldDate = asset.soldAt?.let { "eq.$it" } ?: "is.null"
+                val soldValue = asset.soldPrice?.let { "eq.${it.toPlainString()}" } ?: "is.null"
+                val currency = if (asset.id in nullCurrencies) "is.null" else "eq.${asset.currency}"
+                val returned = api.update("portfolio_assets", UUID.fromString(asset.id).toString(),
+                    JSONObject().put("sold_at", date.toString()).put("sold_price", price.toPlainString()),
+                    "user_id=eq.$owner&type=eq.${asset.type.wire}&currency=$currency&symbol=$symbol" +
+                        "&quantity=eq.${asset.quantity.toPlainString()}&purchase_price=eq.${asset.purchasePrice.toPlainString()}" +
+                        "&purchase_date=eq.${asset.purchaseDate}&sold_at=$soldDate&sold_price=$soldValue")
+                check(returned.getString("id") == asset.id && returned.getString("user_id") == owner) { "Risposta della chiusura non valida" }
+                val saved = assetFromJson(returned)
+                check(saved.closed && saved.soldAt == date && saved.soldPrice!!.compareTo(price) == 0) { "Risposta della chiusura non valida" }
+                confirmed++
+                checkOwner()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                throw PositionCloseException(confirmed, assets.size, asset.id, exception)
+            }
+        }
     }
 
     suspend fun updatePrices() {

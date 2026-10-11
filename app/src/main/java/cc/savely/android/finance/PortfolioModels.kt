@@ -2,8 +2,10 @@ package cc.savely.android.finance
 
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.YearMonth
+import java.util.Locale
 import org.json.JSONObject
 
 enum class FinanceAssetType(val wire: String, val label: String) {
@@ -91,11 +93,78 @@ internal fun snapshotFromJson(json: JSONObject): FinanceSnapshot = FinanceSnapsh
 enum class InsightSeverity(val label: String) { WARNING("Attenzione"), POSITIVE("Positivo"), INFO("Info") }
 
 data class FinanceInsight(val id: String, val title: String, val message: String, val warning: Boolean, val value: BigDecimal,
-    val severity: InsightSeverity = if (warning) InsightSeverity.WARNING else InsightSeverity.INFO)
+    val severity: InsightSeverity = if (warning) InsightSeverity.WARNING else InsightSeverity.INFO,
+    val titleTemplate: String? = null, val messageTemplate: String? = null, val textValues: List<Pair<String, Any?>> = emptyList(),
+    val localizedValueKeys: Set<String> = emptySet())
 
 /** Date.setMonth overflow used by web Insights, deliberately distinct from recurring-date clamp. */
 internal fun insightWindowStart(today: LocalDate, months: Long): LocalDate =
     today.withDayOfMonth(1).minusMonths(months).plusDays((today.dayOfMonth - 1).toLong())
+
+/** Web Insights uses individual historical expense amounts here, despite its monthly-median label.
+ * Currency groups and the 50 native-unit minimum avoid summing incompatible monetary units.
+ */
+internal fun spendingAnomalyInsights(data: FinanceData, today: LocalDate): List<FinanceInsight> {
+    val start = today.minusDays(730)
+    val currentMonth = YearMonth.from(today)
+    val current = linkedMapOf<Pair<String, String>, BigDecimal>()
+    val historical = mutableMapOf<Pair<String, String>, MutableList<BigDecimal>>()
+    for (transaction in data.transactions) {
+        val category = transaction.categoryId
+        if (transaction.type != TransactionType.EXPENSE || category.isNullOrEmpty() || transaction.date <= start) continue
+        val key = category to transaction.currency
+        if (YearMonth.from(transaction.date) == currentMonth) {
+            current[key] = (current[key] ?: BigDecimal.ZERO) + transaction.amount
+        } else {
+            historical.getOrPut(key) { mutableListOf() }.add(transaction.amount)
+        }
+    }
+    val names = data.categories.associate { it.id to it.name }
+    return current.mapNotNull { (key, amount) ->
+        if (amount < BigDecimal("50")) return@mapNotNull null
+        val baseline = historical[key]?.sorted()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+        val middle = baseline.size / 2
+        val median = if (baseline.size % 2 == 1) baseline[middle]
+            else (baseline[middle - 1] + baseline[middle]).divide(BigDecimal("2"))
+        // Exact inclusive 140% comparison, before rounding the median or displayed percentage.
+        if (median.signum() <= 0 || amount * BigDecimal("5") < median * BigDecimal("7")) return@mapNotNull null
+        val (category, currency) = key
+        val name = names[category] ?: "Senza categoria"
+        val difference = amount - median
+        val percent = (difference * BigDecimal("100")).divide(median, 0, RoundingMode.HALF_UP)
+        FinanceInsight("spending-anomaly-$currency-$category", "Spesa anomala in $name: $currency",
+            "Hai speso ${formatMoney(amount, currency)} questo mese, +$percent% rispetto alla mediana dei singoli importi (${formatMoney(median, currency)}).",
+            true, difference, InsightSeverity.WARNING,
+            titleTemplate = "Spesa anomala in {{name}}: {{currency}}",
+            messageTemplate = "Hai speso {{amount}} questo mese, +{{percent}}% rispetto alla mediana dei singoli importi ({{median}}).",
+            textValues = listOf("name" to name, "currency" to currency, "amount" to formatMoney(amount, currency), "percent" to percent,
+                "median" to formatMoney(median, currency)), localizedValueKeys = if (category in names) emptySet() else setOf("name"))
+    }
+}
+
+/** Server snapshots have no currency. Never label their recorded aggregate as a native monetary total.
+ * SQL enforces one owner/date row; id provides a deterministic tie-break for imported duplicate dates.
+ */
+internal fun netWorthMilestoneInsights(snapshots: List<FinanceSnapshot>): List<FinanceInsight> {
+    if (snapshots.size < 2) return emptyList()
+    val ordered = snapshots.sortedWith(compareBy<FinanceSnapshot> { it.date }.thenBy { it.id })
+    val latest = ordered.last()
+    val previousMax = ordered.dropLast(1).maxOf { it.value }
+    // Negative histories are valid; do not initialize the previous maximum to zero or round the comparison.
+    if (latest.value < previousMax + BigDecimal.ONE) return emptyList()
+    val recordedValue = NumberFormat.getNumberInstance(Locale.ITALY).apply {
+        minimumFractionDigits = 2
+        maximumFractionDigits = 2
+        roundingMode = RoundingMode.HALF_UP
+    }.format(latest.value)
+    return listOf(FinanceInsight("net-worth-milestone", "Nuovo massimo del valore registrato dal server",
+        "La snapshot del ${latest.date} ha raggiunto $recordedValue, almeno 1 sopra il massimo precedente. " +
+            "La serie server non distingue le valute e non è confrontabile con i totali nativi per valuta.",
+        false, latest.value, InsightSeverity.POSITIVE,
+        titleTemplate = "Nuovo massimo del valore registrato dal server",
+        messageTemplate = "La snapshot del {{date}} ha raggiunto {{amount}}, almeno 1 sopra il massimo precedente. La serie server non distingue le valute e non è confrontabile con i totali nativi per valuta.",
+        textValues = listOf("date" to latest.date, "amount" to recordedValue)))
+}
 
 internal fun savingMonthInsights(transactions: List<FinanceTransaction>, today: LocalDate): List<FinanceInsight> {
     val start = insightWindowStart(today, 12)
@@ -118,7 +187,55 @@ internal fun savingMonthInsights(transactions: List<FinanceTransaction>, today: 
         val percent = ((currentNet * count - sum) * BigDecimal("100")).divide(sum, 0, RoundingMode.HALF_UP)
         FinanceInsight("saving-month-$currency", "Ottimo mese di risparmio: $currency",
             "Stai risparmiando ${formatMoney(currentNet, currency)} questo mese, +$percent% rispetto alla media dei mesi registrati (${formatMoney(averageDisplay, currency)}).",
-            false, currentNet, InsightSeverity.POSITIVE)
+            false, currentNet, InsightSeverity.POSITIVE,
+            titleTemplate = "Ottimo mese di risparmio: {{currency}}",
+            messageTemplate = "Stai risparmiando {{amount}} questo mese, +{{percent}}% rispetto alla media dei mesi registrati ({{average}}).",
+            textValues = listOf("currency" to currency, "amount" to formatMoney(currentNet, currency), "percent" to percent,
+                "average" to formatMoney(averageDisplay, currency)))
+    }
+}
+
+/** Web trend compares individual expense medians; its recent sample is also part of the baseline. */
+internal fun categoryTrendInsights(data: FinanceData, today: LocalDate): List<FinanceInsight> {
+    val windowStart = insightWindowStart(today, 12)
+    val recentStart = insightWindowStart(today, 3)
+    val currentMonth = YearMonth.from(today)
+    val baseline = mutableMapOf<Pair<String, String>, MutableList<BigDecimal>>()
+    val recent = linkedMapOf<Pair<String, String>, MutableList<BigDecimal>>()
+    for (transaction in data.transactions) {
+        val category = transaction.categoryId
+        if (transaction.type != TransactionType.EXPENSE || category.isNullOrEmpty() ||
+            transaction.date <= windowStart || YearMonth.from(transaction.date) == currentMonth) continue
+        val key = category to transaction.currency
+        baseline.getOrPut(key) { mutableListOf() }.add(transaction.amount)
+        // LocalDate excludes the boundary day, like the web reference after midnight; future dates remain eligible.
+        if (transaction.date > recentStart) recent.getOrPut(key) { mutableListOf() }.add(transaction.amount)
+    }
+    fun median(amounts: List<BigDecimal>): BigDecimal {
+        val sorted = amounts.sorted()
+        val middle = sorted.size / 2
+        return if (sorted.size % 2 == 1) sorted[middle]
+            else (sorted[middle - 1] + sorted[middle]).divide(BigDecimal("2"))
+    }
+    val names = data.categories.associate { it.id to it.name }
+    return recent.mapNotNull { (key, amounts) ->
+        if (amounts.size < 2) return@mapNotNull null
+        val medianRecent = median(amounts)
+        val medianBaseline = median(baseline.getValue(key))
+        // Inclusive 125%, positive baseline, and 50 native currency units before display rounding.
+        if (medianBaseline.signum() <= 0 || medianRecent < BigDecimal("50") ||
+            medianRecent * BigDecimal("4") < medianBaseline * BigDecimal("5")) return@mapNotNull null
+        val (category, currency) = key
+        val name = names[category] ?: "Senza categoria"
+        val difference = medianRecent - medianBaseline
+        val percent = (difference * BigDecimal("100")).divide(medianBaseline, 0, RoundingMode.HALF_UP)
+        FinanceInsight("category-trend-$currency-$category", "$name in trend crescente: $currency",
+            "La mediana dei singoli importi in $name è cresciuta del $percent% nel campione degli ultimi 3 mesi (${formatMoney(medianRecent, currency)} rispetto a ${formatMoney(medianBaseline, currency)} nei 12 mesi).",
+            false, difference, InsightSeverity.INFO,
+            titleTemplate = "{{name}} in trend crescente: {{currency}}",
+            messageTemplate = "La mediana dei singoli importi in {{name}} è cresciuta del {{percent}}% nel campione degli ultimi 3 mesi ({{recent}} rispetto a {{baseline}} nei 12 mesi).",
+            textValues = listOf("name" to name, "currency" to currency, "percent" to percent, "recent" to formatMoney(medianRecent, currency),
+                "baseline" to formatMoney(medianBaseline, currency)), localizedValueKeys = if (category in names) emptySet() else setOf("name"))
     }
 }
 
@@ -131,7 +248,11 @@ internal fun newRecurringInsights(data: FinanceData): List<FinanceInsight> = ava
     }
     FinanceInsight("new-recurring-${candidate.key}", "Possibile spesa ricorrente: ${candidate.description}",
         "Rilevata $cadence di ${formatMoney(candidate.medianAmount, candidate.currency)} (${candidate.occurrenceCount} occorrenze). Vuoi tenerla tracciata?",
-        false, candidate.medianAmount, InsightSeverity.INFO)
+        false, candidate.medianAmount, InsightSeverity.INFO,
+        titleTemplate = "Possibile spesa ricorrente: {{name}}",
+        messageTemplate = "Rilevata {{cadence}} di {{amount}} ({{count}} occorrenze). Vuoi tenerla tracciata?",
+        textValues = listOf("name" to candidate.description, "cadence" to cadence, "amount" to formatMoney(candidate.medianAmount, candidate.currency),
+            "count" to candidate.occurrenceCount), localizedValueKeys = setOf("cadence"))
 }
 
 internal fun recurringPriceChangeInsights(
@@ -159,13 +280,19 @@ internal fun recurringPriceChangeInsights(
         val direction = if (increased) "aumentato" else "diminuito"
         FinanceInsight("recurring-price-${candidate.key}", "Spesa ricorrente $direction: ${candidate.description}",
             "L'ultimo importo (${formatMoney(latest.amount, candidate.currency)}) è $percent% rispetto al solito (${formatMoney(candidate.medianAmount, candidate.currency)}).",
-            increased, difference, if (increased) InsightSeverity.WARNING else InsightSeverity.INFO)
+            increased, difference, if (increased) InsightSeverity.WARNING else InsightSeverity.INFO,
+            titleTemplate = if (increased) "Spesa ricorrente aumentato: {{name}}" else "Spesa ricorrente diminuito: {{name}}",
+            messageTemplate = "L'ultimo importo ({{amount}}) è {{percent}}% rispetto al solito ({{median}}).",
+            textValues = listOf("name" to candidate.description, "amount" to formatMoney(latest.amount, candidate.currency), "percent" to percent,
+                "median" to formatMoney(candidate.medianAmount, candidate.currency)))
     }
 }
 
-/** Five web counterparts; monetary groups retain their currencies. */
+/** Eight web counterparts; native monetary groups retain their currencies, server snapshots remain unlabelled. */
 fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List<FinanceInsight> {
     val result = mutableListOf<FinanceInsight>()
+    // Web orders anomalies before budgets; preserve that order when severity and absolute values tie.
+    result.addAll(spendingAnomalyInsights(data, today))
     for (budget in data.budgets) {
         val spend = data.transactions.filter {
             it.type == TransactionType.EXPENSE && it.categoryId == budget.categoryId && it.currency == budget.currency &&
@@ -174,7 +301,10 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
         if (budget.amount > BigDecimal.ZERO && spend > budget.amount) {
             val name = data.categories.find { it.id == budget.categoryId }?.name ?: "Categoria rimossa"
             result.add(FinanceInsight("budget-${budget.id}", "Budget superato: $name",
-                "Speso ${formatMoney(spend, budget.currency)} su ${formatMoney(budget.amount, budget.currency)}.", true, spend - budget.amount))
+                "Speso ${formatMoney(spend, budget.currency)} su ${formatMoney(budget.amount, budget.currency)}.", true, spend - budget.amount,
+                titleTemplate = "Budget superato: {{name}}", messageTemplate = "Speso {{spent}} su {{limit}}.",
+                textValues = listOf("name" to name, "spent" to formatMoney(spend, budget.currency), "limit" to formatMoney(budget.amount, budget.currency)),
+                localizedValueKeys = if (data.categories.any { it.id == budget.categoryId }) emptySet() else setOf("name")))
         }
     }
     for (asset in data.assets.filter { it.soldAt == null }) {
@@ -183,9 +313,16 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
         if (asset.marketPrice * BigDecimal("100") > asset.purchasePrice * BigDecimal("85")) continue
         val change = (asset.marketPrice - asset.purchasePrice).divide(asset.purchasePrice, 10, RoundingMode.HALF_UP)
         result.add(FinanceInsight("loss-${asset.id}", "Posizione in perdita: ${asset.name}",
-            "${asset.symbol ?: asset.name}: ${(change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP)}% rispetto al prezzo di acquisto.", true, change))
+            "${asset.symbol ?: asset.name}: ${(change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP)}% rispetto al prezzo di acquisto.", true, change,
+            titleTemplate = "Posizione in perdita: {{name}}", messageTemplate = "{{symbol}}: {{percent}}% rispetto al prezzo di acquisto.",
+            textValues = listOf("name" to asset.name, "symbol" to (asset.symbol ?: asset.name),
+                "percent" to (change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP))))
     }
+    // Web orders milestone before saving; preserve stable equal-value positive signals in that order.
+    result.addAll(netWorthMilestoneInsights(data.snapshots))
     result.addAll(savingMonthInsights(data.transactions, today))
+    // Trend precedes recurring candidates in web generation, preserving stable ties after the final sort.
+    result.addAll(categoryTrendInsights(data, today))
     // Select the global top three by confidence/count before the final severity/value ordering.
     result.addAll(newRecurringInsights(data))
     result.addAll(recurringPriceChangeInsights(data.transactions, availableRecurringSuggestions(data)))

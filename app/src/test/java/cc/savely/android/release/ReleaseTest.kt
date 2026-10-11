@@ -46,13 +46,13 @@ class ReleaseTest {
     @Test fun publicCheckSendsNoCredentialsAndNoReleaseIsExplicit() = runBlocking {
         val repository = ReleaseRepository(OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request()
-            assertEquals("https://api.github.com/repos/GoryNickel9/Savely-Android/releases/latest", request.url.toString())
+            assertEquals("${PublishedRelease.API_URL}/latest", request.url.toString())
             assertNull(request.header("Authorization"))
             assertNull(request.header("apikey"))
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(404).message("Not Found")
                 .body("{}".toResponseBody()).build()
         }.build())
-        assertNull(repository.latest())
+        assertNull(repository.latest(allowPreviews = false))
     }
 
     @Test fun responseAndErrorsDoNotTurnIntoFalseUpToDateResults() = runBlocking {
@@ -60,11 +60,36 @@ class ReleaseTest {
             Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(code).message("Fixture")
                 .body(body.toResponseBody()).build()
         }.build())
-        assertEquals("v1.2.3", repository(200, validRelease().toString()).latest()?.tag)
-        assertTrue(runCatching { repository(403, "{}").latest() }.isFailure)
-        assertTrue(runCatching { repository(503, "{}").latest() }.isFailure)
-        assertTrue(runCatching { repository(200, "[]").latest() }.isFailure)
-        assertTrue(runCatching { repository(200, "x".repeat(262_145)).latest() }.isFailure)
+        assertEquals("v1.2.3", repository(200, validRelease().toString()).latest(false)?.tag)
+        assertTrue(runCatching { repository(403, "{}").latest(false) }.isFailure)
+        assertTrue(runCatching { repository(503, "{}").latest(false) }.isFailure)
+        assertTrue(runCatching { repository(200, "[]").latest(false) }.isFailure)
+        assertTrue(runCatching { repository(200, "x".repeat(262_145)).latest(false) }.isFailure)
+    }
+
+    @Test fun previewsUsePublicListWithoutCredentialsAndPreferNewestNumericVersion() = runBlocking {
+        val preview = validRelease().put("tag_name", "v1.3.0-alpha").put("prerelease", true)
+            .put("html_url", "${PublishedRelease.RELEASES_URL}/tag/v1.3.0-alpha")
+        val body = org.json.JSONArray().put(validRelease()).put(preview).put(validRelease().put("draft", true))
+        val repository = ReleaseRepository(OkHttpClient.Builder().addInterceptor { chain ->
+            assertEquals("${PublishedRelease.API_URL}?per_page=20", chain.request().url.toString())
+            assertNull(chain.request().header("Authorization"))
+            assertNull(chain.request().header("apikey"))
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("Fixture")
+                .body(body.toString().toResponseBody()).build()
+        }.build())
+        assertEquals("v1.3.0-alpha", repository.latest(true)?.tag)
+        assertTrue(PublishedRelease.parse(preview, true).version.preview)
+        assertTrue(runCatching { PublishedRelease.parse(preview) }.isFailure)
+        assertTrue(runCatching { PublishedRelease.parse(validRelease().put("prerelease", true), true) }.isFailure)
+    }
+
+    @Test fun emptyPublicPreviewListIsNotAnUpdate() = runBlocking {
+        val repository = ReleaseRepository(OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("Fixture")
+                .body("[]".toResponseBody()).build()
+        }.build())
+        assertNull(repository.latest(true))
     }
 
     private fun validRelease() = JSONObject().put("tag_name", "v1.2.3").put("draft", false).put("prerelease", false)

@@ -21,6 +21,18 @@ Le collezioni sono lette in pagine da massimo 500 righe, ordinate, fino alla pag
 
 Le modifiche aggiornano soltanto i campi esposti nel form: identificativi API, immagini e metadati non esposti restano nel backend. Le stringhe facoltative vuote diventano null. I controlli di mese duplicato usano i record letti: non sostituiscono un vincolo univoco server in caso di due client concorrenti.
 
+## Archivio Coppia
+
+`CoupleRepository.load` richiede il permesso personale `couple_expenses` prima delle letture della connessione. L'archivio aggiunge una query `couple_connections` con `or=(user_a.eq.<utente>,user_b.eq.<utente>)` e `revoked_at=not.is.null`. Legge pagine da 500 in ordine ID fino alla pagina vuota, anche dopo pagine corte, con cursore `id > ultimo ID` e limite di 10.000 righe. UUID, appartenenza dell'utente e istanti di creazione/revoca sono validati; un errore, un ordine incoerente o un archivio oltre il limite interrompono il caricamento. Proprietario e revisione della sessione vengono ricontrollati prima di restituire i dati.
+
+La schermata mostra soltanto i metadati delle connessioni revocate: data di creazione, data di revoca e stato «Sola lettura». L'ordine è revoca decrescente, poi ID; gli istanti sono salvati come `Instant` e presentati nella lingua e nel fuso locale. L'archivio non espone azioni di modifica o riattivazione. La revoca di una connessione attiva resta confermata nella UI e il PATCH richiede ID, partecipazione dell'utente e `revoked_at IS NULL`.
+
+Il contratto segue `20260701040000_create_couple_connections.sql`: `cc_select_members` ammette membri di connessioni attive e archiviate, con `is_couple_expenses_enabled()`. Le migrazioni `20260702180000_privacy_and_consistency_fixes.sql` e `20260703070000_security_fixes_round3.sql` limitano invece spese condivise, budget e `shared_expenses_view` alle connessioni attive tramite `is_in_connection`. Per questo l'archivio non legge spese o budget della connessione revocata e non recupera dati dell'ex partner aggirando RLS. Il codice web `useCouplePairStatus.ts` cerca solo la connessione attiva; il ramo archivio di `CoupleBudget.tsx` non concede accesso allo storico vietato dalle policy.
+
+«Nessuna connessione archiviata» compare soltanto dopo una lettura riuscita. Errori successivi conservano i dati già caricati con avviso di possibile obsolescenza; errori di autenticazione o permesso li rimuovono. La verifica dello schema nel repository non dimostra che le stesse policy siano distribuite nel progetto remoto.
+
+Nella suite corrente di 399 test JVM passano le quattro nuove fixture repository Coppia: paginazione e ordine dei metadati senza letture di spese/budget revocati; errore HTTP 503 distinto da archivio vuoto; proprietario estraneo o istante malformato rifiutato; cambio account durante la lettura rifiutato. Insieme alle quattro regressioni Dashboard descritte in `API_CONTRACTS_FINANCE.md`, formano le otto nuove regressioni del blocco. I test Android TLS per archivio in sola lettura, zero mutazioni ed errore di caricamento passano su API 31. `RealRoadmapSmokeTest` è stato eseguito e la pulizia recuperata: 42 contratti su 43 passano; Google Books risponde HTTP 429 nella lettura separata. Il flusso Coppia con due utenti non è stato verificato sul backend reale. Risultati e limiti sono in TESTING.md.
+
 ## Formule e convenzioni
 
 FIRE replica `src/lib/fire/calculations.ts`: rendimento reale `(1+r)/(1+i)-1`; obiettivo `spese/prelievo`; contributi a fine anno; fallback prelievo 4% se non positivo; limite di 100 anni per `yearsToTarget`; proiezione nominale con valore corretto per inflazione, fino a 50 anni. I calcoli usano `Double`, come i `number` JavaScript; gli arrotondamenti seguono `Math.round`, inclusa la direzione delle parità. I test confrontano i valori monetari già arrotondati esattamente e i rapporti entro `1e-12`. Non vengono mostrati probabilità di successo o dati storici simulati.
@@ -35,7 +47,7 @@ Fumo: giorni tra date ISO; quantità/giorno e euro/giorno divisi per la durata p
 
 La media giornaliera annua Liquido presenta una differenza per record legacy incoerenti: `src/pages/FumoLiquidoSigaretta.tsx` divide i millilitri totali per la somma di `giorni_durata` salvata, mentre Android ricalcola le durate dalle date. Con 25 ml, date dal primo all'undicesimo giorno e durata salvata 20, il web restituisce 1,25 ml/giorno e Android 2,5. Questa differenza è osservata nei sorgenti; la fixture descritta sotto usa date e durate coerenti e non verifica né corregge dati legacy.
 
-TCG: costo e valore sono prezzi unitari moltiplicati per quantità; prezzo corrente null usa il prezzo d'acquisto. Libreria: acquisto e rivendita moltiplicati per quantità; null vale zero. Le valute esposte in questi moduli sono euro, come le schermate web auditabili.
+TCG: costo e valore sono prezzi unitari moltiplicati per quantità; prezzo corrente null usa il prezzo d'acquisto. La panoramica e i riepiloghi di categoria separano le valute registrate, senza conversioni. Libreria: acquisto e rivendita moltiplicati per quantità; null vale zero, in EUR perché la tabella non ha una colonna valuta. Le panoramiche leggono tutte le categorie dell'account; categorie sconosciute restano visibili e incluse nei totali. Una pagina incompleta, duplicata o illeggibile produce un errore e non espone totali parziali.
 
 ## Servizi esterni e funzioni da completare
 
@@ -56,7 +68,9 @@ FIRE salva tutti i dieci parametri Standard/Barista in SharedPreferences private
 
 Le modifiche valide vengono salvate in ordine con commit su thread I/O; i campi temporaneamente vuoti o non validi lasciano disponibile l'ultima snapshot valida. La schermata distingue salvataggio in corso, successo ed errore con retry. La ricreazione Android conserva inoltre la bozza tramite `rememberSaveable`. Al riavvio vengono letti e validati tutti i dieci campi; file assente usa gli stessi default web. JSON corrotto, incompleto o con versione sconosciuta mostra un avviso e i valori di esempio, preservando il dato originale e sospendendo il salvataggio automatico. Il pulsante Ripristina sostituisce esplicitamente la snapshot con tutti i default di entrambi i calcolatori; non modifica il backend. Il reset invalida le scritture ancora in coda della bozza precedente.
 
-Non è ancora presente condivisione FIRE tramite URL. I test JVM non dimostrano flussi backend con account o accessibilità su dispositivo.
+FIRE condivide un link tramite il selettore Android `ACTION_SEND`, senza inviare automaticamente messaggi. Le route sono `/fire/standard` e `/fire/barista`; il link contiene tutti i dieci parametri `age`, `retire`, `savings`, `contrib`, `income`, `return`, `inflation`, `swr`, `expenses`, `parttime`, con tassi frazionari come sul web. I default sono espliciti per evitare che il destinatario erediti parametri salvati diversi.
+
+L'importazione usa un link incollato: valida origine configurata, route, duplicati e numeri finiti, poi mostra un'anteprima. I campi assenti ereditano la configurazione mostrata; quelli non supportati sono segnalati e ignorati. Conferma applica e salva l'intera snapshot sull'account corrente prima di cambiare il form; un cambio di sessione invalida l'operazione. Il formato locale resta alla versione 1. Non sono presenti apertura automatica dei link o richieste di rete per importarli. I test JVM non dimostrano flussi backend con account o accessibilità sul telefono.
 
 ## Filtri delle collezioni
 

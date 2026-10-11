@@ -33,10 +33,15 @@ class NavigationScreenTest {
         val model = AppViewModel(api).also { models.put("navigation", it) }
         val checks = AtomicInteger()
         val releaseClient = OkHttpClient.Builder().addInterceptor { chain ->
+            assertEquals("GET", chain.request().method)
+            assertEquals("https", chain.request().url.scheme)
+            assertEquals("api.github.com", chain.request().url.host)
+            assertEquals("/repos/GoryNickel9/Savely-Android-Releases/releases", chain.request().url.encodedPath)
+            assertEquals("20", chain.request().url.queryParameter("per_page"))
             assertEquals(null, chain.request().header("Authorization"))
             assertEquals(null, chain.request().header("apikey"))
             checks.incrementAndGet()
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(404).message("No published stable release")
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(404).message("No published public release")
                 .body("{}".toResponseBody()).build()
         }.build()
         compose.setContent {
@@ -44,15 +49,16 @@ class NavigationScreenTest {
                 MainShell(model, AppState(initialized = true, session = session), "light", {}, {}, ReleaseRepository(releaseClient))
             }
         }
-        compose.onNodeWithText("Moduli", substring = false).performClick()
+        compose.onNodeWithTag("nav-more").performClick()
+        compose.onAllNodesWithText("Moduli", substring = false).filterToOne(hasClickAction()).performScrollTo().performClick()
         compose.onNodeWithText("Il tuo Savely").assertIsDisplayed()
         compose.waitForIdle()
         compose.onNodeWithText("Il tuo Savely").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Apri menu").performClick()
         compose.onAllNodesWithText("Versione e aggiornamenti").filterToOne(hasClickAction()).performScrollTo().performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Non ci sono release stabili pubbliche disponibili.").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Non ci sono release stabili pubbliche disponibili.").assertIsDisplayed()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Non ci sono release pubbliche disponibili.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Non ci sono release pubbliche disponibili.").assertIsDisplayed()
         compose.onNodeWithText("Controlla aggiornamenti").performClick()
         compose.waitUntil(10_000) { checks.get() == 2 }
         compose.waitForIdle()

@@ -1,5 +1,6 @@
 package cc.savely.android.transfer
 
+import cc.savely.android.ui.localized
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -40,7 +41,7 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
     }
     if (owner == null) {
         Column(modifier.padding(20.dp)) {
-            if (ownerError == null) CircularProgressIndicator() else Text(ownerError!!)
+            if (ownerError == null) CircularProgressIndicator() else Text(localized(ownerError!!))
         }
         return
     }
@@ -73,48 +74,48 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
 
     LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text("Importa ed esporta", style = MaterialTheme.typography.headlineSmall)
-            Text("Anteprima e controllo duplicati prima di salvare. CSV fino a 5 MiB e 10.000 righe.", style = MaterialTheme.typography.bodyMedium)
+            Text(localized("Importa ed esporta"), style = MaterialTheme.typography.headlineSmall)
+            Text(localized("Anteprima e controllo duplicati prima di salvare. CSV fino a 5 MiB e 10.000 righe."), style = MaterialTheme.typography.bodyMedium)
         }
         item {
-            Text("Formato importazione", style = MaterialTheme.typography.titleMedium)
+            Text(localized("Formato importazione"), style = MaterialTheme.typography.titleMedium)
             ImportFormat.entries.forEach { choice ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     RadioButton(selected = choice == format, onClick = { format = choice }, enabled = !state.busy)
-                    TextButton(onClick = { format = choice }, enabled = !state.busy) { Text(choice.label) }
+                    TextButton(onClick = { format = choice }, enabled = !state.busy) { Text(localized(choice.label)) }
                 }
             }
             if (format == ImportFormat.BANK) CategoryChoice("Valuta del conto se assente nel file", bankCurrency,
                 TransferCsv.currencies.sorted().map { it to it }, !state.busy) { bankCurrency = it }
             OutlinedButton(onClick = { picker.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel")) }, enabled = !state.busy,
-                modifier = Modifier.fillMaxWidth()) { Text("Scegli CSV e prepara anteprima") }
-            Text("XLSX e investimenti con mapping ISIN non sono ancora supportati. Nessuna posizione viene creata.", style = MaterialTheme.typography.bodySmall)
+                modifier = Modifier.fillMaxWidth()) { Text(localized("Scegli CSV e prepara anteprima")) }
+            Text(localized("XLSX e investimenti con mapping ISIN non sono ancora supportati. Nessuna posizione viene creata."), style = MaterialTheme.typography.bodySmall)
         }
         item {
             HorizontalDivider()
-            Text("Export completo dell'account", style = MaterialTheme.typography.titleMedium)
-            Text("Tutte le 25 tabelle previste dal sito, con filtri sull'account e lettura di tutte le pagine. Se una tabella fallisce, l'export si interrompe.", style = MaterialTheme.typography.bodyMedium)
-            OutlinedButton(onClick = model::prepareExport, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Prepara export CSV") }
+            Text(localized("Export completo dell'account"), style = MaterialTheme.typography.titleMedium)
+            Text(localized("Tutte le 25 tabelle previste dal sito, con filtri sull'account e lettura di tutte le pagine. Se una tabella fallisce, l'export si interrompe."), style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = model::prepareExport, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text(localized("Prepara export CSV")) }
             if (state.export != null) Button(onClick = { saver.launch("savely_export_${LocalDate.now()}.csv") }, enabled = !state.busy,
-                modifier = Modifier.fillMaxWidth()) { Text("Salva CSV (${state.export!!.counts.values.sum()} righe)") }
+                modifier = Modifier.fillMaxWidth()) { Text(localized("Salva CSV ({{value0}} righe)", "value0" to (state.export!!.counts.values.sum()))) }
         }
         if (state.busy) item {
             LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(state.progress, style = MaterialTheme.typography.bodyMedium)
+            Text(state.progressNotice?.let { localized(it.template, *it.values.toTypedArray()) } ?: localized(state.progress), style = MaterialTheme.typography.bodyMedium)
         }
-        state.message?.let { message -> item { Text(message, style = MaterialTheme.typography.bodyMedium) } }
+        state.message?.let { message -> item { Text(state.messageNotice?.let { localized(it.template, *it.values.toTypedArray()) } ?: localized(message), style = MaterialTheme.typography.bodyMedium) } }
         if (state.preview.isNotEmpty()) {
             item {
                 HorizontalDivider()
-                Text("${state.preview.size} transazioni in anteprima", style = MaterialTheme.typography.titleLarge)
-                Text("${state.preview.count { it.status == ImportStatus.DUPLICATE }} duplicate; ${state.skipped} righe escluse dal formato; ${state.problems.size} righe non valide.")
+                Text(localized("{{value0}} transazioni in anteprima", "value0" to (state.preview.size)), style = MaterialTheme.typography.titleLarge)
+                Text(localized("{{value0}} duplicate; {{value1}} righe escluse dal formato; {{value2}} righe non valide.", "value0" to (state.preview.count { it.status == ImportStatus.DUPLICATE }), "value1" to (state.skipped), "value2" to (state.problems.size)))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { model.selectAll(true) }, enabled = !state.busy) { Text("Seleziona tutte") }
-                    TextButton(onClick = { model.selectAll(false) }, enabled = !state.busy) { Text("Deseleziona") }
+                    TextButton(onClick = { model.selectAll(true) }, enabled = !state.busy) { Text(localized("Seleziona tutte")) }
+                    TextButton(onClick = { model.selectAll(false) }, enabled = !state.busy) { Text(localized("Deseleziona")) }
                 }
-                Button(onClick = { confirm = true }, enabled = selected > 0 && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Importa $selected transazioni selezionate") }
+                Button(onClick = { confirm = true }, enabled = selected > 0 && !state.busy, modifier = Modifier.fillMaxWidth()) { Text(localized("Importa {{value0}} transazioni selezionate", "value0" to (selected))) }
                 if (state.preview.any { it.status == ImportStatus.UNCERTAIN }) OutlinedButton(onClick = model::recheckDuplicates,
-                    enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Verifica gli esiti incerti") }
+                    enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text(localized("Verifica gli esiti incerti")) }
             }
             items(state.preview, key = { "transaction-${it.transaction.row}" }) { row ->
                 val editable = !state.busy && row.status in setOf(ImportStatus.READY, ImportStatus.FAILED)
@@ -124,17 +125,17 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
                             Checkbox(row.selected, onCheckedChange = { model.select(row.transaction.row, it) }, enabled = editable)
                             Column(Modifier.weight(1f)) {
                                 Text(row.transaction.description, style = MaterialTheme.typography.titleMedium)
-                                Text("${row.transaction.date} · ${row.transaction.amount.toPlainString()} ${row.transaction.currency} · ${if (row.transaction.type == "expense") "Uscita" else "Entrata"}")
+                                Text("${row.transaction.date} · ${row.transaction.amount.toPlainString()} ${row.transaction.currency} · ${localized(if (row.transaction.type == "expense") "Uscita" else "Entrata")}")
                             }
                         }
-                        Text("Riga ${row.transaction.row}: ${statusLabel(row.status)}", style = MaterialTheme.typography.labelLarge)
-                        row.message?.let { Text(it, color = if (row.status == ImportStatus.FAILED || row.status == ImportStatus.UNCERTAIN) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
+                        Text(localized("Riga {{value0}}: {{value1}}", "value0" to (row.transaction.row), "value1" to localized(statusLabel(row.status))), style = MaterialTheme.typography.labelLarge)
+                        row.message?.let { Text(localized(it), color = if (row.status == ImportStatus.FAILED || row.status == ImportStatus.UNCERTAIN) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface) }
                         if (row.status in setOf(ImportStatus.READY, ImportStatus.FAILED)) {
                             CategoryChoice("Categoria", row.categoryId.orEmpty(), state.context?.categories.orEmpty().filter { it.type == row.transaction.type }.map { it.id to it.name },
                                 editable) { model.category(row.transaction.row, it) }
                             if (row.transaction.currency != "EUR") OutlinedTextField(value = row.rate,
-                                onValueChange = { model.rate(row.transaction.row, it) }, label = { Text("1 ${row.transaction.currency} in EUR") },
-                                supportingText = { Text("Inserisci il cambio della data della transazione. Non converto l'importo originale.") },
+                                onValueChange = { model.rate(row.transaction.row, it) }, label = { Text(localized("1 {{value0}} in EUR", "value0" to (row.transaction.currency))) },
+                                supportingText = { Text(localized("Inserisci il cambio della data della transazione. Non converto l'importo originale.")) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), enabled = editable, singleLine = true, modifier = Modifier.fillMaxWidth())
                         }
                     }
@@ -142,24 +143,24 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
             }
         }
         if (state.problems.isNotEmpty()) {
-            item { Text("Righe non importabili", style = MaterialTheme.typography.titleMedium) }
-            items(state.problems, key = { "problem-${it.row}" }) { Text("Riga ${it.row}: ${it.message}", color = MaterialTheme.colorScheme.error) }
+            item { Text(localized("Righe non importabili"), style = MaterialTheme.typography.titleMedium) }
+            items(state.problems, key = { "problem-${it.row}" }) { Text(localized("Riga {{value0}}: {{value1}}", "value0" to (it.row), "value1" to localized(it.message)), color = MaterialTheme.colorScheme.error) }
         }
     }
-    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text("Conferma importazione") },
-        text = { Text("Salverò $selected transazioni nel tuo account Savely. Saranno visibili anche sul sito. Le righe duplicate o non selezionate verranno saltate.") },
-        confirmButton = { TextButton(onClick = { confirm = false; model.confirmImport() }) { Text("Conferma e importa") } },
-        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Annulla") } })
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(localized("Conferma importazione")) },
+        text = { Text(localized("Salverò {{value0}} transazioni nel tuo account Savely. Saranno visibili anche sul sito. Le righe duplicate o non selezionate verranno saltate.", "value0" to (selected))) },
+        confirmButton = { TextButton(onClick = { confirm = false; model.confirmImport() }) { Text(localized("Conferma e importa")) } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text(localized("Annulla")) } })
 }
 
 @Composable
 private fun CategoryChoice(label: String, selected: String, choices: List<Pair<String, String>>, enabled: Boolean, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column {
-        Text(label, style = MaterialTheme.typography.labelLarge)
+        Text(localized(label), style = MaterialTheme.typography.labelLarge)
         Box {
             OutlinedButton(onClick = { expanded = true }, enabled = enabled && choices.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
-                Text(choices.firstOrNull { it.first == selected }?.second ?: if (choices.isEmpty()) "Crea una categoria prima di importare" else "Scegli categoria")
+                Text(choices.firstOrNull { it.first == selected }?.second ?: localized(if (choices.isEmpty()) "Crea una categoria prima di importare" else "Scegli categoria"))
             }
             DropdownMenu(expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 320.dp)) {
                 choices.forEach { choice -> DropdownMenuItem(text = { Text(choice.second) }, onClick = { expanded = false; onSelect(choice.first) }) }

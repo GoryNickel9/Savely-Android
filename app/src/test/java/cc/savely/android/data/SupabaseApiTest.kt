@@ -241,6 +241,35 @@ class SupabaseApiTest {
         assertEquals("challenge-1", body.getString("challenge_id"))
     }
 
+    @Test fun settingsCanReadPendingTotpWithoutChangingTheAccessGateOrSession() = runBlocking {
+        val saved = liveSession().also { store.save(it) }
+        val factors = """{"factors":[{"id":"active","factor_type":"totp","status":"verified"},{"id":"pending","factor_type":"totp","status":"unverified"},{"id":"phone","factor_type":"phone","status":"verified"},{"id":"unknown","factor_type":"totp","status":"unknown"}]}"""
+        server.enqueue(json(factors))
+        val settingsFactors = api.listMfaFactors(includeUnverified = true)
+        assertEquals(listOf("active", "pending"), (0 until settingsFactors.length()).map { settingsFactors.getJSONObject(it).getString("id") })
+        server.enqueue(json(factors))
+        val gateFactors = api.listMfaFactors()
+        assertEquals(1, gateFactors.length())
+        assertEquals("active", gateFactors.getJSONObject(0).getString("id"))
+        repeat(2) {
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/auth/v1/user", request.path)
+            assertEquals("Bearer ${saved.accessToken}", request.getHeader("Authorization"))
+        }
+        assertEquals(2, server.requestCount)
+        assertEquals(saved, store.load())
+    }
+
+    @Test fun pendingRemovalRefusesAFactorThatHasAlreadyBecomeVerified() = runBlocking {
+        val saved = liveSession().also { store.save(it) }
+        server.enqueue(json("""{"factors":[{"id":"pending-1","factor_type":"totp","status":"verified"}]}"""))
+        assertEquals(ApiError.VALIDATION, failure { api.unenrollPendingTotp("pending-1") }.kind)
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals(1, server.requestCount)
+        assertEquals(saved, store.load())
+    }
+
     @Test fun invalidMfaCodeFailsBeforeChallenge() = runBlocking {
         store.save(liveSession())
         assertEquals(ApiError.VALIDATION, failure { api.verifyTotp("factor-1", "12345") }.kind)

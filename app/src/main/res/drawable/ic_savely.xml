@@ -1,5 +1,4 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#081020" android:pathData="M0,0h108v108h-108z" />
-    <path android:fillColor="#2FCE78" android:pathData="M78,31H43C27,31 27,54 43,54H65C81,54 81,77 65,77H30V66H65C68,66 68,65 65,65H43C12,65 12,20 43,20H78z" />
-</vector>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/savely_icon_background" />
+    <foreground android:drawable="@drawable/savely_icon_foreground" />
+</adaptive-icon>

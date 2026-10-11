@@ -17,6 +17,8 @@ data class FinanceUiState(
     val error: String? = null,
     val updatedAt: Instant? = null,
     val message: String? = null,
+    val positionCloseFailure: PositionCloseException? = null,
+    val reconciliationRequired: Boolean = false,
 )
 
 class FinanceViewModel(private val repository: FinanceRepository, private val section: String) : ViewModel() {
@@ -31,7 +33,8 @@ class FinanceViewModel(private val repository: FinanceRepository, private val se
             mutableState.value = mutableState.value.copy(loading = true, error = null)
             try {
                 val data = repository.load(section)
-                mutableState.value = mutableState.value.copy(data = data, loading = false, updatedAt = Instant.now())
+                mutableState.value = mutableState.value.copy(data = data, loading = false, updatedAt = Instant.now(),
+                    reconciliationRequired = false, positionCloseFailure = null)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
@@ -42,9 +45,10 @@ class FinanceViewModel(private val repository: FinanceRepository, private val se
     }
 
     fun mutate(operation: suspend FinanceRepository.() -> Unit, onSuccess: () -> Unit) {
+        if (mutableState.value.reconciliationRequired) return
         if (!writeBusy.compareAndSet(false, true)) return
         refreshJob?.cancel()
-        mutableState.value = mutableState.value.copy(saving = true, loading = false, error = null, message = null)
+        mutableState.value = mutableState.value.copy(saving = true, loading = false, error = null, message = null, positionCloseFailure = null)
         viewModelScope.launch {
             var succeeded = false
             try {
@@ -56,7 +60,9 @@ class FinanceViewModel(private val repository: FinanceRepository, private val se
                 throw exception
             } catch (exception: Exception) {
                 mutableState.value = mutableState.value.copy(saving = false,
-                    error = exception.message ?: "Operazione fallita. Controlla la connessione e riprova.")
+                    error = exception.message ?: "Operazione fallita. Controlla la connessione e riprova.",
+                    positionCloseFailure = exception as? PositionCloseException,
+                    reconciliationRequired = exception is PositionCloseException)
             } finally {
                 writeBusy.set(false)
             }
@@ -65,6 +71,13 @@ class FinanceViewModel(private val repository: FinanceRepository, private val se
     }
 
     fun setRecurringActive(id: String, active: Boolean) = mutate({ setRecurringActive(id, active) }) {}
+
+    fun closePositions(assets: List<FinanceAsset>, date: String, price: String, onSuccess: () -> Unit) =
+        mutate({ closeAssetGroup(assets, date, price) }) {
+            // Confirmed closures also leave the old list stale until the subsequent read succeeds.
+            mutableState.value = mutableState.value.copy(reconciliationRequired = true)
+            onSuccess()
+        }
 
     fun processDueRecurring() {
         var result: RecurringProcessingResult? = null

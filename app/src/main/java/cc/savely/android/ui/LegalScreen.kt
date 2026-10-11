@@ -21,11 +21,11 @@ fun LegalScreen(document: String, onBack: () -> Unit) {
         require(document in setOf("privacy", "terms", "cookies"))
         text = withContext(Dispatchers.IO) { context.assets.open("legal/$document.txt").bufferedReader().use { it.readText() } }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text(when (document) { "privacy" -> "Privacy"; "terms" -> "Termini"; else -> "Memorizzazione locale" }) },
-        navigationIcon = { TextButton(onBack) { Text("Indietro") } }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(localized(when (document) { "privacy" -> "Privacy"; "terms" -> "Termini"; else -> "Memorizzazione locale" })) },
+        navigationIcon = { TextButton(onBack) { Text(localized("Indietro")) } }) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Documento originale Savely web, versione 27 agosto 2026.", style = MaterialTheme.typography.bodySmall)
-            if (document == "cookies") Text("Su Android la sessione è cifrata con Android Keystore e salvata nello spazio privato dell’app; il tema è una preferenza locale. L’app non usa cookie del browser, analytics o pubblicità.")
+            Text(localized("Documento originale Savely web in italiano, versione 27 agosto 2026."), style = MaterialTheme.typography.bodySmall)
+            if (document == "cookies") Text(localized("Su Android la sessione è cifrata con Android Keystore e salvata nello spazio privato dell’app; il tema è una preferenza locale. L’app non usa cookie del browser, analytics o pubblicità."))
             text?.let { SelectionContainer { Text(it, style = MaterialTheme.typography.bodyLarge) } } ?: CircularProgressIndicator()
         }
     }

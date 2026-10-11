@@ -35,6 +35,8 @@ class RecurringProcessingTest {
         .put("frequency", frequency).put("week_interval", interval).put("next_due_date", date).put("is_active", active)
     private fun due(row: JSONObject = recurring()) = json(JSONArray().put(row).toString())
     private fun updated() = json("""[{"id":"$recurringId"}]""")
+    private fun enqueueDue(row: JSONObject = recurring()) { server.enqueue(due(row)); server.enqueue(json("[]")) }
+    private fun takeDuePages() { repeat(2) { assertEquals("GET", server.takeRequest().method) } }
 
     @Test fun `toggle only changes active flag on owner undeleted record`() = runBlocking {
         server.enqueue(updated())
@@ -50,13 +52,14 @@ class RecurringProcessingTest {
     }
 
     @Test fun `process creates exact dated transaction and clamps monthly date without catching up all backlog`() = runBlocking {
-        server.enqueue(due()); server.enqueue(json("[]")); server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
+        enqueueDue(); server.enqueue(json("[]")); server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
         assertEquals(RecurringProcessingResult(1, 0, 1), repository.processDueRecurring(LocalDate.parse("2026-10-11")))
         val query = server.takeRequest().requestUrl!!
         assertEquals("eq.$user", query.queryParameter("user_id"))
         assertEquals("is.null", query.queryParameter("deleted_at"))
         assertEquals("eq.true", query.queryParameter("is_active"))
         assertEquals("lte.2026-10-11", query.queryParameter("next_due_date"))
+        assertEquals("1", server.takeRequest().requestUrl!!.queryParameter("offset"))
         val check = server.takeRequest().requestUrl!!
         assertEquals(listOf("gte.2026-01-01", "lt.2026-02-01"), check.queryParameterValues("date"))
         assertEquals("1", check.queryParameter("limit"))
@@ -71,35 +74,36 @@ class RecurringProcessingTest {
         assertEquals("eq.2026-01-31", advance.requestUrl!!.queryParameter("next_due_date"))
         assertEquals("eq.true", advance.requestUrl!!.queryParameter("is_active"))
         assertEquals("eq.$user", advance.requestUrl!!.queryParameter("user_id"))
-        assertEquals(4, server.requestCount)
+        assertEquals(5, server.requestCount)
     }
 
     @Test fun `weekly same month transaction skips insert and advances custom interval`() = runBlocking {
-        server.enqueue(due(recurring("2026-10-01", "weekly", 2)))
+        enqueueDue(recurring("2026-10-01", "weekly", 2))
         server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
         assertEquals(RecurringProcessingResult(0, 1, 1), repository.processDueRecurring(LocalDate.parse("2026-10-11")))
-        server.takeRequest()
+        takeDuePages()
         val check = server.takeRequest().requestUrl!!
         assertEquals(listOf("gte.2026-10-01", "lt.2026-11-01"), check.queryParameterValues("date"))
         assertEquals("2026-10-15", JSONObject(server.takeRequest().body.readUtf8()).getString("next_due_date"))
-        assertEquals(3, server.requestCount)
+        assertEquals(4, server.requestCount)
     }
 
     @Test fun `paused future and empty due records make no writes`() = runBlocking {
-        server.enqueue(json(JSONArray().put(recurring(active = false)).put(recurring("2027-01-31")).toString()))
-        assertEquals(RecurringProcessingResult(), repository.processDueRecurring(LocalDate.parse("2026-10-11")))
-        assertEquals(1, server.requestCount)
+        server.enqueue(json(JSONArray().put(recurring(active = false)).put(recurring("2027-01-31").put("id", txId)).toString()))
         server.enqueue(json("[]"))
         assertEquals(RecurringProcessingResult(), repository.processDueRecurring(LocalDate.parse("2026-10-11")))
         assertEquals(2, server.requestCount)
+        server.enqueue(json("[]"))
+        assertEquals(RecurringProcessingResult(), repository.processDueRecurring(LocalDate.parse("2026-10-11")))
+        assertEquals(3, server.requestCount)
     }
 
     @Test fun `description reserved characters cannot inject filters and December bounds reach January`() = runBlocking {
         val name = "Piano A&B #\"test\"\nuser_id=eq.other"
-        server.enqueue(due(recurring("2026-12-31", name = name)))
+        enqueueDue(recurring("2026-12-31", name = name))
         server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
         repository.processDueRecurring(LocalDate.parse("2026-12-31"))
-        server.takeRequest()
+        takeDuePages()
         val check = server.takeRequest().requestUrl!!
         assertEquals("eq.$name", check.queryParameter("description"))
         assertEquals(listOf("eq.$user"), check.queryParameterValues("user_id"))
@@ -108,33 +112,33 @@ class RecurringProcessingTest {
     }
 
     @Test fun `failed insert stops and does not advance or report success`() = runBlocking {
-        server.enqueue(due()); server.enqueue(json("[]")); server.enqueue(json("{}", 403))
+        enqueueDue(); server.enqueue(json("[]")); server.enqueue(json("{}", 403))
         val failure = try { repository.processDueRecurring(LocalDate.parse("2026-01-31")); null } catch (error: RecurringProcessingException) { error }
         assertEquals(RecurringProcessingResult(), failure?.result)
         assertTrue(failure?.message.orEmpty().contains("salvataggio della transazione"))
         assertTrue(failure?.message.orEmpty().contains("verifica i movimenti"))
-        assertEquals(3, server.requestCount)
+        assertEquals(4, server.requestCount)
     }
 
     @Test fun `committed insert then failed advance reports partial result and explicit rerun deduplicates`() = runBlocking {
-        server.enqueue(due()); server.enqueue(json("[]")); server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(json("{}", 403))
+        enqueueDue(); server.enqueue(json("[]")); server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(json("{}", 403))
         val failure = try { repository.processDueRecurring(LocalDate.parse("2026-01-31")); null } catch (error: RecurringProcessingException) { error }
         assertEquals(RecurringProcessingResult(1, 0, 0), failure?.result)
         assertTrue(failure?.message.orEmpty().contains("1 transazioni create"))
         assertTrue(failure?.message.orEmpty().contains("aggiornamento della scadenza"))
-        assertEquals(4, server.requestCount)
-        server.enqueue(due()); server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
+        assertEquals(5, server.requestCount)
+        enqueueDue(); server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
         assertEquals(RecurringProcessingResult(0, 1, 1), repository.processDueRecurring(LocalDate.parse("2026-01-31")))
-        val methods = (0 until 7).map { server.takeRequest().method }
+        val methods = (0 until 9).map { server.takeRequest().method }
         assertEquals(1, methods.count { it == "POST" })
     }
 
     @Test fun `failed dedup check never creates or advances schedule`() = runBlocking {
-        server.enqueue(due()); server.enqueue(json("{}", 500))
+        enqueueDue(); server.enqueue(json("{}", 500))
         val failure = try { repository.processDueRecurring(LocalDate.parse("2026-01-31")); null } catch (error: RecurringProcessingException) { error }
         assertEquals(RecurringProcessingResult(), failure?.result)
         assertTrue(failure?.message.orEmpty().contains("verifica delle transazioni"))
-        assertEquals(2, server.requestCount)
+        assertEquals(3, server.requestCount)
     }
 
     @Test fun `processing preserves leap year quarterly and yearly clamp conventions`() = runBlocking {
@@ -144,10 +148,10 @@ class RecurringProcessingTest {
             Triple("2024-02-29", "yearly", "2025-02-28"),
         )
         cases.forEach { (date, frequency, expected) ->
-            server.enqueue(due(recurring(date, frequency)))
+            enqueueDue(recurring(date, frequency))
             server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
             assertEquals(RecurringProcessingResult(0, 1, 1), repository.processDueRecurring(LocalDate.parse("2026-10-11")))
-            server.takeRequest(); server.takeRequest()
+            takeDuePages(); server.takeRequest()
             assertEquals(expected, JSONObject(server.takeRequest().body.readUtf8()).getString("next_due_date"))
         }
     }
@@ -155,13 +159,14 @@ class RecurringProcessingTest {
     @Test fun `invalid second record reports validation stage and preserves first committed work`() = runBlocking {
         val invalid = recurring("2026-02-01").put("id", "30000000-0000-4000-8000-000000000004").put("amount", "0")
         server.enqueue(json(JSONArray().put(recurring()).put(invalid).toString()))
+        server.enqueue(json("[]"))
         server.enqueue(json("[]")); server.enqueue(json("""[{"id":"$txId"}]""")); server.enqueue(updated())
         val failure = try { repository.processDueRecurring(LocalDate.parse("2026-10-11")); null } catch (error: RecurringProcessingException) { error }
         assertEquals(RecurringProcessingResult(1, 0, 1), failure?.result)
         assertTrue(failure?.message.orEmpty().contains("validazione della ricorrenza"))
         assertTrue(failure?.message.orEmpty().contains("1 transazioni create"))
-        assertEquals(4, server.requestCount)
-        val methods = (0 until 4).map { server.takeRequest().method }
-        assertEquals(listOf("GET", "GET", "POST", "PATCH"), methods)
+        assertEquals(5, server.requestCount)
+        val methods = (0 until 5).map { server.takeRequest().method }
+        assertEquals(listOf("GET", "GET", "GET", "POST", "PATCH"), methods)
     }
 }

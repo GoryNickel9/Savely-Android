@@ -1,12 +1,56 @@
 # Verifica Savely Android
 
-## Risultati eseguiti il 11 ottobre 2026
+## Risultati 0.1.8 — 12 ottobre 2026
+
+Verifiche locali, senza CI GitHub. Sorgenti web invariati. JDK di Android Studio su Windows, emulatori x86_64 dedicati: SavelyAndroid12 (Android 12/API 31, Google APIs) e SavelyVerify35 (Android 15/API 35, Google Play).
+
+| Prova | Esito | Evidenza locale |
+|---|---|---|
+| JVM | 399 casi, zero fallimenti/errori/skip | `app/build/test-results/testDebugUnitTest/`, `artifacts/verification-0.1.8-complete.log` |
+| Host Python | 6 test superati | `artifacts/host-tests-0.1.8-final.log` |
+| Host PowerShell | 41 controlli offline superati; solo funzioni pure estratte via AST | `artifacts/backend-helper-offline-0.1.8.txt` |
+| Lint debug/release | Zero errori, 32 avvertenze e 5 suggerimenti | Report lint e `artifacts/verification-0.1.8-final-labels.log` |
+| Android 12 | 108 casi ordinari con esito finale positivo dopo riesecuzioni mirate; non è un singolo run finale completo | `artifacts/android12-0.1.8-aggregate.json` e tre log sorgente |
+| Android 15 | 108 casi, zero fallimenti/skip, singola suite completa finale: 375,253 s | `artifacts/android15-0.1.8-full-ime-final.txt` e relativo JSON |
+| Guardie QA offline Android 12 | Tre fixture passano, inclusa serializzazione CAS booleana/numerica | `artifacts/android12-0.1.8-final-targets.txt`, `artifacts/roadmap-cleanup-boolean-fixture-0.1.8.txt` |
+| Riavvio processo reale Android 12 | Persistenza 1,550 s; ripristino 8,395 s; identità, Dashboard, nuovo PID e logout verificati | `artifacts/backend-process-death-host-0.1.8-final.log`, `artifacts/backend-process-death-result-0.1.8-final.json` |
+
+I tempi sono osservazioni sul computer locale, non benchmark o promesse sul telefono. La prima suite API 35 falliva due casi: layout Compose eseguito dalla continuation OkHttp del test Poker e callback login non consegnato nel test. Poker usa ora un dispatcher di test controllato e scroll touch entro il viewport; login nasconde la tastiera e verifica il submit con un tap sul controllo visibile. Assert e codice di produzione restano invariati. I 17 casi mirati passano in 78,670 s (`artifacts/android15-0.1.8-targets-corrected.txt`); la suite successiva passa 107/108 in 392,582 s. Il login fallisce ancora nell’assert di visibilità prima del tap: il test attende ora che gli insets Android confermino la tastiera nascosta prima di scorrere fino al pulsante. Anche questo log resta distinto (`artifacts/android15-0.1.8-full-corrected.txt`). I sei auth passano in 23,049 s dopo il fix (`artifacts/android15-0.1.8-auth-ime-final.txt`), poi l’intera suite finale passa 108/108 in 375,253 s. Le ultime correzioni del harness Poker/IME sono eseguite su API 35; i risultati API 31 restano quelli della precedente aggregazione, con log separati.
+
+Il primo run JVM falliva 11 casi per il certificato TLS locale privo dei SAN IP; dopo il fix della sola fixture, 12 test auth mirati e poi tutti i 399 passano. La prima suite Android 12 aveva quattro failure: matcher di sottostringhe, messaggio vecchio del canale release e selettore sbagliato della scheda Account. Il run mirato risolve quei casi, ma scopre tre failure nei nuovi helper Transfer (LazyColumn/dialoghi). Dopo correzioni del solo harness, tutti i sei Transfer passano in 27,616 s. Assert di owner, contenuto, numero delle scritture e assenza di retry restano attivi.
+
+La prima prova process death 0.1.8 ripristinava la sessione e l’identità, ma attendeva un’etichetta Dashboard precedente; `restore_failed` registra comunque logout e clear completati. Il test usa ora il titolo con tag stabile e il periodo tradotto nella lingua persistita; la nuova esecuzione passa. L’helper riconosce il report della stessa sessione prima del cleanup di fallback, senza ripetere una revoca già confermata. Il log fallito resta conservato.
+
+### Backend reale e recupero
+
+Il run `8f56e075-5f3a-49eb-87f1-0edbcebe8fe2` passa 42 contratti su 43: letture finanza/moduli, contesto import, export, diniego Admin per QA, catalogo/prezzo CardTrader, 12 CREATE, 8 UPDATE e chiusura CAS di due posizioni. La ricerca Google Books fallisce; una lettura pubblica separata osserva HTTP 429/RESOURCE_EXHAUSTED. Il limite di quota non viene aggirato né presentato come PASS.
+
+La prima pulizia è stata bloccata prima di una DELETE dal confronto Boolean/stringa del solo guard CAS del test. La regressione offline mantiene tipi, owner, payload, snapshot e prenotazione prima del trasporto. Recovery esatta in nuovo processo: righe rimosse, logout server, clear locale, bootstrap e checkpoint eliminati; `cleanup_complete=true`, `cleanup_pending=false`. Il report originale e `recovery-result.json` restano distinti in `artifacts/roadmap-smoke/8f56e075-5f3a-49eb-87f1-0edbcebe8fe2/`. Non sono modificati dati precedenti, password, MFA, trigger, RLS o stato delle registrazioni.
+
+### Copertura e limiti
+
+Le nuove fixture verificano callback PKCE, pending link cifrati, recupero password, archivio Coppia, donut Dashboard, navigazione, IT/EN, font 200%/320 dp, rete e documenti. I risultati SAF sono forniti da un registry di test; il provider MediaStore, metadati e byte sono reali. Sei casi documenti richiedono API 29+, quindi su API 26–28 sarebbero esclusi. Non è una prova del selettore di sistema, di provider cloud o del ripristino dell’anteprima dopo terminazione del processo.
+
+Tre screenshot dei componenti Nav, l’icona nel launcher dell’AVD e la schermata anonima dell’APK firmato finale sono stati ispezionati. L’aggiornamento 0.1.7/code 8 → 0.1.8/code 9 conserva la preferenza inglese; il finale mostra Show/Hide con un tap reale. I callback cold/warm con dati sintetici vengono instradati e rifiutati con un messaggio sicuro. I tre cold start sul primo candidato osservano 2657/2547/1897 ms al primo frame; il finale cambia soltanto due etichette nel JSON inglese e conserva il DEX identico. Non sono verificati una sessione autenticata durante l’upgrade o tutte le pagine con lo stesso dataset web. I report finali sono raccolti in `artifacts/verified-0.1.8/`; `build-results.json` include conteggi, hash e limiti. Telefono e launcher Doogee, TalkBack completo, email/PKCE reali, password QA, MFA positivo, Coppia con due account, Admin autorizzato ed eliminazione account restano non verificati. La revisione web distribuita è ora legata al deployment e al bundle pubblico confrontato: questo non dimostra equivalenza semantica globale. I dettagli sono in ROADMAP_CLOSURE.md; `globalParityVerified=false` resta invariato.
+
+## Evidenza storica — 11 ottobre 2026
+
+
+La verifica locale finale 0.1.7-alpha passa **366 test JVM e 87 Android**, zero fallimenti/errori/skip. Lint debug e release: zero errori, 28 avvertenze e 5 suggerimenti ciascuno. Le avvertenze riguardano versioni delle dipendenze/AGP (16), convenzioni KTX (11) e nome di una funzione Compose (1); i cinque suggerimenti riguardano state Int. Build integrata completata in 10m24s; suite Android: 399,550 secondi, JVM: 14,304 secondi. Sono tempi osservati su questo computer, non benchmark. Manifest dei sorgenti invariato durante la build. Report XML/HTML, lint, log e hash in `artifacts/verified-0.1.7/`; riepilogo in `build-results.json`.
+
+I primi 16 fallimenti JVM derivavano da fixture di paginazione non aggiornate e da un’attesa errata nello storico; i dati di test sono stati corretti. Un helper MockResponse usava inoltre un getter deprecato che impediva la compilazione dei test Android; ora usa `status`. Il primo run Android completo ha passato 84/87 casi: due attese cercavano elementi fuori dalla porzione visibile della LazyColumn, il terzo attendeva due GET nella categoria Libri vuota anziché uno. Corrette solo fixture e attese, conservando gli assert sulle scritture, l’owner e i refresh. Riesecuzione mirata: 3/3; riesecuzione integrata finale: 87/87. Report iniziale e mirato conservati nelle sottocartelle `initial-failure/` e `targeted-pass/`.
+
+APK 0.1.7-alpha, versionCode 8, firma v2 e checksum verificati: aggiornamento dalla release firmata 0.1.5 installato con `adb install -r` sul solo AVD SavelyTest. Avvio anonimo e schermata Accedi/Email controllati anche nello screenshot. Un avviso ANR di System UI copriva il primo dump: chiuso l’avviso del sistema, l’avvio e la schermata sono stati verificati di nuovo. Non costituisce prova di aggiornamento con sessione autenticata. Emulatore spento al termine. La scansione dell’APK non trova i pattern `sb_secret_` o JWT service_role; non è un audit di sicurezza completo.
+
+Eseguito anche il test host di `test_web_parity_audit.py`: 1/1. Nessuna CI GitHub, nuova prova backend reale o prova sul telefono in questa verifica. Savely web resta alla revisione `1cfcf6297e85d56bfafe3522362ceecef6f6b281`, checkout senza modifiche. Le prove remote sotto appartengono alle versioni indicate e non certificano i nuovi flussi 0.1.7.
 
 La verifica finale 0.1.5-alpha passa 232 test JVM e 44 Android, zero failure/errori/skip, lint debug/release zero errori e 24 avvertenze. Snapshot sorgenti invariato; report finali in `artifacts/verified-0.1.5-final/`. Suite Android finale: 451.913 secondi sul solo AVD Android 15. La prima build completa era passata in 12m56s con suite Android di 435.305 secondi; il pacchetto test è stato poi ricompilato per diagnosi e selettori dello smoke opt-in, prima della riesecuzione finale. L’errore iniziale JSONObject.keySet è stato corretto con keys().asSequence().toSet().
 
 APK 0.1.5-alpha: versionCode 6, 1.800.912 byte, SHA-256 `5c19146f97ddab4eb4e3e311440bcebadf6b6050a1c07a6cede41f217ee7d63e`, stessa firma v2; aggiornamento 0.1.4→0.1.5 e login anonimo controllati sull’AVD. Scansione senza credenziali privilegiate rilevate. Il test Library conserva entrambi i prezzi null, note/quantità e metadati, con un solo PATCH e righe estranee intatte.
 
 Lo smoke reale dal form FinanceScreen passa sul solo account QA, run `d03234ac-4666-4aa6-b7d9-ad82764505d3`, sessione `d577c20d-d96e-4c2d-a3a8-287815eb63a1`: inserimento EUR 0,01, modifica 0,02, conferma e cancellazione, riletture REST, riga assente, logout local-scope e clear locale. Bootstrap rimosso, checkpoint assente, cleanup_pending=false. Report in `artifacts/finance-form/d03234ac-4666-4aa6-b7d9-ad82764505d3/`. L’UUID è aggiunto dal solo interceptor test: non verifica navigazione MainActivity o generazione UUID del database. Il primo run `10db1215-ff7b-4386-ba03-413423b03895` è fallito con errore generico, ma tutti i controlli di pulizia sono passati; audit e correzione dei selettori precedono il run riuscito. Le fixture TLS opt-in e i 47 controlli host sono passati; queste prove sono separate dai 44 test ordinari.
+
+La CI della 0.1.5-alpha passa entrambi i job sulla revisione `23ee5159b9b402cd26c1fdfc04f018fad1e97fd4`: [run 38167247160](https://github.com/GoryNickel9/Savely-Android/actions/runs/38167247160). Il report UI scaricato in `artifacts/ci-38167247160-ui/` conferma 44 test, zero fallimenti e zero skip, durata 6m9.43s. La CI usa fixture e non esegue gli smoke opt-in sul backend reale.
 
 La build integrata 0.1.4-alpha passa 232 test JVM e 43 Android, zero failure/errori/skip, lint debug/release zero errori e 24 avvertenze. Snapshot sorgenti invariato durante la build; report in `artifacts/verified-0.1.4/`. Aggiunge sei JVM per variazione del prezzo ricorrente e quattro Android per lo stesso rilevatore, diniego Admin con sessione conservata e TCG con prezzi HTTP 503. Suite Android: 274.014 secondi, osservazione locale sull’AVD Android 15.
 
@@ -95,10 +139,16 @@ Lo [smoke web](TESTING_WEB_READ.md) passa su `https://www.savely.cc/transactions
 
 È passato anche il [flusso unico Android→sito](TESTING_ANDROID_WEB.md), run `99480d6e-a832-4e35-a72b-5f6057e9599f`: creazione tramite repository nel processo Android, lettura nella vera MainActivity e lettura della stessa riga nel browser. Preparazione instrumentation 12,456 secondi, cleanup 2,821 secondi; questi tempi non misurano l'intero flusso. Il report finale conferma eliminazione, logout della sola sessione temporanea, clear locale e `cleanup_pending=false`. Screenshot della riga controllato. Submit della form Android, login con password, telefono e SHA del deploy restano non verificati.
 
+## Prova manuale sul telefono
+
+L’utente ha installato la 0.1.7-alpha sullo smartphone già indicato (Doogee S100, Android 12) e riferisce che sembra funzionare correttamente. Installazione e uso generale sono confermati manualmente. Non sono stati descritti i singoli flussi provati, il metodo di accesso o la conservazione della sessione durante questo aggiornamento: questi controlli restano separati dalla conferma generale.
+
+L’11 ottobre 2026 l’utente ha riferito, dopo la consegna della 0.1.5-alpha, che la sessione rimane attiva su un Doogee S100 con Android 12. È una conferma manuale della persistenza nell’uso osservato; procedura dettagliata, accesso con password e conservazione della sessione durante un aggiornamento APK non sono ancora confermati. Non estende gli smoke QA al telefono né certifica la parità completa.
+
 ## Gate prima di dichiarare stabile M1
 
-1. Account sintetico: login con password. CRUD repository nativo, flusso unico Android→sito, sessione temporanea, riavvio completo e logout reale sono verificati; il rinnovo con token scaduto è coperto da fixture. Il submit della form sul backend reale resta distinto dallo smoke repository.
+1. Account sintetico: login con password ancora da verificare. CRUD repository nativo, flusso unico Android→sito, sessione temporanea, riavvio completo e logout reale sono verificati; il rinnovo con token scaduto è coperto da fixture. Il form FinanceScreen ha una prova QA separata riuscita sulla 0.1.5 con UUID aggiunto dal trasporto di test; navigazione MainActivity e UUID generato dal database restano da verificare.
 2. Emulatore: test senza skip, errori e rete assente, tastiera, orientamento, font grandi e navigazione; lint senza errori bloccanti.
-3. Telefono: installazione APK firmato e aggiornamento con la stessa chiave, senza perdita della sessione.
+3. Telefono: installazione e uso generale della 0.1.7 confermati dall’utente sul Doogee S100, Android 12; persistenza nell’uso della 0.1.5 già riferita. Documentare i flussi della 0.1.7, la procedura di aggiornamento e la conservazione della sessione senza nuovo accesso.
 
 MFA, Coppia con due account, Admin e servizi esterni richiedono verifiche dedicate prima della parità completa. Il test locale del contratto non prova che schema, RLS e funzioni distribuite siano uguali al mock.

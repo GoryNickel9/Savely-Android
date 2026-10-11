@@ -127,6 +127,7 @@ class CollectionScreenTest {
         replace("Prezzo acquisto unitario (€) (facoltativo)", "6,25")
         replace("Valore rivendita unitario (€) (facoltativo)", "8,50")
         replace("Note (facoltativo)", "Nota della serie")
+        replace("URL copertina (facoltativo)", "https://localhost:1/manga-cover.png")
         touch(button("Aggiungi 3 volumi"))
         await("Manga partial failure is visible") {
             compose.onAllNodesWithText("1/3 volumi confermati · Serie sintetica").fetchSemanticsNodes().isNotEmpty() &&
@@ -166,6 +167,7 @@ class CollectionScreenTest {
             assertEquals("Editore sintetico", body.getString("publisher"))
             assertEquals(2024, body.getInt("year"))
             assertEquals("Nota della serie", body.getString("notes"))
+            assertEquals("https://localhost:1/manga-cover.png", body.getString("cover_image"))
             assertEquals(0, BigDecimal("6.25").compareTo(BigDecimal(body.get("purchase_price").toString())))
             assertEquals(0, BigDecimal("8.50").compareTo(BigDecimal(body.get("reselling_value").toString())))
         }

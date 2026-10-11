@@ -25,6 +25,10 @@ import cc.savely.android.data.SupabaseApi
 import cc.savely.android.ui.SavelyTheme
 import java.io.File
 import java.io.IOException
+import java.math.BigDecimal
+import java.text.NumberFormat
+import java.time.LocalDate
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -169,6 +173,80 @@ class FirePersistenceTest {
         recreate(user)
         assertField("Risparmi attuali (€)", "77777.0")
     }
+
+    @Test fun standardResultsFollowEveryValidDraftAndRestoreWithoutCalculate() {
+        val user = account()
+        mount(user)
+        replace("Prelievo annuo (%)", "4")
+        replace("Spese annue (€)", "30000")
+        assertMetric(STANDARD_RESULT_INDEX, "Obiettivo FIRE", "750000")
+        replace("Spese annue (€)", "24000")
+        assertMetric(STANDARD_RESULT_INDEX, "Obiettivo FIRE", "600000")
+        replace("Risparmi attuali (€)", "120000")
+        header(STANDARD_RESULT_INDEX + 7, "${LocalDate.now().year} · 30 anni")
+        compose.onNodeWithText("${euro("120000")} · valore reale ${euro("120000")}").assertIsDisplayed()
+        val expected = FireParameters(inputs = FireCalculations.Inputs(
+            currentSavings = 120000.0, annualExpenses = 24000.0))
+        waitForSaved(user, expected)
+        recreate(user)
+        assertMetric(STANDARD_RESULT_INDEX, "Obiettivo FIRE", "600000")
+
+        replace("Spese annue (€)", "abc")
+        assertNoCurrentResults(STANDARD_RESULT_INDEX, "Inserisci un numero valido")
+        assertEquals(expected, restored(user))
+        assertEquals(expected, FireParameters.decode(diskSnapshot(user)))
+        recreate(user)
+        assertMetric(STANDARD_RESULT_INDEX, "Obiettivo FIRE", "600000")
+        reset()
+        waitForSaved(user, FireParameters())
+        assertMetric(STANDARD_RESULT_INDEX, "Obiettivo FIRE", "1200000")
+        compose.onNodeWithText("Calcola").assertDoesNotExist()
+    }
+
+    @Test fun baristaResultsFollowExpensesAndPartTimeAndSuppressInvalidDraft() {
+        val user = account()
+        mount(user)
+        barista()
+        replace("Prelievo annuo (%)", "4")
+        replace("Spese annue (€)", "30000")
+        replace("Reddito part-time annuo (€)", "12000")
+        assertMetric(BARISTA_RESULT_INDEX, "Obiettivo Barista", "450000")
+        assertMetric(BARISTA_RESULT_INDEX + 1, "Obiettivo FIRE completo", "750000")
+        replace("Spese annue (€)", "24000")
+        assertMetric(BARISTA_RESULT_INDEX, "Obiettivo Barista", "300000")
+        assertMetric(BARISTA_RESULT_INDEX + 1, "Obiettivo FIRE completo", "600000")
+        val expected = FireParameters(inputs = FireCalculations.Inputs(annualExpenses = 24000.0),
+            partTimeIncome = 12000.0)
+        waitForSaved(user, expected)
+
+        replace("Reddito part-time annuo (€)", "-1")
+        assertNoCurrentResults(BARISTA_RESULT_INDEX, "Reddito part-time non valido")
+        assertEquals(expected, restored(user))
+        assertEquals(expected, FireParameters.decode(diskSnapshot(user)))
+        recreate(user)
+        assertMetric(STANDARD_RESULT_INDEX, "Obiettivo FIRE", "600000")
+        barista()
+        assertMetric(BARISTA_RESULT_INDEX, "Obiettivo Barista", "300000")
+        assertMetric(BARISTA_RESULT_INDEX + 1, "Obiettivo FIRE completo", "600000")
+        reset()
+        waitForSaved(user, FireParameters())
+        assertMetric(BARISTA_RESULT_INDEX, "Obiettivo Barista", "700000")
+        assertMetric(BARISTA_RESULT_INDEX + 1, "Obiettivo FIRE completo", "1200000")
+    }
+
+    private fun assertMetric(index: Int, label: String, literalAmount: String) {
+        header(index, label)
+        compose.onNode(hasText(euro(literalAmount)) and hasAnySibling(hasText(label))).assertIsDisplayed()
+    }
+    private fun assertNoCurrentResults(index: Int, validationMessage: String) {
+        // At the old first-result position the invalid form ends with its validation error.
+        header(index, validationMessage).assertIsDisplayed()
+        listOf("Obiettivo FIRE", "Obiettivo Barista", "Obiettivo FIRE completo", "Proiezione annuale")
+            .forEach { compose.onNodeWithText(it).assertDoesNotExist() }
+    }
+    // Formatting literal expectations does not reuse the calculator or derive the expected targets.
+    private fun euro(literalAmount: String) = NumberFormat.getCurrencyInstance(Locale.ITALY)
+        .format(BigDecimal(literalAmount))
 
     private fun account() = "fire-device-test-${UUID.randomUUID()}".also { accounts.add(it) }
     private fun preferences(user: String) = context.createPackageContext(context.packageName, 0)
@@ -329,6 +407,8 @@ class FirePersistenceTest {
         private const val TABS_INDEX = 1
         private const val STATUS_INDEX = 3
         private const val FIRST_FIELD_INDEX = 5
+        private const val STANDARD_RESULT_INDEX = FIRST_FIELD_INDEX + 9
+        private const val BARISTA_RESULT_INDEX = FIRST_FIELD_INDEX + 10
         private val FIELD_LABELS = listOf("Età attuale", "Età pensionamento", "Risparmi attuali (€)",
             "Contributo annuo (€)", "Reddito netto annuo (€)", "Spese annue (€)", "Rendimento nominale (%)",
             "Inflazione (%)", "Prelievo annuo (%)", "Reddito part-time annuo (€)")

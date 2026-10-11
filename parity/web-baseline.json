@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "referenceRepository": "GoryNickel9/Savely",
   "inspectedRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
-  "deployedWebRevision": null,
+  "deployedWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
   "verifiedApkVersion": null,
   "globalParityVerified": false,
   "features": [
@@ -15,7 +15,10 @@
         "import-24-month-account-defaults",
         "account-specific-persistent-parameters",
         "reset-defaults",
-        "versioned-local-parameter-validation"
+        "versioned-local-parameter-validation",
+        "ten-parameter-standard-barista-share-url",
+        "native-share-chooser",
+        "pasted-url-preview-and-explicit-account-save"
       ],
       "verification": {
         "webFixtureExecuted": true,
@@ -25,7 +28,9 @@
         "nativeTestScope": "JVM formulas and codec; four Android fixture tests: ten-field disk commit, fresh-screen restore, account isolation, reset and invalid snapshots",
         "verificationScope": [
           "fixture-ten-parameters-committed-XML-and-fresh-screen-restore",
-          "fixture-two-account-isolation-reset-corrupt-and-incomplete-drafts"
+          "fixture-two-account-isolation-reset-corrupt-and-incomplete-drafts",
+          "fixture-share-url-roundtrip-invalid-origin-duplicate-overflow-and-range",
+          "fixture-share-chooser-preview-cancel-account-disk-commit-and-stale-owner-guard"
         ]
       },
       "differences": [
@@ -33,7 +38,6 @@
         "Corrupt/unknown-version snapshot is preserved until explicit reset"
       ],
       "remaining": [
-        "share-url",
         "24-month-boundary-timezone-test",
         "real-process-death-storage-failure-and-account-login-tests"
       ]
@@ -99,7 +103,8 @@
         "text-filter",
         "native-card-images",
         "collection-set-filters",
-        "cardtrader-expansion-filter"
+        "cardtrader-expansion-filter",
+        "full-owner-paginated-overview-with-explicit-currency"
       ],
       "verification": {
         "sourceSchemaInspected": true,
@@ -108,7 +113,8 @@
         "deviceFlowVerified": true,
         "nativeTestScope": "JVM models and repositories; Android TLS fixture test for Magic uppercase deduplication, Pokemon exact-case sets and Yugioh name-only search; backend pending",
         "verificationScope": [
-          "fixture-selected-card-price503-single-insert-null-price-purchase-cost-value-fallback"
+          "fixture-selected-card-price503-single-insert-null-price-purchase-cost-value-fallback",
+          "fixture-full-overview-pagination-currency-category-filters-and-error-without-partial-totals"
         ]
       },
       "remaining": [
@@ -126,7 +132,8 @@
         "native-cover-images",
         "author-publisher-year-filters",
         "manga-volume-ranges",
-        "manga-stable-UUID-reconciliation-and-explicit-resume"
+        "manga-stable-UUID-reconciliation-and-explicit-resume",
+        "full-owner-paginated-overview-with-explicit-currency"
       ],
       "verification": {
         "sourceSchemaInspected": true,
@@ -135,7 +142,8 @@
         "deviceFlowVerified": true,
         "nativeTestScope": "JVM collection filters and fourteen Manga tests; three Android TLS fixture tests for invalid range, saved-composition resume after ambiguous commit and combined filters with invariant totals; backend pending",
         "verificationScope": [
-          "fixture-nullable-library-prices-single-PATCH-note-quantity-and-foreign-row-isolation"
+          "fixture-nullable-library-prices-single-PATCH-note-quantity-and-foreign-row-isolation",
+          "fixture-full-overview-pagination-currency-category-filters-and-error-without-partial-totals"
         ]
       },
       "remaining": [
@@ -160,7 +168,14 @@
           "fixture-saving-month-currency-specific-baseline-severity-counts-and-filters",
           "fixture-new-recurring-top-three-cadences-owner-pagination-inactive-and-account-dismissals",
           "fixture-recurring-price-exact-threshold-pipeline-limits-currencies-ties-and-read-only-UI",
-          "real-QA-production-FinanceScreen-form-CRUD-test-transport-UUID-and-complete-cleanup"
+          "real-QA-production-FinanceScreen-form-CRUD-test-transport-UUID-and-complete-cleanup",
+          "fixture-dashboard-periods-comparisons-and-month-budget",
+          "fixture-read-only-recurring-calendar",
+          "fixture-chart-filters-granularity-bar-pie-line-exact-tables-and-point-limit",
+          "fixture-portfolio-reconstructed-recorded-history-coverage-periods-and-allocation",
+          "fixture-net-worth-raw-server-history-periods-metrics-and-errors",
+          "fixture-position-group-close-sequential-CAS-partial-result-and-reconciliation-write-gate",
+          "fixture-eight-insight-detectors-local-suite"
         ]
       },
       "owner": "finance-agent",
@@ -184,7 +199,8 @@
           "fixture-foreground-session-invalidation-transient-errors-token-rotation-and-stale-owner-guards",
           "fixture-canonical-web-api-transport-original-callback-origin-and-rejected-redirect",
           "fixture-MFA-invalid-code-and-transient-error-retry-without-premature-profile-read",
-          "fixture-Admin-denial-clears-data-and-dialogs-transient503-preserves-session"
+          "fixture-Admin-denial-clears-data-and-dialogs-transient503-preserves-session",
+          "fixture-IT-EN-local-preference-navigation-session-preservation-and-opaque-values"
         ]
       },
       "owner": "auth-agent",
@@ -331,6 +347,32 @@
       "scope": [
         "signature-versionCode5-to6-upgrade-and-anonymous-login-layout-on-AVD"
       ]
+    },
+    {
+      "version": "0.1.7-alpha",
+      "variant": "debug",
+      "jvmTests": 366,
+      "androidTests": 87,
+      "scope": [
+        "local-fixture-unit-and-device-tests-no-new-real-backend-smoke"
+      ]
+    },
+    {
+      "version": "0.1.7-alpha",
+      "versionCode": 8,
+      "variant": "release",
+      "sha256": "9f9a0394f862013f5ce05b9376a46d60ba1b9170364633c3a6c132d96ea98947",
+      "scope": [
+        "signature-versionCode6-to8-upgrade-and-anonymous-login-layout-on-AVD-local-only"
+      ]
     }
-  ]
+  ],
+  "deploymentEvidence": {
+    "checkedAt": "2026-10-12",
+    "githubDeploymentId": 6158289175,
+    "environment": "Production",
+    "state": "success",
+    "canonicalAndDeploymentAssetSha256": "acc9d0b830e2522cfd551a9b413fafe9d85e19b9685934d1bc51964cbbc9c399",
+    "scope": "deployment-metadata-and-identical-public-javascript-asset-not-global-functional-parity"
+  }
 }

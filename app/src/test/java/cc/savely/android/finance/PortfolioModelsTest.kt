@@ -10,6 +10,373 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PortfolioModelsTest {
+    @Test fun `all eight detector templates preserve existing Italian messages and numeric values`() {
+        val history = recurringHistory("Nome {{amount}} utente", "10", 4)
+        val priceRows = history.dropLast(1) + history.last().copy(amount = BigDecimal("11"))
+        val priceData = FinanceData(transactions = priceRows)
+        val signals = listOf(
+            spendingAnomalyInsights(FinanceData(transactions = listOf(anomalyRow("2026-05-10", "50"), anomalyRow("2026-06-10", "70"))), reference).single(),
+            categoryTrendInsights(FinanceData(transactions = trendHistory()), reference).single(),
+            savingMonthInsights(listOf(transaction("2026-05-10", "100"), transaction("2026-06-10", "120")), reference).single(),
+            netWorthMilestoneInsights(listOf(serverSnapshot("old", "2026-05-01", "100"), serverSnapshot("new", "2026-06-01", "101"))).single(),
+            newRecurringInsights(FinanceData(transactions = history)).single(),
+            recurringPriceChangeInsights(priceRows, availableRecurringSuggestions(priceData)).single(),
+            financeInsights(FinanceData(transactions = listOf(transaction("2026-06-10", "20", TransactionType.EXPENSE, category = "food")),
+                budgets = listOf(FinanceBudget("b", "food", BigDecimal.TEN, "EUR"))), reference).single(),
+            financeInsights(FinanceData(assets = listOf(asset(purchase = "100", current = "85"))), reference).single(),
+        )
+        fun render(template: String, values: List<Pair<String, Any?>>): String {
+            val replacements = values.toMap()
+            return Regex("\\{\\{([a-zA-Z][a-zA-Z0-9_]*)\\}\\}").replace(template) { match ->
+                replacements[match.groupValues[1]]?.toString() ?: match.value
+            }
+        }
+        assertEquals(8, signals.size)
+        signals.forEach { signal ->
+            assertEquals(signal.title, render(requireNotNull(signal.titleTemplate), signal.textValues))
+            assertEquals(signal.message, render(requireNotNull(signal.messageTemplate), signal.textValues))
+        }
+        assertEquals("Possibile spesa ricorrente: Nome {{amount}} utente", signals[4].title)
+        assertEquals(setOf("cadence"), signals[4].localizedValueKeys)
+    }
+
+    @Test fun `only absent category fallbacks are translated never account names that match app labels`() {
+        val data = FinanceData(transactions = trendHistory())
+        assertEquals(setOf("name"), categoryTrendInsights(data, reference).single().localizedValueKeys)
+        val userNamed = data.copy(categories = listOf(FinanceCategory("food", "Senza categoria", TransactionType.EXPENSE)))
+        val insight = categoryTrendInsights(userNamed, reference).single()
+        assertTrue(insight.localizedValueKeys.isEmpty())
+        assertEquals("Senza categoria", insight.textValues.toMap()["name"])
+    }
+
+    private fun serverSnapshot(id: String, date: String, value: String, components: JSONObject? = null) =
+        FinanceSnapshot(id, LocalDate.parse(date), value.toBigDecimal(), components)
+
+    @Test fun `server milestone requires at least two snapshots and compares the whole previous maximum`() {
+        val latest = serverSnapshot("latest", "2026-06-15", "101")
+        assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(emptyList()))
+        assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(listOf(latest)))
+        val rows = listOf(serverSnapshot("peak", "2026-01-01", "200"), serverSnapshot("low", "2026-05-01", "100"), latest)
+        assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(rows))
+        assertEquals(BigDecimal("201"), netWorthMilestoneInsights(rows.dropLast(1) + latest.copy(value = BigDecimal("201"))).single().value)
+    }
+
+    @Test fun `server milestone uses exact inclusive one unit threshold without rounding large values`() {
+        listOf("100.00", "9999999999998.00").forEach { amount ->
+            val baseline = serverSnapshot("old", "2026-05-01", amount)
+            val latest = serverSnapshot("latest", "2026-06-01", (baseline.value + BigDecimal.ONE).toPlainString())
+            assertEquals(latest.value, netWorthMilestoneInsights(listOf(baseline, latest)).single().value)
+            assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(listOf(baseline, latest.copy(value = latest.value - BigDecimal("0.01")))))
+            assertEquals(latest.value + BigDecimal("0.01"), netWorthMilestoneInsights(listOf(baseline,
+                latest.copy(value = latest.value + BigDecimal("0.01")))).single().value)
+        }
+    }
+
+    @Test fun `server milestone retains negative baselines and permits zero or negative positive severity signals`() {
+        val old = serverSnapshot("old", "2026-05-01", "-100")
+        val latest = serverSnapshot("latest", "2026-06-01", "-99")
+        val signal = netWorthMilestoneInsights(listOf(old, latest)).single()
+        assertEquals(BigDecimal("-99"), signal.value)
+        assertEquals(InsightSeverity.POSITIVE, signal.severity)
+        assertFalse(signal.warning)
+        assertTrue(signal.message.contains("-99,00"))
+        assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(listOf(old, latest.copy(value = BigDecimal("-99.01")))))
+        assertEquals(BigDecimal.ZERO, netWorthMilestoneInsights(listOf(old.copy(value = BigDecimal("-1")),
+            latest.copy(value = BigDecimal.ZERO))).single().value)
+    }
+
+    @Test fun `server milestone uses latest date including future snapshots without mutating the source`() {
+        val rows = listOf(serverSnapshot("future", "2036-06-15", "101"), serverSnapshot("old", "2020-01-01", "100"),
+            serverSnapshot("lower", "2026-05-01", "-500"))
+        val before = rows.map { Triple(it.id, it.date, it.value) }
+        val signal = netWorthMilestoneInsights(rows).single()
+        assertEquals(BigDecimal("101"), signal.value)
+        assertTrue(signal.message.contains("2036-06-15"))
+        assertEquals(before, rows.map { Triple(it.id, it.date, it.value) })
+    }
+
+    @Test fun `server milestone duplicate date tie uses id order deterministically independent of incoming order`() {
+        val rows = listOf(serverSnapshot("a", "2026-06-15", "100"), serverSnapshot("z", "2026-06-15", "101"))
+        assertEquals(netWorthMilestoneInsights(rows), netWorthMilestoneInsights(rows.reversed()))
+        assertEquals(BigDecimal("101"), netWorthMilestoneInsights(rows).single().value)
+        // Valid SQL rows are unique per user/date; malformed imported duplicates still get an explicit stable rule.
+        val lowerLastId = rows.map { if (it.id == "z") it.copy(value = BigDecimal("99")) else it }
+        assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(lowerLastId))
+        assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(lowerLastId.reversed()))
+    }
+
+    @Test fun `server milestone text never invents currency or derives value from native totals or components`() {
+        val components = JSONObject().put("currency", "USD").put("cashflow", "999999")
+        val snapshots = listOf(serverSnapshot("old", "2026-05-01", "1000"), serverSnapshot("latest", "2026-06-01", "1001", components))
+        val data = FinanceData(snapshots = snapshots, defaultCurrency = "JPY", transactions = listOf(
+            transaction("2020-01-01", "12345", currency = "EUR"), transaction("2020-01-01", "90000", currency = "USD")))
+        val signal = financeInsights(data, reference).single()
+        assertEquals("net-worth-milestone", signal.id)
+        assertEquals(BigDecimal("1001"), signal.value)
+        assertEquals("Nuovo massimo del valore registrato dal server", signal.title)
+        assertTrue(signal.message.contains("1.001,00") && signal.message.contains("La serie server non distingue le valute"))
+        assertFalse(signal.message.contains("EUR") || signal.message.contains("USD") || signal.message.contains("JPY") ||
+            signal.message.contains("€") || signal.message.contains("$"))
+    }
+
+    @Test fun `server milestone rounds only display half up and preserves exact recorded values`() {
+        val old = serverSnapshot("old", "2026-05-01", "0.305")
+        val latest = serverSnapshot("latest", "2026-06-01", "1.305")
+        val signal = netWorthMilestoneInsights(listOf(old, latest)).single()
+        assertTrue(signal.message.contains("1,31"))
+        assertEquals(BigDecimal("1.305"), signal.value)
+        assertEquals(BigDecimal("0.305"), old.value)
+        assertEquals(BigDecimal("1.305"), latest.value)
+        assertEquals(emptyList<FinanceInsight>(), netWorthMilestoneInsights(listOf(old, latest.copy(value = BigDecimal("1.304999")))))
+    }
+
+    @Test fun `server milestone positive sort uses recorded value with stable placement before equal saving`() {
+        val snapshots = listOf(serverSnapshot("old", "2026-05-01", "119"), serverSnapshot("latest", "2026-06-01", "120"))
+        val rows = listOf(transaction("2026-05-01", "100"), transaction("2026-06-01", "120"),
+            transaction("2026-05-01", "500", currency = "USD"), transaction("2026-06-01", "1000", currency = "USD"))
+        val data = FinanceData(snapshots = snapshots, transactions = rows, assets = listOf(asset(purchase = "100", current = "85")))
+        assertEquals(listOf("loss-asset-stock-EUR", "saving-month-USD", "net-worth-milestone", "saving-month-EUR"),
+            financeInsights(data, reference).map { it.id })
+        assertEquals(listOf(InsightSeverity.WARNING, InsightSeverity.POSITIVE, InsightSeverity.POSITIVE, InsightSeverity.POSITIVE),
+            financeInsights(data, reference).map { it.severity })
+    }
+
+    @Test fun `server snapshot parser retains decimals negative values and rejects null or missing recorded value`() {
+        val json = JSONObject().put("id", "snapshot").put("date", "2026-06-01").put("net_worth", BigDecimal("-9999999999999.01"))
+            .put("components", JSONObject.NULL)
+        val parsed = snapshotFromJson(json)
+        assertEquals(BigDecimal("-9999999999999.01"), parsed.value)
+        assertEquals(null, parsed.components)
+        assertThrows(NumberFormatException::class.java) { snapshotFromJson(JSONObject(json.toString()).put("net_worth", JSONObject.NULL)) }
+        assertThrows(org.json.JSONException::class.java) { snapshotFromJson(JSONObject().put("id", "s").put("date", "2026-06-01")) }
+    }
+
+    private fun trendHistory(old: String = "40", recent: String = "50", currency: String = "EUR", category: String? = "food") =
+        listOf("2026-01-10", "2026-01-11", "2026-01-12").map { anomalyRow(it, old, currency, category) } +
+            listOf("2026-05-10", "2026-05-11").map { anomalyRow(it, recent, currency, category) }
+    private fun trendSignals(rows: List<FinanceTransaction>, today: LocalDate = reference) =
+        categoryTrendInsights(FinanceData(transactions = rows), today)
+
+    @Test fun `category trend uses individual medians and two expenses in the same month suffice`() {
+        val rows = trendHistory()
+        val signal = trendSignals(rows).single()
+        assertEquals("category-trend-EUR-food", signal.id)
+        assertEquals(BigDecimal("10"), signal.value)
+        assertEquals(InsightSeverity.INFO, signal.severity)
+        assertFalse(signal.warning)
+        assertTrue(signal.message.contains("25%") && signal.message.contains("50,00") && signal.message.contains("40,00"))
+        assertTrue(signal.message.contains("mediana dei singoli importi"))
+        // Recent expenses remain in the twelve-month baseline; a disjoint older baseline would falsely signal here.
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(listOf(anomalyRow("2026-01-10", "10")) + rows.takeLast(2)))
+    }
+
+    @Test fun `category trend compares exact inclusive 125 percent and rejects one cent below on large amounts`() {
+        listOf("40.00" to "50.00", "1000000000.00" to "1250000000.00").forEach { (old, recent) ->
+            val rows = trendHistory(old, recent)
+            assertEquals(recent.toBigDecimal() - old.toBigDecimal(), trendSignals(rows).single().value)
+            assertEquals(emptyList<FinanceInsight>(), trendSignals(rows.dropLast(2) +
+                rows.takeLast(2).map { it.copy(amount = it.amount - BigDecimal("0.01")) }))
+        }
+    }
+
+    @Test fun `category trend requires two recent samples minimum fifty and positive full baseline`() {
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(trendHistory().dropLast(1)))
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(trendHistory("10", "49.99")))
+        assertEquals(BigDecimal("40"), trendSignals(trendHistory("10", "50")).single().value)
+        listOf("0", "-10").forEach { old -> assertEquals(emptyList<FinanceInsight>(), trendSignals(trendHistory(old))) }
+        // Historical zero/negative imports are retained rather than filtered; only the resulting median is checked.
+        val rows = listOf(anomalyRow("2026-01-10", "-100"), anomalyRow("2026-01-11", "-100"), anomalyRow("2026-01-12", "40")) +
+            trendHistory().takeLast(2)
+        assertEquals(BigDecimal("10"), trendSignals(rows).single().value)
+    }
+
+    @Test fun `category trend preserves half cent medians until the threshold and input order`() {
+        val old = listOf("40.00", "40.00", "40.00", "40.01").mapIndexed { index, amount -> anomalyRow("2026-01-${10 + index}", amount) }
+        val below = old + listOf(anomalyRow("2026-05-10", "50.00"), anomalyRow("2026-05-11", "50.01"))
+        // Baseline 40.005, recent 50.005: display-rounding the baseline down to 40.00 would falsely signal.
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(below))
+        val above = old + listOf(anomalyRow("2026-05-10", "50.01"), anomalyRow("2026-05-11", "50.02"))
+        val before = above.map { it.id to it.amount }
+        assertEquals(BigDecimal("10.010"), trendSignals(above).single().value)
+        assertEquals(before, above.map { it.id to it.amount })
+    }
+
+    @Test fun `category trend excludes income uncategorized and current month even when future in that month`() {
+        val old = trendHistory().take(3)
+        val first = anomalyRow("2026-05-10", "50")
+        val excluded = listOf(anomalyRow("2026-06-01", "50"), anomalyRow("2026-06-30", "50"),
+            anomalyRow("2026-05-11", "50", type = TransactionType.INCOME),
+            anomalyRow("2026-05-11", "50", category = null), anomalyRow("2026-05-12", "50", category = ""))
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(old + first + excluded))
+        assertEquals(BigDecimal("10"), trendSignals(old + first + excluded + anomalyRow("2026-05-13", "50")).single().value)
+    }
+
+    @Test fun `category trend excludes both boundary days and retains the next date`() {
+        val old = trendHistory().take(3)
+        val first = anomalyRow("2026-03-15", "50")
+        val second = anomalyRow("2026-05-10", "50")
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(old + first + second))
+        assertEquals(BigDecimal("10"), trendSignals(old + first.copy(date = LocalDate.parse("2026-03-16")) + second).single().value)
+        val twelveBoundary = anomalyRow("2025-06-15", "1000")
+        assertEquals(BigDecimal("10"), trendSignals(trendHistory() + twelveBoundary + twelveBoundary.copy(date = LocalDate.parse("2025-06-14"))).single().value)
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(trendHistory() + twelveBoundary.copy(date = LocalDate.parse("2025-06-16"))))
+    }
+
+    @Test fun `category trend uses setMonth overflow for recent and twelve month leap windows`() {
+        val endMay = LocalDate.parse("2026-05-31")
+        assertEquals(LocalDate.parse("2026-03-03"), insightWindowStart(endMay, 3))
+        val old = trendHistory().take(3)
+        val recent = listOf(anomalyRow("2026-03-03", "50"), anomalyRow("2026-04-10", "50"))
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(old + recent, endMay))
+        assertEquals(BigDecimal("10"), trendSignals(old + recent.first().copy(date = LocalDate.parse("2026-03-04")) + recent.last(), endMay).single().value)
+        val leap = LocalDate.parse("2024-02-29")
+        assertEquals(LocalDate.parse("2023-03-01"), insightWindowStart(leap, 12))
+        val leapRows = listOf("2023-08-10", "2023-08-11", "2023-08-12").map { anomalyRow(it, "40") } +
+            listOf("2024-01-10", "2024-01-11").map { anomalyRow(it, "50") }
+        assertEquals(BigDecimal("10"), trendSignals(leapRows + anomalyRow("2023-03-01", "1000"), leap).single().value)
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(leapRows + anomalyRow("2023-03-02", "1000"), leap))
+    }
+
+    @Test fun `category trend includes future other months in both recent sample and baseline`() {
+        val rows = trendHistory().take(3) + anomalyRow("2026-05-10", "50") + anomalyRow("2027-01-01", "50")
+        assertEquals(BigDecimal("10"), trendSignals(rows).single().value)
+        // Future observations also change the baseline and recent median, rather than being capped at today.
+        assertEquals(BigDecimal("475"), trendSignals(trendHistory() +
+            listOf(anomalyRow("2027-01-01", "1000"), anomalyRow("2027-01-02", "1000"))).single().value)
+    }
+
+    @Test fun `category trend keeps all nine currencies and categories independent with native fifty minimum`() {
+        val all = supportedCurrencies.flatMap { trendHistory(currency = it) }
+        assertEquals(supportedCurrencies.map { "category-trend-$it-food" }, trendSignals(all).map { it.id })
+        assertTrue(trendSignals(all).all { it.value == BigDecimal("10") })
+        assertEquals(emptyList<FinanceInsight>(), trendSignals(trendHistory("100", "100") + trendHistory("1", "1", "USD")))
+        // Web pools these currencies (recent150, baseline100 => value50); Android signals only USD200 versus USD1.
+        val mixed = trendSignals(trendHistory("100", "100") + trendHistory("1", "200", "USD")).single()
+        assertEquals("category-trend-USD-food", mixed.id)
+        assertEquals(BigDecimal("199"), mixed.value)
+        val rows = trendHistory() + trendHistory("100", "100", category = "other")
+        assertEquals(listOf("category-trend-EUR-food"), trendSignals(rows).map { it.id })
+        val removed = categoryTrendInsights(FinanceData(transactions = trendHistory(category = "removed")), reference).single()
+        assertTrue(removed.title.startsWith("Senza categoria"))
+        val named = categoryTrendInsights(FinanceData(transactions = trendHistory(), categories =
+            listOf(FinanceCategory("food", "Alimentari", TransactionType.EXPENSE))), reference).single()
+        assertEquals("Alimentari in trend crescente: EUR", named.title)
+    }
+
+    @Test fun `category trend ignores recurring tracking exclusions and sorts before equal value candidates`() {
+        val recurring = recurringHistory("Subscription", "10", 3)
+        val data = FinanceData(transactions = trendHistory() + trendHistory("80", "100", category = "other") + recurring,
+            assets = listOf(asset(purchase = "100", current = "85")))
+        assertEquals(listOf("loss-asset-stock-EUR", "category-trend-EUR-other", "category-trend-EUR-food", "new-recurring-EUR:subscription"),
+            financeInsights(data, reference).map { it.id })
+        val tracked = FinanceRecurring("tracked", "Subscription", BigDecimal.TEN, "EUR", null, RecurringFrequency.MONTHLY, 1, reference, false)
+        assertEquals(categoryTrendInsights(data, reference), categoryTrendInsights(data.copy(recurring = listOf(tracked),
+            ignoredRecurringSuggestions = setOf("EUR:subscription")), reference))
+    }
+
+    private fun anomalyRow(date: String, amount: String, currency: String = "EUR", category: String? = "food",
+        type: TransactionType = TransactionType.EXPENSE) = transaction(date, amount, type, currency, category)
+    private fun anomalySignals(rows: List<FinanceTransaction>) = spendingAnomalyInsights(FinanceData(transactions = rows), reference)
+
+    @Test fun `spending anomaly uses individual historical median within each category rather than monthly totals`() {
+        val historical = listOf(anomalyRow("2026-05-10", "40"), anomalyRow("2026-05-11", "60"))
+        assertEquals(BigDecimal("100"), medianMonthlyExpense(historical, reference, "food"))
+        val rows = historical + anomalyRow("2026-06-10", "70") +
+            listOf(anomalyRow("2026-05-10", "500", category = "other"), anomalyRow("2026-06-10", "500", category = "other"))
+        val insight = anomalySignals(rows).single()
+        assertEquals("spending-anomaly-EUR-food", insight.id)
+        assertEquals(BigDecimal("20"), insight.value)
+        assertEquals(InsightSeverity.WARNING, insight.severity)
+        assertTrue(insight.warning)
+        assertTrue(insight.message.contains("+40%") && insight.message.contains("mediana dei singoli importi") && insight.message.contains("50,00"))
+    }
+
+    @Test fun `spending anomaly accepts exact 140 percent and rejects one cent below with large amounts`() {
+        listOf("50.00" to "70.00", "1000000000.00" to "1400000000.00").forEach { (baseline, boundary) ->
+            val old = anomalyRow("2026-05-10", baseline)
+            val current = anomalyRow("2026-06-10", boundary)
+            assertEquals(boundary.toBigDecimal() - baseline.toBigDecimal(), anomalySignals(listOf(old, current)).single().value)
+            assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(old, current.copy(amount = current.amount - BigDecimal("0.01")))))
+        }
+    }
+
+    @Test fun `spending anomaly requires fifty native units positive median and some history`() {
+        val old = anomalyRow("2026-05-10", "10")
+        val current = anomalyRow("2026-06-10", "50")
+        assertEquals(BigDecimal("40"), anomalySignals(listOf(old, current)).single().value)
+        assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(old, current.copy(amount = BigDecimal("49.99")))))
+        assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(current)))
+        listOf(BigDecimal.ZERO, BigDecimal("-10")).forEach { baseline ->
+            assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(old.copy(amount = baseline), current)))
+        }
+        // Historical imports may contain negatives; web still signals if their median is positive.
+        assertEquals(BigDecimal("20"), anomalySignals(listOf(old.copy(amount = BigDecimal("-100")),
+            old.copy(id = "positive", amount = BigDecimal("200")), current.copy(amount = BigDecimal("70")))).single().value)
+    }
+
+    @Test fun `spending anomaly retains exact half cent median and does not change input values or order`() {
+        val rows = listOf(anomalyRow("2026-05-10", "50.01"), anomalyRow("2026-05-11", "50.00"), anomalyRow("2026-06-10", "70.01"))
+        val before = rows.map { it.id to it.amount }
+        val insight = anomalySignals(rows).single()
+        assertEquals(BigDecimal("20.005"), insight.value)
+        assertTrue(insight.message.contains("50,01") && insight.message.contains("+40%"))
+        assertEquals(before, rows.map { it.id to it.amount })
+        assertEquals(emptyList<FinanceInsight>(), anomalySignals(rows.dropLast(1) + rows.last().copy(amount = BigDecimal("70.00"))))
+    }
+
+    @Test fun `spending anomaly sums current expenses ignores income and supports odd history`() {
+        val rows = listOf(anomalyRow("2026-05-10", "10"), anomalyRow("2026-04-10", "50"), anomalyRow("2026-03-10", "90"),
+            anomalyRow("2026-06-10", "35"), anomalyRow("2026-06-11", "35"),
+            anomalyRow("2026-05-12", "9999", type = TransactionType.INCOME), anomalyRow("2026-06-12", "9999", type = TransactionType.INCOME))
+        assertEquals(BigDecimal("20"), anomalySignals(rows).single().value)
+    }
+
+    @Test fun `spending anomaly excludes null and empty categories and names removed categories honestly`() {
+        listOf<String?>(null, "").forEach { category ->
+            assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(anomalyRow("2026-05-10", "10", category = category),
+                anomalyRow("2026-06-10", "50", category = category))))
+        }
+        val rows = listOf(anomalyRow("2026-05-10", "50"), anomalyRow("2026-06-10", "70"))
+        assertEquals("Spesa anomala in Senza categoria: EUR", anomalySignals(rows).single().title)
+        val named = spendingAnomalyInsights(FinanceData(transactions = rows,
+            categories = listOf(FinanceCategory("food", "Alimentari", TransactionType.EXPENSE))), reference).single()
+        assertEquals("Spesa anomala in Alimentari: EUR", named.title)
+    }
+
+    @Test fun `spending anomaly excludes the 730 day boundary and includes the following date`() {
+        val boundary = reference.minusDays(730)
+        val current = anomalyRow(reference.toString(), "140")
+        assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(anomalyRow(boundary.toString(), "100"), current)))
+        assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(anomalyRow(boundary.minusDays(1).toString(), "100"), current)))
+        assertEquals(BigDecimal("40"), anomalySignals(listOf(anomalyRow(boundary.plusDays(1).toString(), "100"), current)).single().value)
+    }
+
+    @Test fun `spending anomaly includes future current dates and future months in the historical baseline`() {
+        val old = anomalyRow("2026-05-10", "50")
+        val current = listOf(anomalyRow("2026-06-10", "35"), anomalyRow("2026-06-30", "35"))
+        assertEquals(BigDecimal("20"), anomalySignals(listOf(old) + current).single().value)
+        assertEquals(emptyList<FinanceInsight>(), anomalySignals(listOf(old, anomalyRow("2026-07-01", "1000")) + current))
+    }
+
+    @Test fun `spending anomaly applies fifty native units separately to every currency and never mixes baselines`() {
+        val rows = supportedCurrencies.flatMap { currency -> listOf(anomalyRow("2026-05-10", "10", currency), anomalyRow("2026-06-10", "50", currency)) }
+        val insights = anomalySignals(rows)
+        assertEquals(9, insights.size)
+        assertEquals(supportedCurrencies.map { "spending-anomaly-$it-food" }, insights.map { it.id })
+        assertTrue(insights.all { it.value == BigDecimal("40") })
+        supportedCurrencies.forEach { currency -> assertTrue(insights.single { it.id == "spending-anomaly-$currency-food" }.title.endsWith(": $currency")) }
+        val mixed = listOf(anomalyRow("2026-05-10", "100"), anomalyRow("2026-05-11", "1", "USD"), anomalyRow("2026-06-10", "100"))
+        assertEquals(emptyList<FinanceInsight>(), anomalySignals(mixed))
+    }
+
+    @Test fun `spending anomaly pipeline preserves warning precedence and stable anomaly before budget ties`() {
+        val rows = listOf(anomalyRow("2026-05-10", "50"), anomalyRow("2026-06-10", "70"))
+        val data = FinanceData(transactions = rows, budgets = listOf(FinanceBudget("food-budget", "food", BigDecimal("50"), "EUR")),
+            assets = listOf(asset(purchase = "100", current = "85")))
+        assertEquals(listOf("spending-anomaly-EUR-food", "budget-food-budget", "loss-asset-stock-EUR"), financeInsights(data, reference).map { it.id })
+        assertEquals(listOf(InsightSeverity.WARNING, InsightSeverity.WARNING, InsightSeverity.WARNING), financeInsights(data, reference).map { it.severity })
+    }
+
     private fun priceHistory(first: String = "10.00", latest: String = "11.00", currency: String = "EUR") =
         recurringHistory("Netflix", first, 3, currency).mapIndexed { index, row ->
             if (index == 2) row.copy(amount = latest.toBigDecimal()) else row }

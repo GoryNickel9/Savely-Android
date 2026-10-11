@@ -41,6 +41,11 @@ class CoupleScreenTest {
     private val lookups = AtomicInteger()
     private val sharePosts = AtomicInteger()
     private val shareBody = AtomicReference("")
+    private val showArchive = AtomicBoolean(false)
+    private val failArchive = AtomicBoolean(false)
+    private val archiveReads = AtomicInteger()
+    private val privateReads = AtomicInteger()
+    private val mutations = AtomicInteger()
 
     @Before fun setup() {
         val certificate = HeldCertificate.Builder().commonName("Savely Couple fixture")
@@ -104,17 +109,53 @@ class CoupleScreenTest {
         compose.onNodeWithText("${LocalDate.now()} · 1.01 EUR · Spesa nuova").assertIsNotEnabled()
     }
 
+    @Test fun archiveShowsRevokedMetadataReadOnlyAndNeverLoadsFormerPartnerExpensesOrBudgets() {
+        showArchive.set(true)
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        waitFor("ABCD2345")
+        compose.onNodeWithText("Connessioni archiviate").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Connessione revocata il ", substring = true).performScrollTo().assertTextContains("2026", substring = true)
+        compose.onNodeWithText("Creata il ", substring = true).assertTextContains("2025", substring = true)
+        compose.onNodeWithText("Sola lettura").assertExists()
+        compose.onNodeWithText("Per privacy, spese condivise", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Salva budget").assertDoesNotExist()
+        compose.onNodeWithText("Condividi spesa").assertDoesNotExist()
+        compose.onNodeWithText("Revoca connessione").assertDoesNotExist()
+        compose.onNodeWithText("Rimuovi").assertDoesNotExist()
+        assertEquals(2, archiveReads.get())
+        assertEquals(0, privateReads.get())
+        assertEquals(0, mutations.get())
+    }
+
+    @Test fun failedArchiveReadShowsErrorWithoutClaimingThereAreNoArchivedConnections() {
+        failArchive.set(true)
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        compose.waitUntil(15_000) { archiveReads.get() == 1 && compose.onAllNodes(hasText("Aggiorna") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Nessuna connessione archiviata").assertDoesNotExist()
+        compose.onNodeWithText("Connessioni archiviate").assertDoesNotExist()
+        compose.onNodeWithText("Servizio", substring = true).assertExists()
+        assertEquals(0, privateReads.get())
+        assertEquals(0, mutations.get())
+    }
+
     private fun waitFor(text: String, substring: Boolean = false) = compose.waitUntil(15_000) {
         compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
     }
 
     private fun fixture() = object : Dispatcher() {
         override fun dispatch(request: RecordedRequest): MockResponse {
+            if (request.method != "GET") mutations.incrementAndGet()
             if (request.getHeader("Authorization") != "Bearer couple-ui-token" || request.getHeader("apikey") != "couple-public-key") return json("{}", 401)
             val url = request.requestUrl ?: return json("{}", 400)
             return when (url.encodedPath) {
                 "/rest/v1/profiles" -> json("""[{"couple_code":"ABCD2345","permissions":{"couple_expenses":true}}]""")
-                "/rest/v1/couple_connections" -> json(if (connected.get()) """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER"}]""" else "[]")
+                "/rest/v1/couple_connections" -> if (url.queryParameter("revoked_at") == "not.is.null") {
+                    archiveReads.incrementAndGet()
+                    if (url.queryParameter("or") != "(user_a.eq.$USER,user_b.eq.$USER)") json("{}", 403)
+                    else if (failArchive.get()) json("{}", 503)
+                    else json(if (showArchive.get() && url.queryParameter("id") == null)
+                        """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER","created_at":"2025-01-02T12:00:00Z","revoked_at":"2026-02-03T12:00:00Z"}]""" else "[]")
+                } else json(if (connected.get()) """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER"}]""" else "[]")
                 "/rest/v1/couple_connection_requests" -> when (request.method) {
                     "POST" -> { invited.set(true); json("""[{"id":"$REQUEST","sender_id":"$USER","receiver_id":"$PARTNER","status":"pending"}]""") }
                     else -> json(if (invited.get() && url.queryParameter("id") == null) """[{"id":"$REQUEST","sender_id":"$USER","receiver_id":"$PARTNER","status":"pending"}]""" else "[]")
@@ -124,6 +165,7 @@ class CoupleScreenTest {
                     if (JSONObject(request.body.readUtf8()).getString("p_code") != "ABCD2345") json("null") else json("\"$PARTNER\"")
                 }
                 "/rest/v1/shared_expenses_view" -> {
+                    privateReads.incrementAndGet()
                     if (url.queryParameter("id") != null) json("[]") else {
                         val rows = JSONArray().put(expense(SHARE1, OLD_TX, "2026-01-01", "10.00", "Casa"))
                             .put(expense(SHARE2, OLD_TX2, "2026-02-01", "20.00", "Casa"))
@@ -131,7 +173,10 @@ class CoupleScreenTest {
                         json(rows.toString())
                     }
                 }
-                "/rest/v1/couple_budgets" -> json(if (url.queryParameter("id") == null) """[{"id":"$BUDGET","couple_category_name":"Casa","amount":12,"currency":"EUR"}]""" else "[]")
+                "/rest/v1/couple_budgets" -> {
+                    privateReads.incrementAndGet()
+                    json(if (url.queryParameter("id") == null) """[{"id":"$BUDGET","couple_category_name":"Casa","amount":12,"currency":"EUR"}]""" else "[]")
+                }
                 "/rest/v1/transactions" -> json("""[{"id":"$TX","amount":1.01,"currency":"EUR","date":"${LocalDate.now()}","description":"Spesa nuova","user_id":"$USER","type":"expense"}]""")
                 "/rest/v1/shared_expenses" -> if (request.method == "POST") {
                     shareBody.set(request.body.readUtf8()); sharePosts.incrementAndGet(); shared.set(true); json("""[{"id":"$SHARE3"}]""")

@@ -59,10 +59,10 @@ fun AdminScreen(api: SupabaseApi) {
     }
     LaunchedEffect(api) { run { refresh() } }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Amministrazione", style = MaterialTheme.typography.headlineSmall)
+        Text(localized("Amministrazione"), style = MaterialTheme.typography.headlineSmall)
         registrations?.let { enabled ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Registrazioni abilitate", modifier = Modifier.weight(1f))
+                Text(localized("Registrazioni abilitate"), modifier = Modifier.weight(1f))
                 Switch(enabled, { next -> run { api.rpc("set_registrations_enabled", JSONObject().put("p_enabled", next)); refresh() } }, enabled = !busy)
             }
         }
@@ -75,25 +75,25 @@ fun AdminScreen(api: SupabaseApi) {
                     val raw = user.optJSONObject("permissions")
                     editedPermissions = listOf("admin", "poker", "fire", "fumo", "tcg", "libreria", "couple_expenses")
                         .associateWith { raw?.opt(it) == true }
-                }, enabled = !busy) { Text("Gestisci") } })
+                }, enabled = !busy) { Text(localized("Gestisci")) } })
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+        message?.let { Text(localized(it), color = MaterialTheme.colorScheme.primary) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        OutlinedButton({ run { refresh() } }, enabled = !busy) { Text("Aggiorna utenti") }
+        OutlinedButton({ run { refresh() } }, enabled = !busy) { Text(localized("Aggiorna utenti")) }
     }
     selected?.let { user -> AlertDialog(onDismissRequest = { if (!busy) selected = null },
         title = { Text(user.optString("email")) }, text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 editedPermissions.forEach { (key, enabled) -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(if (key == "couple_expenses") "Coppia" else key.replaceFirstChar(Char::uppercase), Modifier.weight(1f))
+                    Text(localized(if (key == "couple_expenses") "Coppia" else key.replaceFirstChar(Char::uppercase)), Modifier.weight(1f))
                     Checkbox(enabled, { checked -> editedPermissions = editedPermissions + (key to checked) }, enabled = !busy)
                 } }
                 TextButton({ run {
                     api.requestPasswordReset(user.getString("email")); message = "Email di recupero inviata."; selected = null
-                } }, enabled = !busy) { Text("Invia recupero password") }
-                if (user.getString("user_id") != myId) TextButton({ selected = null; deleteUser = user }, enabled = !busy) { Text("Elimina utente", color = MaterialTheme.colorScheme.error) }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                } }, enabled = !busy) { Text(localized("Invia recupero password")) }
+                if (user.getString("user_id") != myId) TextButton({ selected = null; deleteUser = user }, enabled = !busy) { Text(localized("Elimina utente"), color = MaterialTheme.colorScheme.error) }
+                error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
             }
         }, confirmButton = { TextButton({ run {
             val userId = user.getString("user_id")
@@ -103,13 +103,13 @@ fun AdminScreen(api: SupabaseApi) {
             editedPermissions.forEach { (key, value) -> permissions.put(key, value) }
             api.update("profiles", profiles.getJSONObject(0).getString("id"), JSONObject().put("permissions", permissions), "user_id=eq.$userId")
             selected = null; refresh(); message = "Permessi aggiornati."
-        } }, enabled = !busy) { Text("Salva permessi") } }, dismissButton = { TextButton({ selected = null }, enabled = !busy) { Text("Chiudi") } }) }
+        } }, enabled = !busy) { Text(localized("Salva permessi")) } }, dismissButton = { TextButton({ selected = null }, enabled = !busy) { Text(localized("Chiudi")) } }) }
     deleteUser?.let { user -> AlertDialog(onDismissRequest = { if (!busy) deleteUser = null },
-        title = { Text("Eliminare questo utente?") }, text = { Column {
-            Text("${user.optString("email")} e i suoi dati saranno eliminati definitivamente anche dal sito.")
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        title = { Text(localized("Eliminare questo utente?")) }, text = { Column {
+            Text(localized("{{value0}} e i suoi dati saranno eliminati definitivamente anche dal sito.", "value0" to (user.optString("email"))))
+            error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         } }, confirmButton = { TextButton({ run {
             api.webPost("/api/admin", JSONObject().put("action", "delete-user").put("userId", user.getString("user_id")))
             deleteUser = null; refresh(); message = "Utente eliminato."
-        } }, enabled = !busy) { Text("Elimina definitivamente") } }, dismissButton = { TextButton({ deleteUser = null }, enabled = !busy) { Text("Annulla") } }) }
+        } }, enabled = !busy) { Text(localized("Elimina definitivamente")) } }, dismissButton = { TextButton({ deleteUser = null }, enabled = !busy) { Text(localized("Annulla")) } }) }
 }

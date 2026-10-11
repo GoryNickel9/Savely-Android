@@ -1,11 +1,13 @@
 package cc.savely.android.release
 
 import cc.savely.android.data.ExactJson
+import cc.savely.android.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import org.json.JSONArray
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -13,8 +15,9 @@ import java.util.concurrent.TimeUnit
 class ReleaseRepository(private val client: OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(10, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS)
     .callTimeout(15, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()) {
-    suspend fun latest(): PublishedRelease? = withContext(Dispatchers.IO) {
-        val request = Request.Builder().url("https://api.github.com/repos/GoryNickel9/Savely-Android/releases/latest")
+    suspend fun latest(allowPreviews: Boolean = AppVersion.parse(BuildConfig.VERSION_NAME)?.preview == true): PublishedRelease? = withContext(Dispatchers.IO) {
+        val endpoint = if (allowPreviews) "?per_page=20" else "/latest"
+        val request = Request.Builder().url("${PublishedRelease.API_URL}$endpoint")
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "Savely-Android-release-check").build()
         client.newCall(request).execute().use { response ->
@@ -23,8 +26,17 @@ class ReleaseRepository(private val client: OkHttpClient = OkHttpClient.Builder(
             if (!response.isSuccessful) throw IOException("Controllo aggiornamenti non riuscito (${response.code}).")
             val source = response.body?.source() ?: throw IOException("Risposta GitHub vuota.")
             if (source.request(262_145)) throw IOException("Risposta GitHub troppo grande.")
-            val json = ExactJson.parse(source.readUtf8()) as? JSONObject ?: throw IOException("Risposta GitHub non valida.")
-            PublishedRelease.parse(json)
+            val json = ExactJson.parse(source.readUtf8())
+            if (allowPreviews) {
+                val releases = json as? JSONArray ?: throw IOException("Risposta GitHub non valida.")
+                require(releases.length() <= 20) { "Elenco release troppo grande." }
+                (0 until releases.length()).mapNotNull { index ->
+                    val item = releases.getJSONObject(index)
+                    if (item.optBoolean("draft", true)) null else PublishedRelease.parse(item, allowPreviews = true)
+                }.maxByOrNull { it.version }
+            } else {
+                PublishedRelease.parse(json as? JSONObject ?: throw IOException("Risposta GitHub non valida."))
+            }
         }
     }
 }
@@ -33,13 +45,14 @@ data class PublishedRelease(val version: AppVersion, val tag: String, val notes:
     val url: String get() = "$RELEASES_URL/tag/$tag"
 
     companion object {
-        const val RELEASES_URL = "https://github.com/GoryNickel9/Savely-Android/releases"
-        fun parse(json: JSONObject): PublishedRelease {
-            require(json.has("draft") && !json.getBoolean("draft") &&
-                json.has("prerelease") && !json.getBoolean("prerelease")) { "La risposta non contiene una release stabile pubblicata." }
+        const val RELEASES_URL = "https://github.com/GoryNickel9/Savely-Android-Releases/releases"
+        const val API_URL = "https://api.github.com/repos/GoryNickel9/Savely-Android-Releases/releases"
+        fun parse(json: JSONObject, allowPreviews: Boolean = false): PublishedRelease {
+            require(json.has("draft") && !json.getBoolean("draft") && json.has("prerelease") &&
+                (allowPreviews || !json.getBoolean("prerelease"))) { "La risposta non contiene una release pubblicata del canale selezionato." }
             val tag = json.getString("tag_name")
             val version = AppVersion.parse(tag) ?: throw IllegalArgumentException("Versione della release non riconosciuta.")
-            require(!version.preview) { "La release contiene una versione di anteprima." }
+            require(version.preview == json.getBoolean("prerelease")) { "Versione e canale della release non corrispondono." }
             require(json.getString("html_url") == "$RELEASES_URL/tag/$tag") { "Il link della release non appartiene al progetto." }
             return PublishedRelease(version, tag, if (json.isNull("body")) "" else json.optString("body").take(16_384))
         }

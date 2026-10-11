@@ -228,7 +228,7 @@ class FumoScreenTest {
         list().performScrollToIndex(2)
         compose.onNodeWithText("$ARRIVAL: $arrival").assertIsDisplayed()
         compose.onNodeWithText("Data fine (AAAA-MM-GG): $finish").assertIsDisplayed()
-        compose.onNodeWithText("10 giorni · 2,5/giorno · ${euro("37.50")}/mese").assertIsDisplayed()
+        compose.onNodeWithText("10 giorni · 2,50/giorno · ${euro("1.25")}/giorno · ${euro("37.50")}/mese").assertIsDisplayed()
     }
     private fun assertBase(body: JSONObject) {
         assertNumber(body, "costo", "12.50")

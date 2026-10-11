@@ -1,4 +1,4 @@
-param([string]$Device = 'emulator-5556', [switch]$ProcessDeath)
+param([string]$Device = 'emulator-5556', [ValidateSet('SavelyTest', 'SavelyAndroid12')][string]$Avd = 'SavelyTest', [switch]$ProcessDeath)
 $ErrorActionPreference = 'Stop'
 $projectDirectory = Split-Path -Parent $PSScriptRoot
 $sdkDirectory = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android/Sdk' }
@@ -7,9 +7,24 @@ $projectRef = 'crqnfbahytzenisospcx'
 $baseUrl = "https://$projectRef.supabase.co"
 $qaId = '9daffd41-39bf-4b1e-be68-abf12549c4a7'
 $qaEmail = 'e2e-savely@example.com'
+function Test-ProcessDeathResultOwned($value, [string]$expectedRunId, [string]$expectedSessionId) {
+    return ![string]::IsNullOrWhiteSpace($expectedRunId) -and ![string]::IsNullOrWhiteSpace($expectedSessionId) -and
+        $value.run_id -ceq $expectedRunId -and $value.session_id -ceq $expectedSessionId -and
+        $value.user_id -ceq $qaId -and $value.email -ceq $qaEmail -and $value.project_host -ceq "$projectRef.supabase.co"
+}
+function Test-ProcessDeathCleanupComplete($value, [string]$expectedRunId, [string]$expectedSessionId) {
+    foreach ($field in @('cleanup_local', 'logout_server', 'local_session_cleared', 'server_logout_confirmed', 'cleanup_pending')) {
+        if ($value.$field -isnot [bool]) { return $false }
+    }
+    return (Test-ProcessDeathResultOwned $value $expectedRunId $expectedSessionId) -and
+        (@('passed', 'restore_failed', 'persist_failed', 'cleanup_passed') -ccontains $value.stage) -and
+        $value.cleanup_local -eq $true -and $value.logout_server -eq $true -and
+        $value.local_session_cleared -eq $true -and $value.server_logout_confirmed -eq $true -and
+        $value.cleanup_pending -eq $false
+}
 if ($Device -notmatch '^emulator-[0-9]+$') { throw 'Usare esclusivamente l''emulatore SavelyTest dedicato.' }
 $avdName = (& $adb -s $Device emu avd name 2>$null | Select-Object -First 1).Trim()
-if ($avdName -ne 'SavelyTest') { throw 'Il dispositivo non è l''AVD SavelyTest dedicato.' }
+if ($avdName -ne $Avd) { throw 'Il dispositivo non corrisponde all''AVD di test dedicato richiesto.' }
 $configPath = Join-Path $projectDirectory 'savely.properties'
 $configuration = Get-Content -LiteralPath $configPath
 $publicKey = ($configuration | Where-Object { $_ -match '^SUPABASE_ANON_KEY=' } | Select-Object -First 1) -replace '^SUPABASE_ANON_KEY=', ''
@@ -26,8 +41,11 @@ $link = $null; $auth = $null; $sessionJson = $null
 $privateInputTransferAttempted = $false
 $logoutVerified = $false
 $runId = $null
+$expectedSessionId = $null
 $processDeathAttempted = $false
 $localCleanupConfirmed = $false
+$processDeathCleanupComplete = $false
+$processDeathCleanupReported = $false
 $privateInputName = if ($ProcessDeath) { 'backend-process-death-session.json' } else { 'backend-smoke-session.json' }
 $privateResultName = if ($ProcessDeath) { 'backend-process-death-result.json' } else { 'backend-smoke-result.json' }
 try {
@@ -50,6 +68,18 @@ try {
     if ([string]::IsNullOrWhiteSpace($hashedToken)) { throw 'Token del link assente.' }
     $auth = Invoke-RestMethod "$baseUrl/auth/v1/verify" -Method Post -Headers @{apikey=$publicKey} -ContentType 'application/json' -Body (@{type='magiclink';token_hash=$hashedToken} | ConvertTo-Json -Compress) -TimeoutSec 30
     if ($auth.user.id -ne $qaId -or $auth.user.email -ne $qaEmail) { throw 'La sessione non appartiene alla fixture E2E.' }
+    if ($ProcessDeath) {
+        try {
+            $tokenParts = $auth.access_token.Split('.')
+            if ($tokenParts.Count -ne 3 -or $tokenParts[1].Length -gt 16384) { throw 'Invalid JWT.' }
+            $encodedClaims = $tokenParts[1].Replace('-', '+').Replace('_', '/')
+            $encodedClaims = $encodedClaims.PadRight($encodedClaims.Length + (4 - $encodedClaims.Length % 4) % 4, '=')
+            $claims = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encodedClaims)) | ConvertFrom-Json
+            $expectedSessionId = [string]$claims.session_id
+            if ($expectedSessionId -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' -or $claims.sub -cne $qaId) { throw 'Invalid session identity.' }
+        } catch { throw 'Identità sessione JWT non valida per lo smoke process death; nessun contenuto viene stampato.' }
+        finally { $tokenParts = $null; $encodedClaims = $null; $claims = $null }
+    }
     $sessionJson = $auth | ConvertTo-Json -Depth 20 -Compress
     & $adb -s $Device install -r $debugApk
     if ($LASTEXITCODE -ne 0) { throw 'Installazione debug fallita. Non disinstallare una release con dati utente per aggirare una firma diversa.' }
@@ -83,7 +113,7 @@ try {
     New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
     $resultJson | Set-Content -LiteralPath (Join-Path $artifactDirectory $privateResultName) -Encoding utf8
     if ($ProcessDeath) {
-        if ($result.stage -ne 'passed' -or $result.run_id -ne $runId -or !$result.cleanup_local -or !$result.logout_server) { throw 'Ripristino dopo process death o logout non verificato.' }
+        if ($result.stage -cne 'passed' -or !(Test-ProcessDeathCleanupComplete $result $runId $expectedSessionId)) { throw 'Ripristino dopo process death o logout non verificato.' }
     } elseif ($result.stage -ne 'passed' -or !$result.hard_deleted -or $result.cleanup_pending) { throw 'Smoke incompleto: controllare il risultato e ripulire solo la riga di questa esecuzione.' }
     $logoutVerified = $true
     if ($ProcessDeath) { Write-Output 'Process death reale passato: sessione ripristinata in un nuovo processo, dashboard verificata e logout concluso.' }
@@ -101,29 +131,54 @@ try {
     }
     if ($ProcessDeath -and !$logoutVerified -and $processDeathAttempted) {
         try {
-            # Only the exact run/checkpoint/session may be cleaned. Never remove session preferences from the host.
-            $cleanupOutput = & $adb -s $Device shell am instrument -w -r -e class 'cc.savely.android.data.RealProcessDeathSmokeTest#cleanupQaSessionAfterInterruptedProcessDeath' -e realProcessDeathSmoke true -e processDeathRunId $runId cc.savely.android.test/androidx.test.runner.AndroidJUnitRunner
-            $cleanupOutput | Write-Output
-            $cleanupResultJson = & $adb -s $Device shell run-as cc.savely.android cat "files/$privateResultName"
+            # A failed UI assertion can already have completed logout and consumed the checkpoint.
+            $previousResultJson = & $adb -s $Device shell run-as cc.savely.android cat "files/$privateResultName" 2>$null
             if ($LASTEXITCODE -eq 0) {
-                $cleanupResult = $cleanupResultJson | ConvertFrom-Json
-                if ($cleanupResult.run_id -eq $runId -and $cleanupResult.user_id -eq $qaId -and $cleanupResult.email -eq $qaEmail -and $cleanupResult.project_host -eq "$projectRef.supabase.co") {
+                $previousResult = $previousResultJson | ConvertFrom-Json
+                if (Test-ProcessDeathResultOwned $previousResult $runId $expectedSessionId) {
                     $cleanupArtifactDirectory = Join-Path $projectDirectory 'artifacts'
                     New-Item -ItemType Directory -Force -Path $cleanupArtifactDirectory | Out-Null
-                    $cleanupResultJson | Set-Content -LiteralPath (Join-Path $cleanupArtifactDirectory 'backend-process-death-result.json') -Encoding utf8
-                    $localCleanupConfirmed = $cleanupResult.cleanup_local -eq $true
-                    if ($localCleanupConfirmed -and $cleanupResult.logout_server -eq $true) { $logoutVerified = $true }
+                    $previousResultJson | Set-Content -LiteralPath (Join-Path $cleanupArtifactDirectory 'backend-process-death-result.json') -Encoding utf8
+                    $localCleanupConfirmed = $previousResult.cleanup_local -is [bool] -and $previousResult.cleanup_local
+                    $logoutVerified = $previousResult.logout_server -is [bool] -and $previousResult.logout_server
+                    $processDeathCleanupComplete = Test-ProcessDeathCleanupComplete $previousResult $runId $expectedSessionId
+                    $processDeathCleanupReported = $processDeathCleanupComplete -or $localCleanupConfirmed -or $logoutVerified -or
+                        (@('restore_failed', 'cleanup_failed') -ccontains $previousResult.stage)
+                    if ($processDeathCleanupComplete) {
+                        Write-Output 'Cleanup già confermato per questo run e questa sessione; il fallimento dello smoke resta invariato.'
+                    }
+                }
+            }
+            # Only the exact run/checkpoint/session may be cleaned. Never remove session preferences from the host.
+            if (!$processDeathCleanupReported) {
+                $cleanupOutput = & $adb -s $Device shell am instrument -w -r -e class 'cc.savely.android.data.RealProcessDeathSmokeTest#cleanupQaSessionAfterInterruptedProcessDeath' -e realProcessDeathSmoke true -e processDeathRunId $runId cc.savely.android.test/androidx.test.runner.AndroidJUnitRunner
+                $cleanupOutput | Write-Output
+                $cleanupResultJson = & $adb -s $Device shell run-as cc.savely.android cat "files/$privateResultName"
+                if ($LASTEXITCODE -eq 0) {
+                    $cleanupResult = $cleanupResultJson | ConvertFrom-Json
+                    if (Test-ProcessDeathResultOwned $cleanupResult $runId $expectedSessionId) {
+                        $cleanupArtifactDirectory = Join-Path $projectDirectory 'artifacts'
+                        New-Item -ItemType Directory -Force -Path $cleanupArtifactDirectory | Out-Null
+                        $cleanupResultJson | Set-Content -LiteralPath (Join-Path $cleanupArtifactDirectory 'backend-process-death-result.json') -Encoding utf8
+                        $localCleanupConfirmed = $cleanupResult.cleanup_local -is [bool] -and $cleanupResult.cleanup_local
+                        $logoutVerified = $cleanupResult.logout_server -is [bool] -and $cleanupResult.logout_server
+                        $processDeathCleanupComplete = Test-ProcessDeathCleanupComplete $cleanupResult $runId $expectedSessionId
+                        $processDeathCleanupReported = $processDeathCleanupComplete -or $localCleanupConfirmed -or $logoutVerified -or
+                            (@('restore_failed', 'cleanup_failed') -ccontains $cleanupResult.stage)
+                    }
                 }
             }
         } catch {
             # A disconnected device or mismatching checkpoint must preserve any unrelated local owner.
-            $localCleanupConfirmed = $false
         }
         if (!$localCleanupConfirmed) {
             Write-Warning "cleanup_pending=true: pulizia locale non verificata per processDeathRunId=$runId. Ricollegare SavelyTest e usare solo il checkpoint di questa esecuzione; nessuna preferenza utente viene cancellata alla cieca."
         }
+        if ($processDeathCleanupReported -and !$processDeathCleanupComplete) {
+            Write-Warning 'cleanup_pending=true: report di cleanup incompleto per questa sessione. Conservare la prova e non ripetere una richiesta di logout dall''esito ambiguo.'
+        }
     }
-    if ($auth.access_token -and !$logoutVerified) {
+    if ($auth.access_token -and !$logoutVerified -and !$processDeathCleanupReported) {
         try {
             Invoke-RestMethod "$baseUrl/auth/v1/logout?scope=local" -Method Post -Headers @{apikey=$publicKey;Authorization="Bearer $($auth.access_token)"} -TimeoutSec 15 | Out-Null
             $logoutVerified = $true

@@ -16,6 +16,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.math.BigDecimal
 
 class FinanceRepositoryTest {
     private lateinit var server: MockWebServer
@@ -35,6 +36,31 @@ class FinanceRepositoryTest {
     @After fun tearDown() { server.shutdown() }
     private fun response(value: String) = MockResponse().setHeader("Content-Type", "application/json").setHeader("Content-Range", "0-0/1").setBody(value)
 
+    @Test fun `dashboard reads personal paginated budgets alongside transactions without extra modules`() = runBlocking {
+        repeat(3) { server.enqueue(response("[]")) }
+        server.enqueue(response("""[{"id":"budget","category_id":"food","amount":"50.00","currency":"USD"}]"""))
+        server.enqueue(response("[]"))
+        val data = repository.load("dashboard")
+        assertEquals(BigDecimal("50.00"), data.budgets.single().amount)
+        assertEquals("USD", data.budgets.single().currency)
+        val requests = (0 until 5).map { server.takeRequest() }
+        assertEquals(listOf("categories", "profiles", "transactions", "budgets", "budgets"), requests.map { it.requestUrl!!.pathSegments.last() })
+        requests.forEach { assertEquals("GET", it.method); assertEquals("eq.$user", it.requestUrl!!.queryParameter("user_id")) }
+        assertEquals("500", requests.last().requestUrl!!.queryParameter("limit"))
+        assertEquals("0", requests[3].requestUrl!!.queryParameter("offset"))
+        assertEquals("1", requests.last().requestUrl!!.queryParameter("offset"))
+        assertEquals("id.asc", requests.last().requestUrl!!.queryParameter("order"))
+        assertEquals(5, server.requestCount)
+    }
+
+    @Test fun `dashboard budget read errors remain visible instead of false empty summary`() = runBlocking {
+        repeat(3) { server.enqueue(response("[]")) }
+        server.enqueue(MockResponse().setResponseCode(403).setHeader("Content-Type", "application/json").setBody("{}"))
+        val failure = try { repository.load("dashboard"); null } catch (exception: ApiException) { exception }
+        assertEquals(ApiError.PERMISSION, failure?.kind)
+        assertEquals(4, server.requestCount)
+    }
+
     @Test fun `insights loads paginated own recurring including inactive rows and account dismissals`() = runBlocking {
         dismissals.ignore(user, "EUR:ignored")
         dismissals.ignore("another-account", "EUR:other")
@@ -47,12 +73,14 @@ class FinanceRepositoryTest {
         server.enqueue(response(page.toString()))
         server.enqueue(response(JSONArray().put(recurring("last")).toString()))
         server.enqueue(response("[]"))
+        server.enqueue(response("[]"))
+        server.enqueue(response("[]"))
         val data = repository.load("insights")
         assertEquals(501, data.recurring.size)
         assertTrue(data.recurring.none { it.active })
         assertEquals(setOf("EUR:ignored"), data.ignoredRecurringSuggestions)
-        val requests = (0 until 7).map { server.takeRequest() }
-        assertEquals(listOf("categories", "profiles", "transactions", "budgets", "recurring_expenses", "recurring_expenses", "portfolio_assets"),
+        val requests = (0 until 9).map { server.takeRequest() }
+        assertEquals(listOf("categories", "profiles", "transactions", "budgets", "recurring_expenses", "recurring_expenses", "recurring_expenses", "portfolio_assets", "net_worth_snapshots"),
             requests.map { it.requestUrl!!.pathSegments.last() })
         requests.forEach { assertEquals("GET", it.method); assertEquals("eq.$user", it.requestUrl!!.queryParameter("user_id")) }
         val first = requests[4].requestUrl!!
@@ -79,11 +107,85 @@ class FinanceRepositoryTest {
             override fun keys(userId: String): Set<String> { assertEquals(user, userId); error("Preferenze illeggibili") }
             override fun ignore(userId: String, key: String) = Unit
         })
-        repeat(6) { server.enqueue(response("[]")) }
+        repeat(7) { server.enqueue(response("[]")) }
         val failure = try { failing.load("insights"); null } catch (exception: IllegalStateException) { exception }
         assertEquals("Preferenze illeggibili", failure?.message)
-        assertEquals(6, server.requestCount)
+        assertEquals(7, server.requestCount)
+        repeat(7) { assertEquals("GET", server.takeRequest().method) }
+    }
+
+    @Test fun `insights loads all personal server snapshots in stable date id order without inventing currency`() = runBlocking {
+        repeat(6) { server.enqueue(response("[]")) }
+        val firstDay = java.time.LocalDate.parse("2020-01-01")
+        fun snapshot(index: Int) = JSONObject().put("id", "snapshot-$index").put("date", firstDay.plusDays(index.toLong()).toString())
+            .put("net_worth", if (index == 500) "-99.00" else "-100.00").put("components", JSONObject.NULL)
+        val first = JSONArray()
+        repeat(500) { first.put(snapshot(it)) }
+        server.enqueue(response(first.toString()))
+        server.enqueue(response(JSONArray().put(snapshot(500)).toString()))
+        server.enqueue(response("[]"))
+        val data = repository.load("insights")
+        assertEquals(501, data.snapshots.size)
+        assertEquals(java.math.BigDecimal("-99.00"), data.snapshots.last().value)
+        assertEquals(java.math.BigDecimal("-99.00"), netWorthMilestoneInsights(data.snapshots).single().value)
+        val requests = (0 until 9).map { server.takeRequest() }
+        assertEquals(listOf("categories", "profiles", "transactions", "budgets", "recurring_expenses", "portfolio_assets", "net_worth_snapshots", "net_worth_snapshots", "net_worth_snapshots"),
+            requests.map { it.requestUrl!!.pathSegments.last() })
+        requests.forEach { assertEquals("GET", it.method); assertEquals("eq.$user", it.requestUrl!!.queryParameter("user_id")) }
+        val snapshotRequests = requests.takeLast(3)
+        snapshotRequests.forEach {
+            assertEquals("id,date,net_worth,components", it.requestUrl!!.queryParameter("select"))
+            assertEquals("date.asc,id.asc", it.requestUrl!!.queryParameter("order"))
+            assertEquals("500", it.requestUrl!!.queryParameter("limit"))
+            assertEquals(null, it.requestUrl!!.queryParameter("deleted_at"))
+            assertEquals(null, it.requestUrl!!.queryParameter("date"))
+        }
+        assertEquals("0", snapshotRequests.first().requestUrl!!.queryParameter("offset"))
+        assertEquals("500", snapshotRequests[1].requestUrl!!.queryParameter("offset"))
+        assertEquals("501", snapshotRequests.last().requestUrl!!.queryParameter("offset"))
+        assertEquals(9, server.requestCount)
+    }
+
+    @Test fun `insights snapshot permission failure is surfaced rather than silently omitting the milestone`() = runBlocking {
+        repeat(6) { server.enqueue(response("[]")) }
+        server.enqueue(MockResponse().setResponseCode(403).setHeader("Content-Type", "application/json").setBody("{}"))
+        val failure = try { repository.load("insights"); null } catch (exception: ApiException) { exception }
+        assertEquals(ApiError.PERMISSION, failure?.kind)
+        assertEquals(403, failure?.status)
+        assertEquals(7, server.requestCount)
         repeat(6) { assertEquals("GET", server.takeRequest().method) }
+        val request = server.takeRequest()
+        assertEquals("GET", request.method)
+        assertEquals("/rest/v1/net_worth_snapshots", request.requestUrl!!.encodedPath)
+        assertEquals("eq.$user", request.requestUrl!!.queryParameter("user_id"))
+    }
+
+    @Test fun `insights failure on later snapshot page never exposes a partial history as a new maximum`() = runBlocking {
+        repeat(6) { server.enqueue(response("[]")) }
+        val firstDay = java.time.LocalDate.parse("2020-01-01")
+        val page = JSONArray()
+        repeat(500) { index -> page.put(JSONObject().put("id", "snapshot-$index")
+            .put("date", firstDay.plusDays(index.toLong()).toString()).put("net_worth", "$index.00")) }
+        server.enqueue(response(page.toString()))
+        server.enqueue(MockResponse().setResponseCode(503).setHeader("Content-Type", "application/json").setBody("{}"))
+        val failure = try { repository.load("insights"); null } catch (exception: ApiException) { exception }
+        assertEquals(503, failure?.status)
+        assertEquals(8, server.requestCount)
+        repeat(7) { assertEquals("GET", server.takeRequest().method) }
+        val last = server.takeRequest()
+        assertEquals("GET", last.method)
+        assertEquals("500", last.requestUrl!!.queryParameter("offset"))
+        assertEquals("eq.$user", last.requestUrl!!.queryParameter("user_id"))
+    }
+
+    @Test fun `insights malformed snapshot amount fails parsing instead of replacing the server value with zero`() = runBlocking {
+        repeat(6) { server.enqueue(response("[]")) }
+        server.enqueue(response("""[{"id":"malformed","date":"2026-06-01","net_worth":null}]"""))
+        server.enqueue(response("[]"))
+        val failure = try { repository.load("insights"); null } catch (exception: NumberFormatException) { exception }
+        assertTrue(failure != null)
+        assertEquals(8, server.requestCount)
+        repeat(8) { assertEquals("GET", server.takeRequest().method) }
     }
 
     @Test fun `pagination continues past a full page and filters owner and deletion`() = runBlocking {
@@ -133,12 +235,14 @@ class FinanceRepositoryTest {
     @Test fun `category deletion detaches own transactions then soft deletes`() = runBlocking {
         val tx = "33333333-3333-4333-8333-333333333333"
         server.enqueue(response("""[{"id":"$tx"}]"""))
+        server.enqueue(response("[]"))
         server.enqueue(response("""[{"id":"$tx"}]"""))
         server.enqueue(response("""[{"id":"$record"}]"""))
         repository.delete("categories", record)
         val query = server.takeRequest().requestUrl!!
         assertEquals("eq.$user", query.queryParameter("user_id"))
         assertEquals("eq.$record", query.queryParameter("category_id"))
+        assertEquals("1", server.takeRequest().requestUrl!!.queryParameter("offset"))
         val detach = server.takeRequest()
         assertTrue(JSONObject(detach.body.readUtf8()).isNull("category_id"))
         assertEquals("eq.$user", detach.requestUrl!!.queryParameter("user_id"))
@@ -211,6 +315,8 @@ class FinanceRepositoryTest {
             .put("purchase_price", "1.00").put("current_price", "2.00").put("currency", "EUR")) }
         server.enqueue(response(page.toString()))
         server.enqueue(response("""[{"id":"last-card","category":"pokemon","quantity":2,"purchase_price":"12.34","current_price":"15.01","currency":null}]"""))
+        server.enqueue(response("[]"))
+        server.enqueue(response("[]"))
         val data = repository.load("portfolio")
         assertEquals(501, data.tcgCards.size)
         assertEquals("EUR", data.tcgCards.last().currency)

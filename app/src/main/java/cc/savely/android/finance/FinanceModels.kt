@@ -74,6 +74,7 @@ data class FinanceData(
     val lastManualPriceUpdate: java.time.Instant? = null,
     val ignoredRecurringSuggestions: Set<String> = emptySet(),
     val tcgCards: List<FinanceTcgCard> = emptyList(),
+    val priceHistory: List<FinancePriceHistory> = emptyList(),
 )
 
 data class CurrencyTotals(val currency: String, val income: BigDecimal, val expenses: BigDecimal) {

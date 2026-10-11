@@ -14,10 +14,11 @@ import java.math.BigDecimal
 class CoupleRepositoryTest {
     private lateinit var server: MockWebServer
     private lateinit var repository: CoupleRepository
+    private lateinit var store: MemorySessionStore
 
     @Before fun setup() {
         server = MockWebServer().apply { start() }
-        val store = MemorySessionStore(Session("couple-test-token", "refresh", System.currentTimeMillis() / 1000 + 3600, USER, "couple@example.test"))
+        store = MemorySessionStore(Session("couple-test-token", "refresh", System.currentTimeMillis() / 1000 + 3600, USER, "couple@example.test"))
         repository = CoupleRepository(SupabaseApi(BackendConfig(server.url("/").toString(), "public-test"), store))
     }
     @After fun cleanup() { server.shutdown() }
@@ -94,15 +95,72 @@ class CoupleRepositoryTest {
         enqueue("""[{"id":"$ROW1","couple_category_name":"Casa","currency":"EUR","amount":12}]""")
         enqueue("[]")
         enqueue("[]")
+        enqueue("[]")
         val result = repository.load()
         assertEquals(2, result.shares.length())
         assertEquals(BigDecimal("15.00"), result.comparisons.single().median)
         assertTrue(result.comparisons.single().exceeded)
         assertEquals(1f, result.comparisons.single().progress, 0f)
-        val requests = (1..9).map { server.takeRequest() }
+        val requests = (1..10).map { server.takeRequest() }
         assertEquals("gt.$ROW1", requests[4].requestUrl!!.queryParameter("id"))
         assertEquals("gt.$ROW2", requests[5].requestUrl!!.queryParameter("id"))
         assertEquals("eq.$CONNECTION", requests[4].requestUrl!!.queryParameter("connection_id"))
+        assertEquals("not.is.null", requests.last().requestUrl!!.queryParameter("revoked_at"))
+    }
+
+    @Test fun archivePaginatesShortPagesSortsRevocationAndNeverReadsPrivateFormerPartnerData() = runBlocking {
+        enqueue("""[{"couple_code":"ABCD2345","permissions":{"couple_expenses":true}}]""")
+        enqueue("[]"); enqueue("[]")
+        enqueue(JSONArray().put(archive(ROW1, "2026-01-01T00:00:00Z")).toString())
+        enqueue(JSONArray().put(archive(ROW2, "2026-02-01T00:00:00Z")).toString())
+        enqueue("[]")
+        val result = repository.load()
+        assertNull(result.connection)
+        assertEquals(listOf(ROW2, ROW1), result.archivedConnections.map { it.id })
+        assertEquals("2026-02-01T00:00:00Z", result.archivedConnections.first().revokedAt.toString())
+        assertEquals(0, result.shares.length()); assertEquals(0, result.budgets.length()); assertTrue(result.medians.isEmpty())
+        val requests = (1..6).map { server.takeRequest() }
+        requests.drop(3).forEach {
+            assertEquals("GET", it.method)
+            assertEquals("/rest/v1/couple_connections", it.requestUrl!!.encodedPath)
+            assertEquals("(user_a.eq.$USER,user_b.eq.$USER)", it.requestUrl!!.queryParameter("or"))
+            assertEquals("not.is.null", it.requestUrl!!.queryParameter("revoked_at"))
+        }
+        assertEquals("gt.$ROW1", requests[4].requestUrl!!.queryParameter("id"))
+        assertEquals("gt.$ROW2", requests[5].requestUrl!!.queryParameter("id"))
+    }
+
+    @Test fun archiveFailureDoesNotReturnAnEmptyArchiveOrPartialSnapshot() = runBlocking {
+        enqueue("""[{"permissions":{"couple_expenses":true}}]"""); enqueue("[]"); enqueue("[]")
+        server.enqueue(MockResponse().setResponseCode(503).setBody("{}"))
+        try { repository.load(); fail("Expected archive loading error") } catch (_: ApiException) { }
+        assertEquals(4, server.requestCount)
+    }
+
+    @Test fun archiveRejectsRowsOutsideTheOwnerScopeAndMalformedDates() = runBlocking {
+        for (row in listOf(archive(ROW1, "2026-01-01T00:00:00Z").put("user_a", PARTNER).put("user_b", ROW2),
+            archive(ROW1, "not-an-instant"))) {
+            enqueue("""[{"permissions":{"couple_expenses":true}}]"""); enqueue("[]"); enqueue("[]")
+            enqueue(JSONArray().put(row).toString()); enqueue("[]")
+            try { repository.load(); fail("Expected invalid archive") } catch (_: IllegalArgumentException) { }
+            catch (_: java.time.format.DateTimeParseException) { }
+        }
+        assertEquals(10, server.requestCount)
+    }
+
+    @Test fun archiveRejectsAccountSwitchBeforeReturningData() = runBlocking {
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                val url = request.requestUrl!!
+                if (url.encodedPath.endsWith("profiles")) return MockResponse().setBody("""[{"permissions":{"couple_expenses":true}}]""")
+                if (url.queryParameter("revoked_at") == "not.is.null") runBlocking {
+                    store.save(Session("other-token", "refresh", System.currentTimeMillis() / 1000 + 3600, PARTNER, "other@example.test"))
+                }
+                return MockResponse().setBody("[]")
+            }
+        }
+        try { repository.load(); fail("Expected account-switch rejection") }
+        catch (error: ApiException) { assertEquals(ApiError.AUTHENTICATION, error.kind) }
     }
 
     @Test fun disabledPermissionStopsBeforeReadingCoupleData() = runBlocking {
@@ -120,6 +178,8 @@ class CoupleRepositoryTest {
     }
 
     private fun enqueue(body: String) { server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(body)) }
+    private fun archive(id: String, revokedAt: String): JSONObject = JSONObject().put("id", id).put("user_a", USER).put("user_b", PARTNER)
+        .put("created_at", "2025-01-01T00:00:00Z").put("revoked_at", revokedAt)
     private suspend fun expectInvalid(block: suspend () -> Unit) {
         try { block(); fail("Expected invalid couple operation") } catch (_: IllegalArgumentException) { }
     }

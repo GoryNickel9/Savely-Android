@@ -10,6 +10,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.Base64
@@ -20,6 +21,7 @@ data class AppState(
     val session: Session? = null,
     val permissions: Map<String, Boolean> = emptyMap(),
     val mfaFactor: String? = null,
+    val recovery: Boolean = false,
     val message: String? = null,
     val error: String? = null,
 )
@@ -48,15 +50,34 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
     fun signIn(email: String, password: String) = runAction { acceptSession(api.signIn(email, password)) }
 
     fun signUp(email: String, password: String, fullName: String) = runAction {
-        val message = api.signUp(email, password, fullName)
+        val message = api.signUpNative(email, password, fullName)
         val session = api.session()
         if (session != null) acceptSession(session)
         mutable.value = mutable.value.copy(message = message)
     }
 
     fun resetPassword(email: String) = runAction {
-        api.requestPasswordReset(email)
-        mutable.value = mutable.value.copy(message = "Controlla la tua email. Il link apre il recupero password di Savely nel browser.")
+        api.requestNativePasswordReset(email)
+        mutable.value = mutable.value.copy(message = "Controlla la tua email e apri il link su questo dispositivo per recuperare la password.")
+    }
+
+    fun handleAuthCallback(event: AuthCallbackEvent) {
+        viewModelScope.launch {
+            state.first { !it.busy }
+            runAction {
+                val callback = event.callback ?: throw ApiException(ApiError.VALIDATION, requireNotNull(event.error))
+                acceptSession(api.completeNativeCallback(callback).session)
+            }
+        }
+    }
+
+    fun completePasswordRecovery(password: String, confirmation: String) = runAction {
+        acceptSession(api.completePasswordRecovery(password, confirmation))
+        mutable.value = mutable.value.copy(message = "Password aggiornata.")
+    }
+
+    fun cancelPasswordRecovery() = runAction {
+        if (api.cancelPasswordRecovery()) mutable.value = AppState(initialized = true)
     }
 
     fun verifyMfa(code: String) = runAction {
@@ -77,19 +98,21 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
 
     private suspend fun acceptSession(session: Session) {
         val owner = api.sessionOwnerRevision(session) ?: return
+        val recovery = api.isPasswordRecovery(session)
         // Verified factors require aal2 before any account data is displayed.
         val factors = api.listMfaFactors()
         if (!api.isSessionOwnerCurrent(owner)) return
         if (factors.length() > 0 && assuranceLevel(session) != "aal2") {
             api.withCurrentSessionOwner(owner) {
-                mutable.value = AppState(initialized = true, session = session, mfaFactor = factors.getJSONObject(0).getString("id"))
+                mutable.value = AppState(initialized = true, session = session, recovery = recovery,
+                    mfaFactor = factors.getJSONObject(0).getString("id"))
             }
             return
         }
-        val permissions = api.permissions()
+        val permissions = if (recovery) emptyMap() else api.permissions()
         // A pane may invalidate the session while this restore is awaiting HTTP.
         api.withCurrentSessionOwner(owner) {
-            mutable.value = AppState(initialized = true, session = session, permissions = permissions)
+            mutable.value = AppState(initialized = true, session = session, permissions = permissions, recovery = recovery)
         }
     }
 

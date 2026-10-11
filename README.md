@@ -2,7 +2,7 @@
 
 App Android nativa di Savely in Kotlin e Jetpack Compose, con account e dati condivisi con il sito.
 
-Stato al 11 ottobre 2026: APK 0.1.5-alpha firmato e ottimizzato, aggiornamento dalla 0.1.4 installato su emulatore Android 15; 232 test JVM e 44 Android superati, lint debug/release senza errori. Libreria conserva i prezzi assenti quando si modificano note o quantità. Un test opt-in ha verificato inserimento, modifica e cancellazione dal form transazioni sul solo account QA, con pulizia completa e UUID aggiunto dal trasporto di test. La 0.1.2 ha verificato sincronizzazione Android→sito e ripristino della sessione in un nuovo processo. Insights copre cinque rilevatori su otto. Login con password, telefono fisico e parità completa restano aperti.
+Stato al 12 ottobre 2026: 0.1.8-alpha implementata e APK firmato; 399 test JVM e 108 Android 15 superati nella suite finale, lint debug/release senza errori e con 32 avvertenze. Aggiunti callback nativi PKCE, recupero password, archivio Coppia, donut Dashboard, identità visiva web e aggiornamenti pubblici delle alpha. I risultati Android, le prove backend e la distribuzione sono registrati in [TESTING.md](docs/TESTING.md) e [RELEASE.md](docs/RELEASE.md). La verifica dei [cinque blocchi](docs/ROADMAP_CLOSURE.md) distingue i risultati dai gate ancora aperti: login reale con password, email/MFA, due utenti Coppia, ruolo Admin e parità globale.
 
 Sono presenti accesso e sessione cifrata, dashboard, transazioni, categorie, budget, ricorrenze, grafici, portafoglio, patrimonio, import/export CSV, FIRE, Poker, Fumo, TCG, Libreria, Coppia e impostazioni. La presenza di una schermata non certifica tutti i flussi: i contratti e le lacune sono registrati nei documenti delle singole aree.
 
@@ -20,4 +20,8 @@ Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copi
 | [docs/API_CONTRACTS_MODULES.md](docs/API_CONTRACTS_MODULES.md) | FIRE, Poker, Fumo, TCG e Libreria |
 | [docs/IMPORT_EXPORT.md](docs/IMPORT_EXPORT.md) | Formati CSV, anteprima, duplicati ed export |
 
-La repository [Savely](https://github.com/GoryNickel9/Savely) resta invariata. L'app accede alle API senza WebView. Il reset password e la conferma email utilizzano ancora il callback web esistente.
+La repository [Savely](https://github.com/GoryNickel9/Savely) resta invariata. L'app accede alle API senza WebView. Conferma email e recupero password usano PKCE e il callback Android; la configurazione aggiuntiva preserva i callback web. Il completamento tramite email sul servizio reale resta da verificare.
+
+Gli APK sono distribuiti nella repository pubblica [Savely-Android-Releases](https://github.com/GoryNickel9/Savely-Android-Releases); i sorgenti restano privati. L’aggiornamento richiede download e conferma dell’installazione da parte di Android.
+
+Download [0.1.8-alpha](https://github.com/GoryNickel9/Savely-Android-Releases/releases/tag/v0.1.8-alpha), con APK firmato, checksum e rapporto di verifica. Il primo passaggio dalla 0.1.7 richiede il download manuale.

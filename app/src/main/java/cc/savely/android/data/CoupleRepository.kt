@@ -5,6 +5,7 @@ import org.json.JSONObject
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
+import java.time.Instant
 import java.time.YearMonth
 import java.util.Locale
 import java.util.UUID
@@ -19,7 +20,10 @@ data class CoupleSnapshot(
     val transactions: JSONArray,
     val comparisons: List<CoupleBudgetComparison>,
     val medians: Map<String, BigDecimal>,
+    val archivedConnections: List<CoupleArchivedConnection> = emptyList(),
 )
+
+data class CoupleArchivedConnection(val id: String, val createdAt: Instant, val revokedAt: Instant)
 
 data class CoupleBudgetComparison(
     val id: String,
@@ -95,6 +99,7 @@ fun availableCoupleCategories(shares: JSONArray, budgets: JSONArray): List<Strin
 class CoupleRepository(private val api: SupabaseApi) {
     suspend fun load(): CoupleSnapshot {
         val user = userId()
+        val revision = api.sessionOwnerRevision()
         val profile = api.profile()
         if (SupabaseApi.parsePermissions(profile?.optJSONObject("permissions"))["couple_expenses"] != true) {
             throw ApiException(ApiError.PERMISSION, "Le spese di coppia non sono abilitate per il tuo account.")
@@ -125,8 +130,18 @@ class CoupleRepository(private val api: SupabaseApi) {
         val currencies = (0 until shares.length()).map { shares.getJSONObject(it) }
             .filter { it.isNull("tx_deleted_at") }.map { it.getString("currency") }.distinct().sorted()
         val medians = currencies.associateWith { medianMonthlyCoupleShare(shares, it) }
+        // Privacy migrations allow archived connection metadata, not the former partner's expenses or budgets.
+        val archiveRows = pages("couple_connections", "or=(user_a.eq.$user,user_b.eq.$user)&revoked_at=not.is.null")
+        val archived = (0 until archiveRows.length()).map { index ->
+            val row = archiveRows.getJSONObject(index)
+            require(uuid(row.getString("user_a")) == user || uuid(row.getString("user_b")) == user) { "Connessione archiviata non appartenente all'account." }
+            CoupleArchivedConnection(uuid(row.getString("id")), Instant.parse(row.getString("created_at")), Instant.parse(row.getString("revoked_at")))
+        }.sortedWith(compareByDescending<CoupleArchivedConnection> { it.revokedAt }.thenBy { it.id })
+        if (userId() != user || api.sessionOwnerRevision() != revision) {
+            throw ApiException(ApiError.AUTHENTICATION, "Account cambiato durante il caricamento. Accedi nuovamente.")
+        }
         val code = profile?.optString("couple_code")?.takeUnless { it == "null" } ?: ""
-        return CoupleSnapshot(user, code, connection, requests, shares, budgets, transactions, comparisons, medians)
+        return CoupleSnapshot(user, code, connection, requests, shares, budgets, transactions, comparisons, medians, archived)
     }
 
     suspend fun sendInvitation(rawCode: String) {

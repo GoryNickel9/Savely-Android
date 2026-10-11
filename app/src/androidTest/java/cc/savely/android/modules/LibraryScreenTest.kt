@@ -62,6 +62,7 @@ class LibraryScreenTest {
     private val denied = AtomicInteger()
     private val foreignScopeRequests = AtomicInteger()
     private val releasePatch = CountDownLatch(1)
+    private var allowedPatches = 1
     private lateinit var foreignSnapshot: String
     private var touchDiagnostic = "No pointer target sampled"
 
@@ -177,6 +178,102 @@ class LibraryScreenTest {
         compose.onAllNodesWithText("999999", substring = true).assertCountEquals(0)
     }
 
+    @Test fun mangaCoverRejectsUnsafeUrlThenAddsChangesAndClearsOnSameOwnerRecord() {
+        allowedPatches = 3
+        rows[OWN_ROW] = book(OWN_ROW, OWNER, "Manga copertina").put("category", "manga")
+            .put("fixture_metadata", "preserve-unexposed-value")
+        rows[FOREIGN_ROW]!!.put("category", "manga")
+        foreignSnapshot = rows[FOREIGN_ROW]!!.toString()
+        compose.setContent {
+            val localFocus = LocalFocusManager.current
+            val localKeyboard = LocalSoftwareKeyboardController.current
+            SideEffect { focus = localFocus; keyboard = localKeyboard }
+            SavelyTheme("light") { ModuleScreen(api, "libreria", Modifier.fillMaxSize()) }
+        }
+        // The initial Libri category is empty: its first page already terminates pagination.
+        await("Initial empty owner collection loaded") { bookReads.get() == 1 && enabled(button("Aggiungi")) }
+        assertEquals("An empty Libri category needs exactly one owner GET", 1, bookReads.get())
+        val beforeTab = bookReads.get()
+        touch(button("Manga"))
+        await("Owner Manga collection loaded") { bookReads.get() >= beforeTab + 2 && enabled(button("Aggiungi")) }
+        openMangaEdit()
+        listOf("javascript:alert(1)", "https://user:secret@localhost:1/cover.png", "/cover.png").forEach { invalid ->
+            replace(COVER, invalid)
+            touch(button("Salva"))
+            compose.onNode(hasText("URL copertina: inserisci un URL HTTP o HTTPS valido", substring = true))
+                .performScrollTo().assertIsDisplayed()
+            assertEquals("Invalid cover input must not reach PATCH", 0, patches.size)
+            assertSame(JSONObject.NULL, rows[OWN_ROW]!!.get("cover_image"))
+        }
+        // Loopback-only URLs exercise the stored field; image loading itself is outside this fixture.
+        replace(COVER, "http://localhost:1/cover-a.png")
+        replace("Note (facoltativo)", NEW_NOTE)
+        replace("Quantità", "2")
+        val beforeAdd = bookReads.get()
+        touch(button("Salva"), taps = 2)
+        await("Only one cover PATCH is pending") {
+            patches.size == 1 && compose.onAllNodes(button("Salva")).fetchSemanticsNodes().singleOrNull()
+                ?.config?.contains(SemanticsProperties.Disabled) == true
+        }
+        assertEquals("http://localhost:1/cover-a.png", patches.single().getString("cover_image"))
+        releasePatch.countDown()
+        awaitMangaSaved(beforeAdd, 1)
+        assertEquals("http://localhost:1/cover-a.png", rows[OWN_ROW]!!.getString("cover_image"))
+        openMangaEdit()
+        replace(COVER, "https://localhost:1/cover-b.png?size=small")
+        val beforeChange = bookReads.get()
+        touch(button("Salva"))
+        awaitMangaSaved(beforeChange, 2)
+        assertEquals("https://localhost:1/cover-b.png?size=small", rows[OWN_ROW]!!.getString("cover_image"))
+        openMangaEdit()
+        replace(COVER, "")
+        val beforeClear = bookReads.get()
+        touch(button("Salva"))
+        awaitMangaSaved(beforeClear, 3)
+        assertTrue(patches.last().has("cover_image"))
+        assertSame(JSONObject.NULL, patches.last().get("cover_image"))
+        val beforeRefresh = bookReads.get()
+        clearInput()
+        list().performScrollToIndex(0)
+        touch(button("Aggiorna"))
+        await("Explicit owner Manga GET after clearing cover") {
+            bookReads.get() >= beforeRefresh + 2 && enabled(button("Aggiungi"))
+        }
+        val stored = rows[OWN_ROW]!!
+        assertEquals(OWN_ROW, stored.getString("id"))
+        assertEquals(OWNER, stored.getString("user_id"))
+        assertEquals(API_ID, stored.getString("api_id"))
+        assertEquals("preserve-unexposed-value", stored.getString("fixture_metadata"))
+        assertEquals(NEW_NOTE, stored.getString("notes"))
+        assertEquals(2, stored.getInt("quantity"))
+        assertSame(JSONObject.NULL, stored.get("cover_image"))
+        assertNullPrices(stored)
+        patches.forEach { body ->
+            assertNullPrices(body)
+            listOf("id", "user_id", "api_id", "fixture_metadata").forEach { assertFalse(body.has(it)) }
+        }
+        assertEquals(listOf(OWN_ROW, OWN_ROW, OWN_ROW), patchedIds.toList())
+        assertEquals(3, patches.size)
+        assertEquals(0, insertDeleteRequests.get())
+        assertEquals(0, foreignScopeRequests.get())
+        assertEquals(0, denied.get())
+        assertEquals(foreignSnapshot, rows[FOREIGN_ROW]!!.toString())
+        compose.onAllNodesWithText("Libro estraneo").assertCountEquals(0)
+    }
+
+    private fun openMangaEdit() {
+        clearInput()
+        list().performScrollToIndex(8)
+        compose.onNode(button("Modifica")).performScrollTo()
+        touch(button("Modifica"))
+    }
+    private fun awaitMangaSaved(readsBefore: Int, expectedPatches: Int) {
+        await("Manga edit reloaded") {
+            patches.size == expectedPatches && bookReads.get() >= readsBefore + 2 &&
+                compose.onAllNodes(button("Salva")).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
     private fun assertNullPrices(body: JSONObject) {
         listOf("purchase_price", "reselling_value").forEach { key ->
             assertTrue("$key must be explicitly present", body.has(key))
@@ -263,7 +360,7 @@ class LibraryScreenTest {
                 }
                 patchedIds.add(id)
                 patches.add(JSONObject(body.toString()))
-                if (patches.size != 1) return json(409, JSONObject().put("message", "Synthetic duplicate PATCH"))
+                if (patches.size > allowedPatches) return json(409, JSONObject().put("message", "Synthetic duplicate PATCH"))
                 val persisted = JSONObject(existing.toString())
                 body.keys().forEach { key -> persisted.put(key, body.get(key)) }
                 rows[id] = persisted
@@ -273,11 +370,12 @@ class LibraryScreenTest {
             }
             if (request.method != "GET") return reject()
             if (url.queryParameter("user_id") != "eq.$OWNER") { foreignScopeRequests.incrementAndGet(); return reject() }
-            if (url.queryParameter("category") != "eq.libri" || url.queryParameter("order") != "created_at.desc" ||
+            val category = url.queryParameter("category")?.removePrefix("eq.")
+            if (category !in listOf("libri", "manga") || url.queryParameter("order") != "created_at.desc" ||
                 url.queryParameter("limit") != "500") return reject()
             val offset = url.queryParameter("offset")?.toIntOrNull()?.takeIf { it >= 0 } ?: return reject()
             bookReads.incrementAndGet()
-            return json(200, JSONArray(rows.values.filter { it.getString("user_id") == OWNER && it.getString("category") == "libri" }
+            return json(200, JSONArray(rows.values.filter { it.getString("user_id") == OWNER && it.getString("category") == category }
                 .sortedByDescending { it.getString("created_at") }.drop(offset).take(500)))
         }
     }
@@ -300,5 +398,6 @@ class LibraryScreenTest {
         const val NEW_NOTE = "Nota aggiornata"
         const val PURCHASE = "Prezzo acquisto unitario (€) (facoltativo)"
         const val RESALE = "Valore rivendita unitario (€) (facoltativo)"
+        const val COVER = "URL copertina (facoltativo)"
     }
 }

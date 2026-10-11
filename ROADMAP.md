@@ -1,6 +1,6 @@
 # Roadmap Savely Android
 
-Data: 11 ottobre 2026. Stato: sviluppo avviato; alpha nativa generata, verifica del primo APK in corso.
+Data: 12 ottobre 2026. Stato: 0.1.8-alpha implementata e APK firmato; cinque blocchi lavorati con verifiche locali e backend isolate. Distribuzione stabile e parità globale restano subordinate ai gate reali registrati in docs/ROADMAP_CLOSURE.md.
 
 ## 1. Risultato richiesto e vincoli
 
@@ -214,8 +214,20 @@ I percorsi seguenti descrivono il piano. Sono già presenti app, wrapper, contra
 | Stime ridotte artificialmente dal parallelismo | Integrare presto; misurare attività completate e lavoro residuo |
 | Client PokerStars aperto durante sviluppo/test | Procedura in [DEVELOPMENT_AND_TESTING.md](docs/DEVELOPMENT_AND_TESTING.md); nessuna garanzia di autorizzazione specifica |
 
-## 10. Stato e prossimo lavoro
+## 10. Stato dei cinque blocchi
 
-Completato: audit del riferimento web, progetto Kotlin/Compose, integrazione dei package auth/finanza/moduli, schermate native e APK 0.1.5-alpha firmato ottimizzato installabile. Passano 232 test JVM e 44 Android integrati; lint debug e release senza errori. Libreria accetta prezzi null e li conserva durante le modifiche. Il form transazioni montato nel test Compose ha verificato CRUD sul solo account QA con UUID iniettato dal test e pulizia completa. Admin svuota dati e dialoghi sul diniego senza perdere la sessione; Insights copre cinque rilevatori su otto. L’aggiornamento da versionCode 5 a 6 passa sull’AVD con la stessa firma, senza account. Il mapping sorgenti e il workflow di audit leggono la repo web senza modificarla e non avanzano automaticamente la baseline.
+Il dettaglio delle prove e dei limiti è in [ROADMAP_CLOSURE.md](docs/ROADMAP_CLOSURE.md), [TESTING.md](docs/TESTING.md) e [RELEASE.md](docs/RELEASE.md). Le attività autorizzate sono eseguite localmente, senza GitHub CI; il workflow build/test ora richiede avvio manuale.
 
-M1 è ancora aperta per il login con password e la prova su telefono. Il flusso unico Android→sito passa: una transazione da 0,01 EUR creata tramite API Android con UUID esplicito viene letta nella MainActivity e sul sito canonico; eliminazione, logout temporaneo e clear locale sono confermati, senza pulizia pendente. La 0.1.5 verifica anche submit, modifica e conferma di cancellazione dal form FinanceScreen montato nel test Compose: UUID iniettato dal solo trasporto di test, riga rimossa e sessione temporanea chiusa. Navigazione MainActivity e UUID generato dal database restano fuori dalla copertura di questa nuova prova. Le registrazioni sono disabilitate anche per la creazione amministrativa; nessuna impostazione è stata cambiata. L'utente E2E documentato nel seed web esiste ed è confermato. Una sessione magic-link temporanea per quel solo account, ottenuta senza inviare email o cambiare password, ha permesso anche il CRUD Android reale: identità e permessi, Keystore e riapertura client/activity, dashboard, movimento da 0,01 EUR, modifica a 0,02 EUR ed eliminazione. È passato il ripristino in un nuovo processo dopo force-stop, con dashboard e logout; una prova di interruzione host conferma la pulizia della sola sessione QA. Non sono stati modificati dati preesistenti. Le lacune funzionali delle fasi 3-4 restano nei contratti e in `parity/web-baseline.json`; nessuna parità globale è certificata.
+1. **Funzioni native:** callback PKCE, conferma email e recupero password, archivio Coppia revocati, donut categorie e collegamenti Dashboard implementati. Archivio limitato ai metadati consentiti dalle RLS. Bank inventariato: interoperabilità CSV inclusa, convertitore PDF separato.
+2. **Identità web:** icona originale, palette, font locali e cinque destinazioni di navigazione implementati. Tre screenshot di fixture controllati; accessibilità, lingua e font grandi coperti dai test registrati. Il confronto visivo di tutte le pagine non è certificato.
+3. **Backend:** 42 contratti su 43 passano; 12 inserimenti, 8 modifiche, due chiusure CAS e letture native verificati. Google Books risponde HTTP 429 per quota esaurita. Recovery della stessa esecuzione conferma eliminazione dei dati temporanei, logout e rimozione dei file privati, senza pulizia pendente.
+4. **Lifecycle e file:** prove su emulatori Android 12 e 15, test di rete, ricreazione, tastiera e documenti. Suite finale Android 15 108/108; Android 12 ha 108 esiti finali positivi dopo riesecuzioni mirate. Sei casi SAF/import/export passano su entrambe le API; l’interfaccia del selettore di file non è automatizzata. Risultati completi e correzioni del solo harness sono in TESTING.md.
+5. **Distribuzione:** APK 0.1.8 con firma continua, repository pubblico separato per APK e metadati, backup portabile cifrato verificato. Riferimento web distribuito legato al deployment e bundle pubblico confrontato. La copia della firma su un dispositivo diverso resta da verificare.
+
+## 11. Gate esterni ancora aperti
+
+Le registrazioni sono disabilitate anche dal trigger. L’unico account QA documentato ha password ignota e una sessione precedente: non vengono alterati password, MFA o sessioni preesistenti per completare una prova. Questo limita login reale con password, email/PKCE completo, MFA positivo, cambio email/password, Coppia con due utenti, Admin autorizzato ed eliminazione di un account sintetico. I contratti simulati non sostituiscono queste verifiche.
+
+L’utente conferma installazione e uso generale della 0.1.7 sul Doogee S100 Android 12, ma non proverà direttamente i nuovi flussi. Le prove su emulatori non vengono attribuite al telefono. I gate originari relativi al dispositivo restano quindi non verificati, salvo le conferme già documentate.
+
+`parity/web-baseline.json` conserva `globalParityVerified=false`. Il porting completo mantiene le differenze dichiarate in FEATURE_PARITY.md e IMPORT_EXPORT.md: mapping ISIN/categorie, formati XLS/XLSX, equivalenza visiva globale e casi reali dei ruoli non sono certificati da questa alpha. Non viene dichiarata completata la roadmap di parità stabile.

@@ -38,6 +38,7 @@ class SupabaseApi(
     private val config: BackendConfig,
     private val sessionStore: SessionStore,
     client: OkHttpClient = OkHttpClient(),
+    private val authLinks: AuthLinkStore = MemoryAuthLinkStore(),
 ) {
     // Never follow a redirect carrying tokens to another origin or retry a write automatically.
     private val http = client.newBuilder().followRedirects(false).followSslRedirects(false)
@@ -102,6 +103,126 @@ class SupabaseApi(
         webPost("/api/reset-password", JSONObject().put("email", email.trim()), authenticated = false)
     }
 
+    /** Native email requests use PKCE. The existing web methods remain available to Admin. */
+    suspend fun signUpNative(email: String, password: String, fullName: String = ""): String = authMutex.withLock {
+        validateCredentials(email, password)
+        PasswordPolicy.validate(password)
+        ensureUnsigned()
+        if (publicRpc("get_registrations_enabled", JSONObject()) == false)
+            throw ApiException(ApiError.PERMISSION, "Le registrazioni sono temporaneamente disabilitate.")
+        val pending = PendingNativeAuth.create(NativeAuthPurpose.SIGNUP, email)
+        withContext(Dispatchers.IO) { authLinks.savePending(pending) }
+        val url = endpoint(base, "auth/v1/signup").newBuilder().addQueryParameter("redirect_to", pending.redirectUrl).build()
+        val result = objectValue(request(url, "POST", pkceBody(pending).put("password", password)
+            .put("data", JSONObject().put("full_name", fullName.trim())), config.anonKey))
+        if (result.has("access_token") && !result.isNull("access_token")) {
+            val created = parseSession(result)
+            verifyNativeIdentity(created, pending.email)
+            store(created, newLogin = true)
+            startAccessAudit(created)
+            "Registrazione completata."
+        } else "Controlla la tua email e apri il link su questo dispositivo per confermare la registrazione."
+    }
+
+    suspend fun requestNativePasswordReset(email: String) = authMutex.withLock {
+        validateEmail(email)
+        ensureUnsigned()
+        val pending = PendingNativeAuth.create(NativeAuthPurpose.RECOVERY, email)
+        withContext(Dispatchers.IO) { authLinks.savePending(pending) }
+        val url = endpoint(base, "auth/v1/recover").newBuilder().addQueryParameter("redirect_to", pending.redirectUrl).build()
+        request(url, "POST", pkceBody(pending), config.anonKey)
+        Unit
+    }
+
+    private fun pkceBody(pending: PendingNativeAuth) = JSONObject().put("email", pending.email)
+        .put("code_challenge", pending.challenge).put("code_challenge_method", "s256")
+
+    private suspend fun ensureUnsigned() {
+        if (load() != null) throw ApiException(ApiError.VALIDATION, "Esci dall’account prima di richiedere un nuovo link email.")
+    }
+
+    /** Consume before exchange: an ambiguous response must never trigger another code redemption. */
+    suspend fun completeNativeCallback(callback: NativeAuthCallback): NativeAuthResult = authMutex.withLock {
+        val pending = withContext(Dispatchers.IO) { authLinks.pending() } ?: throw invalidNativeAuthLink()
+        if (pending.state != callback.state) throw invalidNativeAuthLink()
+        ensureUnsigned()
+        withContext(Dispatchers.IO) { authLinks.clearPending() }
+        if (callback.failed || !pending.isFresh(System.currentTimeMillis() / 1000)) throw invalidNativeAuthLink()
+        val json = try {
+            objectValue(request(endpoint(base, "auth/v1/token", "grant_type=pkce"), "POST",
+                JSONObject().put("auth_code", callback.code).put("code_verifier", pending.verifier), config.anonKey))
+        } catch (error: ApiException) {
+            if (error.kind in setOf(ApiError.AUTHENTICATION, ApiError.PERMISSION) || error.status == 400) throw invalidNativeAuthLink()
+            throw error
+        }
+        val created = parseSession(json)
+        try { verifyNativeIdentity(created, pending.email) }
+        catch (error: Exception) {
+            // This token belongs to the just-redeemed link, never to an existing login.
+            try { request(endpoint(base, "auth/v1/logout", "scope=local"), "POST", JSONObject(), created.accessToken) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: ApiException) { /* No local credentials were installed. */ }
+            throw error
+        }
+        if (pending.purpose == NativeAuthPurpose.RECOVERY) {
+            withContext(Dispatchers.IO) { authLinks.saveRecovery(NativeRecoveryContext(created, System.currentTimeMillis() / 1000)) }
+            observeSession(created, newLogin = true)
+        } else {
+            store(created, newLogin = true)
+            startAccessAudit(created)
+        }
+        NativeAuthResult(created, pending.purpose)
+    }
+
+    private suspend fun verifyNativeIdentity(session: Session, expectedEmail: String) {
+        if (!canonicalUuid(session.userId) || session.authSessionId() == null || session.expiresAt <= System.currentTimeMillis() / 1000)
+            throw invalidNativeAuthLink()
+        val user = objectValue(request(endpoint(base, "auth/v1/user"), token = session.accessToken))
+        if (user.optString("id") != session.userId || !user.optString("email").equals(expectedEmail, ignoreCase = true) ||
+            !session.email.equals(expectedEmail, ignoreCase = true) || user.isNull("email_confirmed_at") ||
+            user.optString("email_confirmed_at").isBlank()) throw invalidNativeAuthLink()
+    }
+
+    suspend fun isPasswordRecovery(session: Session): Boolean = authMutex.withLock {
+        withContext(Dispatchers.IO) { sessionStore.load() == null && authLinks.recovery()?.matches(session) == true }
+    }
+
+    suspend fun completePasswordRecovery(password: String, confirmation: String): Session = authMutex.withLock {
+        PasswordPolicy.validate(password)
+        if (password != confirmation) throw ApiException(ApiError.VALIDATION, "Le password non coincidono.")
+        val context = withContext(Dispatchers.IO) { authLinks.recovery() } ?: throw invalidNativeAuthLink()
+        val saved = load() ?: throw invalidNativeAuthLink()
+        if (!context.matches(saved) || withContext(Dispatchers.IO) { sessionStore.load() } != null) throw invalidNativeAuthLink()
+        val current = if (saved.expiresAt <= System.currentTimeMillis() / 1000 + REFRESH_MARGIN_SECONDS) refresh(saved) else saved
+        val user = objectValue(request(endpoint(base, "auth/v1/user"), token = current.accessToken))
+        val factors = user.optJSONArray("factors") ?: JSONArray()
+        val needsMfa = (0 until factors.length()).any { factors.optJSONObject(it)?.optString("status") == "verified" }
+        if (needsMfa && current.authAssuranceLevel() != "aal2")
+            throw ApiException(ApiError.VALIDATION, "Verifica il codice della tua app di autenticazione prima di cambiare password.")
+        request(endpoint(base, "auth/v1/user"), "PUT", JSONObject().put("password", password), current.accessToken)
+        // Promotion follows a confirmed password update; an interrupted local write stays gated.
+        withContext(Dispatchers.IO) { sessionStore.save(current); authLinks.clearRecovery() }
+        observeSession(current)
+        startAccessAudit(current)
+        current
+    }
+
+    /** Cancels only the bound recovery session. A different normal login is preserved. */
+    suspend fun cancelPasswordRecovery(): Boolean = authMutex.withLock {
+        val context = withContext(Dispatchers.IO) { authLinks.recovery() } ?: return@withLock false
+        val ordinary = withContext(Dispatchers.IO) { sessionStore.load() }
+        if (ordinary != null) return@withLock false
+        try {
+            request(endpoint(base, "auth/v1/logout", "scope=local"), "POST", JSONObject(), context.session.accessToken)
+        } catch (error: ApiException) {
+            if (error.status !in listOf(401, 403)) throw error
+        } finally {
+            withContext(Dispatchers.IO) { authLinks.clearRecovery() }
+            invalidateObservedSession(null)
+        }
+        true
+    }
+
     /** Revoke the current session; local credentials are cleared even if the server is unreachable. */
     suspend fun signOut() = authMutex.withLock {
         cancelPendingAudit()
@@ -134,7 +255,7 @@ class SupabaseApi(
 
     suspend fun insert(table: String, body: JSONObject): JSONObject {
         identifier(table)
-        return singleRow(authorized(endpoint(base, "rest/v1/$table"), "POST", body, representation = true))
+        return singleRow(authorized(endpoint(base, "rest/v1/$table"), "POST", insertPayload(table, body), representation = true))
     }
 
     suspend fun update(table: String, id: String, body: JSONObject, query: String = ""): JSONObject {
@@ -265,13 +386,16 @@ class SupabaseApi(
         return authorized(endpoint(base, "functions/v1/$name", query))
     }
 
-    suspend fun listMfaFactors(): JSONArray {
+    // Access gates only need verified factors; settings also need unfinished enrollments.
+    suspend fun listMfaFactors(includeUnverified: Boolean = false): JSONArray {
         val user = objectValue(authorized(endpoint(base, "auth/v1/user")))
         val factors = user.optJSONArray("factors") ?: JSONArray()
         return JSONArray().apply {
             for (index in 0 until factors.length()) {
                 val factor = factors.optJSONObject(index) ?: continue
-                if (factor.optString("factor_type") == "totp" && factor.optString("status") == "verified") put(factor)
+                val status = factor.optString("status")
+                if (factor.optString("factor_type") == "totp" &&
+                    (status == "verified" || includeUnverified && status == "unverified")) put(factor)
             }
         }
     }
@@ -296,6 +420,17 @@ class SupabaseApi(
     suspend fun unenrollTotp(factorId: String) {
         validateId(factorId)
         authorized(endpoint(base, "auth/v1/factors/$factorId"), "DELETE")
+    }
+
+    suspend fun unenrollPendingTotp(factorId: String) {
+        validateId(factorId)
+        val factors = listMfaFactors(includeUnverified = true)
+        val pending = (0 until factors.length()).map { factors.getJSONObject(it) }
+            .firstOrNull { it.optString("id") == factorId }
+        if (pending?.optString("status") != "unverified") {
+            throw ApiException(ApiError.VALIDATION, "La configurazione non è più incompleta. Aggiorna sicurezza prima di continuare.")
+        }
+        unenrollTotp(factorId)
     }
 
     private suspend fun publicRpc(name: String, body: JSONObject): Any = request(endpoint(base, "rest/v1/rpc/$name"), "POST", body, config.anonKey)
@@ -370,7 +505,7 @@ class SupabaseApi(
 
     private suspend fun load(): Session? = withContext(Dispatchers.IO) {
         try {
-            sessionStore.load().also { saved ->
+            (sessionStore.load() ?: authLinks.recovery()?.session).also { saved ->
                 if (saved == null) invalidateObservedSession(unauthorized().message) else observeSession(saved)
             }
         } catch (error: ApiException) {
@@ -380,7 +515,18 @@ class SupabaseApi(
     }
 
     private suspend fun store(session: Session, newLogin: Boolean = false) = withContext(Dispatchers.IO) {
-        try { sessionStore.save(session); observeSession(session, newLogin) }
+        try {
+            val recovery = if (newLogin || sessionStore.load() != null) null else authLinks.recovery()
+            if (recovery != null) {
+                if (!recovery.matches(session)) throw responseError()
+                authLinks.saveRecovery(NativeRecoveryContext(session, recovery.createdAt))
+            }
+            else {
+                sessionStore.save(session)
+                if (newLogin) { authLinks.clearPending(); authLinks.clearRecovery() }
+            }
+            observeSession(session, newLogin)
+        }
         catch (error: ApiException) {
             if (error.kind == ApiError.STORAGE) invalidateObservedSession(error.message)
             throw error
@@ -388,7 +534,7 @@ class SupabaseApi(
     }
 
     private suspend fun clearStoredSession(message: String? = null) = withContext(Dispatchers.IO) {
-        try { sessionStore.clear(); invalidateObservedSession(message) }
+        try { sessionStore.clear(); authLinks.clearRecovery(); invalidateObservedSession(message) }
         catch (error: ApiException) {
             if (error.kind == ApiError.STORAGE) invalidateObservedSession(error.message)
             throw error

@@ -55,35 +55,36 @@ fun AuthScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Column(Modifier.widthIn(max = 440.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Savely", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold,
+            LanguageSelector()
+            Text(localized("Savely"), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary)
-            Text("I tuoi conti, sempre con te.", style = MaterialTheme.typography.titleLarge)
+            Text(localized("I tuoi conti, sempre con te."), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
-            Text(when (mode) { "signup" -> "Crea il tuo account"; "reset" -> "Recupera la password"; else -> "Accedi" },
+            Text(localized(when (mode) { "signup" -> "Crea il tuo account"; "reset" -> "Recupera la password"; else -> "Accedi" }),
                 style = MaterialTheme.typography.headlineSmall)
-            if (mode == "signup") OutlinedTextField(name, { name = it }, label = { Text("Nome completo") },
+            if (mode == "signup") OutlinedTextField(name, { name = it }, label = { Text(localized("Nome completo")) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !state.busy)
-            OutlinedTextField(email, { email = it }, label = { Text("Email") },
+            OutlinedTextField(email, { email = it }, label = { Text(localized("Email")) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !state.busy)
-            if (mode != "reset") OutlinedTextField(password, { password = it }, label = { Text("Password") },
+            if (mode != "reset") OutlinedTextField(password, { password = it }, label = { Text(localized("Password")) },
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                trailingIcon = { TextButton({ showPassword = !showPassword }) { Text(if (showPassword) "Nascondi" else "Mostra") } },
+                trailingIcon = { TextButton({ showPassword = !showPassword }) { Text(localized(if (showPassword) "Nascondi" else "Mostra")) } },
                 modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !state.busy)
             if (mode == "signup") {
-                Text(PasswordPolicy.requirements, style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(passwordConfirmation, { passwordConfirmation = it }, label = { Text("Conferma password") },
+                Text(localized(PasswordPolicy.requirements), style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(passwordConfirmation, { passwordConfirmation = it }, label = { Text(localized("Conferma password")) },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !state.busy,
                     isError = passwordConfirmation.isNotEmpty() && passwordConfirmation != password)
                 if (passwordConfirmation.isNotEmpty() && passwordConfirmation != password)
-                    Text("Le password non coincidono.", color = MaterialTheme.colorScheme.error)
+                    Text(localized("Le password non coincidono."), color = MaterialTheme.colorScheme.error)
             }
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-            if (mode == "signup") Text("La conferma email apre il sito Savely. Dopo la conferma puoi accedere qui.",
+            state.error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+            state.message?.let { Text(localized(it), color = MaterialTheme.colorScheme.primary) }
+            if (mode == "signup") Text(localized("Apri il link di conferma su questo dispositivo per tornare all’app."),
                 style = MaterialTheme.typography.bodyMedium)
             Button(onClick = {
                 when (mode) { "signup" -> onSignUp(email, password, name); "reset" -> onReset(email); else -> onSignIn(email, password) }
@@ -93,17 +94,17 @@ fun AuthScreen(
                 else -> password.isNotBlank()
             },
                 modifier = Modifier.fillMaxWidth()) {
-                Text(when { state.busy -> "Attendi…"; mode == "signup" -> "Crea account"; mode == "reset" -> "Invia email di recupero"; else -> "Accedi" })
+                Text(localized(when { state.busy -> "Attendi…"; mode == "signup" -> "Crea account"; mode == "reset" -> "Invia email di recupero"; else -> "Accedi" }))
             }
             if (state.busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
             if (mode == "login") {
-                TextButton({ mode = "reset" }) { Text("Password dimenticata?") }
-                TextButton({ mode = "signup" }) { Text("Crea un account") }
-            } else TextButton({ mode = "login"; password = ""; passwordConfirmation = "" }) { Text("Torna all’accesso") }
-            if (state.error != null && mode == "login") TextButton(onRetry, enabled = !state.busy) { Text("Ripristina sessione") }
+                TextButton({ mode = "reset" }) { Text(localized("Password dimenticata?")) }
+                TextButton({ mode = "signup" }) { Text(localized("Crea un account")) }
+            } else TextButton({ mode = "login"; password = ""; passwordConfirmation = "" }) { Text(localized("Torna all’accesso")) }
+            if (state.error != null && mode == "login") TextButton(onRetry, enabled = !state.busy) { Text(localized("Ripristina sessione")) }
             if (onLegal != null) {
-                TextButton({ onLegal("privacy") }) { Text("Privacy") }
-                TextButton({ onLegal("terms") }) { Text("Termini di servizio") }
+                TextButton({ onLegal("privacy") }) { Text(localized("Privacy")) }
+                TextButton({ onLegal("terms") }) { Text(localized("Termini di servizio")) }
             }
         }
     }
@@ -114,14 +115,14 @@ fun MfaChallengeScreen(state: AppState, onVerify: (String) -> Unit, onSignOut: (
     var code by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Verifica in due passaggi", style = MaterialTheme.typography.headlineSmall)
+        Text(localized("Verifica in due passaggi"), style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
-        Text("Inserisci il codice della tua app di autenticazione.")
-        OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, label = { Text("Codice a 6 cifre") },
+        Text(localized("Inserisci il codice della tua app di autenticazione."))
+        OutlinedTextField(code, { code = it.filter { digit -> digit in '0'..'9' }.take(6) }, label = { Text(localized("Codice a 6 cifre")) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
             modifier = Modifier.padding(vertical = 16.dp), enabled = !state.busy)
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button({ onVerify(code) }, enabled = !state.busy && code.length == 6) { Text("Verifica") }
-        TextButton(onSignOut, enabled = !state.busy) { Text("Esci") }
+        state.error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+        Button({ onVerify(code) }, enabled = !state.busy && code.length == 6) { Text(localized("Verifica")) }
+        TextButton(onSignOut, enabled = !state.busy) { Text(localized("Esci")) }
     }
 }

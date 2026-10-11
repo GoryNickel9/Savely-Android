@@ -6,12 +6,20 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.AtomicFile
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cc.savely.android.BuildConfig
 import cc.savely.android.MainActivity
+import cc.savely.android.finance.DashboardPreset
+import cc.savely.android.ui.LanguagePreferences
+import cc.savely.android.ui.TranslationCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.runBlocking
@@ -121,10 +129,18 @@ class RealProcessDeathSmokeTest {
             val current = requireNotNull(api.session()) { "Restored session is no longer valid." }
             check(isQa(current) && current.authSessionId() == sessionId) { "Session identity changed while restoring." }
             assertServerIdentity(client, current)
+            val language = LanguagePreferences(fixture.context).read()
+            val translations = TranslationCatalog.load(fixture.context)
+            val dashboardTitle = translations.translate(language, "Dashboard")
+            val selectedPeriod = translations.translate(language, "{{label}}: {{value}}",
+                "label" to translations.translate(language, "Periodo"),
+                "value" to translations.translate(language, DashboardPreset.CURRENT_MONTH.label))
             val launched = ActivityScenario.launch(MainActivity::class.java)
             activity = launched
-            compose.waitUntil(45_000) { compose.onAllNodesWithText("Dashboard", substring = false).fetchSemanticsNodes().isNotEmpty() }
-            compose.waitUntil(45_000) { compose.onAllNodesWithText("Mese corrente fino a oggi", substring = false).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(45_000) { compose.onAllNodesWithTag("screen-title").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("screen-title").assertTextEquals(dashboardTitle).assertIsDisplayed()
+            compose.waitUntil(45_000) { compose.onAllNodesWithText(selectedPeriod, substring = false).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText(selectedPeriod, substring = false).assertIsDisplayed()
             val afterLaunch = requireNotNull(AndroidSessionStore(fixture.context).load()) { "Native application did not retain the restored session." }
             check(isQa(afterLaunch) && afterLaunch.authSessionId() == sessionId) { "Native application changed the expected QA session." }
             assertServerIdentity(client, afterLaunch)

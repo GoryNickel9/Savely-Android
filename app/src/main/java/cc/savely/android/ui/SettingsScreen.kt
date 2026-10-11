@@ -62,7 +62,7 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("account" to "Account", "security" to "Sicurezza", "transfer" to "Dati").forEach { (key, title) ->
-                FilterChip(pane == key, { pane = key }, label = { Text(title) })
+                FilterChip(pane == key, { pane = key }, label = { Text(localized(title)) })
             }
         }
         when (pane) {
@@ -71,9 +71,9 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
             else -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(session.email, style = MaterialTheme.typography.titleLarge)
-                Text("Profilo", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(fullName, { fullName = it }, label = { Text("Nome completo") }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
-                Text("Valuta predefinita")
+                Text(localized("Profilo"), style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(fullName, { fullName = it }, label = { Text(localized("Nome completo")) }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+                Text(localized("Valuta predefinita"))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("EUR", "USD", "GBP", "CHF").forEach { code -> FilterChip(currency == code, { currency = code }, label = { Text(code) }) }
                 }
@@ -83,58 +83,60 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
                 Button({ run {
                     api.updateProfile(JSONObject().put("full_name", fullName.trim()).put("default_currency", currency))
                     message = "Profilo salvato."
-                } }, enabled = !busy && profile != null) { Text("Salva profilo") }
+                } }, enabled = !busy && profile != null) { Text(localized("Salva profilo")) }
                 HorizontalDivider()
-                Text("Aspetto", style = MaterialTheme.typography.titleMedium)
+                Text(localized("Lingua"), style = MaterialTheme.typography.titleMedium)
+                LanguageSelector()
+                Text(localized("Aspetto"), style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("dark" to "Scuro", "light" to "Chiaro", "system" to "Sistema").forEach { (value, label) ->
-                        FilterChip(theme == value, { onTheme(value) }, label = { Text(label) })
+                        FilterChip(theme == value, { onTheme(value) }, label = { Text(localized(label)) })
                     }
                 }
                 HorizontalDivider()
-                Text("Credenziali", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(email, { email = it }, label = { Text("Nuova email") }, singleLine = true,
+                Text(localized("Credenziali"), style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(email, { email = it }, label = { Text(localized("Nuova email")) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth(), enabled = !busy)
                 Button({ run { api.updateAccount(email = email); message = "Controlla le email di conferma prima di usare il nuovo indirizzo." } },
-                    enabled = !busy && email.isNotBlank() && email != session.email) { Text("Modifica email") }
-                OutlinedTextField(password, { password = it }, label = { Text("Nuova password") }, singleLine = true,
+                    enabled = !busy && email.isNotBlank() && email != session.email) { Text(localized("Modifica email")) }
+                OutlinedTextField(password, { password = it }, label = { Text(localized("Nuova password")) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth(), enabled = !busy)
-                Text(PasswordPolicy.requirements, style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(passwordConfirmation, { passwordConfirmation = it }, label = { Text("Conferma nuova password") }, singleLine = true,
+                Text(localized(PasswordPolicy.requirements), style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(passwordConfirmation, { passwordConfirmation = it }, label = { Text(localized("Conferma nuova password")) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth(), enabled = !busy,
                     isError = passwordConfirmation.isNotEmpty() && passwordConfirmation != password)
                 if (passwordConfirmation.isNotEmpty() && passwordConfirmation != password)
-                    Text("Le password non coincidono.", color = MaterialTheme.colorScheme.error)
+                    Text(localized("Le password non coincidono."), color = MaterialTheme.colorScheme.error)
                 Button({ run {
                     require(password == passwordConfirmation) { "Le password non coincidono." }
                     api.updateAccount(password = password); password = ""; passwordConfirmation = ""; message = "Password aggiornata."
-                } }, enabled = !busy && PasswordPolicy.error(password) == null && passwordConfirmation == password) { Text("Modifica password") }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                } }, enabled = !busy && PasswordPolicy.error(password) == null && passwordConfirmation == password) { Text(localized("Modifica password")) }
+                error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+                message?.let { Text(localized(it), color = MaterialTheme.colorScheme.primary) }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 HorizontalDivider()
                 Text("Savely Android ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
-                TextButton({ onLegal("privacy") }) { Text("Privacy") }
-                TextButton({ onLegal("terms") }) { Text("Termini di servizio") }
-                TextButton({ onLegal("cookies") }) { Text("Memorizzazione locale") }
-                Text("Le operazioni sincronizzate sono visibili anche nel tuo account web.", style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onSignOut, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Esci dall’account") }
-                TextButton({ deleteDialog = true }, enabled = !busy) { Text("Elimina definitivamente l’account", color = MaterialTheme.colorScheme.error) }
+                TextButton({ onLegal("privacy") }) { Text(localized("Privacy")) }
+                TextButton({ onLegal("terms") }) { Text(localized("Termini di servizio")) }
+                TextButton({ onLegal("cookies") }) { Text(localized("Memorizzazione locale")) }
+                Text(localized("Le operazioni sincronizzate sono visibili anche nel tuo account web."), style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onSignOut, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(localized("Esci dall’account")) }
+                TextButton({ deleteDialog = true }, enabled = !busy) { Text(localized("Elimina definitivamente l’account"), color = MaterialTheme.colorScheme.error) }
             }
         }
     }
     if (deleteDialog) AlertDialog(onDismissRequest = { if (!busy) deleteDialog = false },
-        title = { Text("Eliminare l’account?") },
+        title = { Text(localized("Eliminare l’account?")) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("L’account e i dati saranno eliminati anche da Savely web. Questa operazione non può essere annullata. Scrivi ELIMINA per continuare.")
-            OutlinedTextField(deleteConfirmation, { deleteConfirmation = it }, label = { Text("Conferma") }, enabled = !busy)
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Text(localized("L’account e i dati saranno eliminati anche da Savely web. Questa operazione non può essere annullata. Scrivi ELIMINA per continuare."))
+            OutlinedTextField(deleteConfirmation, { deleteConfirmation = it }, label = { Text(localized("Conferma")) }, enabled = !busy)
+            error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         } }, confirmButton = {
             TextButton({ run { api.invokeFunction("delete-account"); deleteDialog = false; onSignOut() } },
-                enabled = !busy && deleteConfirmation == "ELIMINA") { Text("Elimina account") }
-        }, dismissButton = { TextButton({ deleteDialog = false; deleteConfirmation = "" }, enabled = !busy) { Text("Annulla") } })
+                enabled = !busy && deleteConfirmation == "ELIMINA") { Text(localized("Elimina account")) }
+        }, dismissButton = { TextButton({ deleteDialog = false; deleteConfirmation = "" }, enabled = !busy) { Text(localized("Annulla")) } })
 }
 
 @Composable
@@ -147,13 +149,14 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
     var error by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var confirmation by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var removalCode by remember { mutableStateOf("") }
     var currentSessionId by remember { mutableStateOf<String?>(null) }
     var revokedSessionIds by remember { mutableStateOf(emptySet<String>()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     suspend fun refresh() {
         currentSessionId = api.session()?.authSessionId()
-        factors = api.listMfaFactors()
+        factors = api.listMfaFactors(includeUnverified = true)
         sessions = api.rpc("get_active_sessions") as? JSONArray ?: throw IllegalArgumentException("Risposta sessioni non valida.")
     }
     fun run(block: suspend () -> Unit) {
@@ -168,59 +171,112 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
     }
     LaunchedEffect(api) { run { refresh() } }
     Column(modifier.verticalScroll(rememberScrollState()).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Verifica in due passaggi", style = MaterialTheme.typography.titleLarge)
+        Text(localized("Verifica in due passaggi"), style = MaterialTheme.typography.titleLarge)
         if (factors.length() == 0 && enrollment == null) {
-            Text("Proteggi l’accesso con un codice della tua app di autenticazione.")
-            Button({ run { enrollment = api.enrollTotp() } }, enabled = !busy) { Text("Configura autenticatore") }
+            Text(localized("Proteggi l’accesso con un codice della tua app di autenticazione."))
+            Button({ run { enrollment = api.enrollTotp() } }, enabled = !busy) { Text(localized("Configura autenticatore")) }
         }
         enrollment?.let { pending ->
             val totp = pending.getJSONObject("totp")
-            Text("Aggiungi questa chiave manuale alla tua app di autenticazione:")
+            Text(localized("Aggiungi questa chiave manuale alla tua app di autenticazione:"))
             androidx.compose.foundation.text.selection.SelectionContainer { Text(totp.getString("secret")) }
             TextButton({
                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(totp.getString("uri")))) }
                     .onFailure { error = "Nessuna app di autenticazione disponibile. Inserisci la chiave manualmente." }
-            }) { Text("Apri autenticatore") }
-            OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, label = { Text("Codice a 6 cifre") }, singleLine = true,
+            }) { Text(localized("Apri autenticatore")) }
+            OutlinedTextField(code, { code = it.filter { digit -> digit in '0'..'9' }.take(6) }, label = { Text(localized("Codice a 6 cifre")) }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
             Button({ run { api.verifyTotp(pending.getString("id"), code); enrollment = null; code = ""; refresh(); message = "Autenticatore attivato." } },
-                enabled = !busy && code.length == 6) { Text("Attiva verifica") }
-            TextButton({ run { api.unenrollTotp(pending.getString("id")); enrollment = null; code = "" } }, enabled = !busy) { Text("Annulla configurazione") }
+                enabled = !busy && code.length == 6) { Text(localized("Attiva verifica")) }
+            TextButton({ error = null; confirmation = "pending-factor" to pending.getString("id") }, enabled = !busy) { Text(localized("Annulla configurazione")) }
         }
         for (index in 0 until factors.length()) {
             val factor = factors.getJSONObject(index)
-            Text("Autenticatore attivo")
-            TextButton({ confirmation = "factor" to factor.getString("id") }, enabled = !busy) { Text("Rimuovi autenticatore") }
+            val factorId = factor.getString("id")
+            if (factorId == enrollment?.optString("id")) continue
+            if (factor.optString("status") == "unverified") {
+                Text(localized("Configurazione autenticatore incompleta"))
+                Text(localized("La verifica non è attiva. Se non hai più la chiave, annulla questa configurazione e avviane una nuova."),
+                    style = MaterialTheme.typography.bodySmall)
+                TextButton({ error = null; confirmation = "pending-factor" to factorId }, enabled = !busy,
+                    modifier = Modifier.testTag("remove-pending-factor-$factorId")) { Text(localized("Annulla configurazione incompleta")) }
+            } else {
+                Text(localized("Autenticatore attivo"))
+                TextButton({ removalCode = ""; error = null; confirmation = "factor" to factorId }, enabled = !busy) { Text(localized("Rimuovi autenticatore")) }
+            }
         }
         HorizontalDivider()
-        Text("Accessi registrati", style = MaterialTheme.typography.titleLarge)
-        Text("L’elenco mostra gli accessi degli ultimi 30 giorni. Revoca l’accesso di un dispositivo per impedirne il rinnovo.", style = MaterialTheme.typography.bodySmall)
+        Text(localized("Accessi registrati"), style = MaterialTheme.typography.titleLarge)
+        Text(localized("L’elenco mostra gli accessi degli ultimi 30 giorni. Revoca l’accesso di un dispositivo per impedirne il rinnovo."), style = MaterialTheme.typography.bodySmall)
         for (index in 0 until sessions.length()) {
             val row = sessions.getJSONObject(index)
             val sessionId = revocableSessionId(row)
             if (sessionId in revokedSessionIds) continue
-            ListItem(headlineContent = { Text(row.optString("user_agent").takeUnless { it == "null" || it.isBlank() } ?: "Dispositivo") },
+            val device = row.optString("user_agent").takeUnless { it == "null" || it.isBlank() }
+            ListItem(headlineContent = { Text(device ?: localized("Dispositivo")) },
                 supportingContent = { Column {
                     Text(row.optString("created_at"))
-                    if (sessionId == currentSessionId && sessionId != null) Text("Questo dispositivo")
-                    if (sessionId == null) Text("Sessione non revocabile da questo elenco.")
+                    if (sessionId == currentSessionId && sessionId != null) Text(localized("Questo dispositivo"))
+                    if (sessionId == null) Text(localized("Sessione non revocabile da questo elenco."))
                 } }, trailingContent = {
                     TextButton({ sessionId?.let { confirmation = "session" to it } }, enabled = !busy && sessionId != null,
-                        modifier = Modifier.testTag("revoke-session-${sessionId ?: "unavailable-$index"}")) { Text("Revoca") }
+                        modifier = Modifier.testTag("revoke-session-${sessionId ?: "unavailable-$index"}")) { Text(localized("Revoca")) }
                 })
         }
-        if (sessions.length() == 0 && !busy) Text("Nessuna sessione da mostrare.")
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        if (sessions.length() == 0 && !busy) Text(localized("Nessuna sessione da mostrare."))
+        error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+        message?.let { Text(localized(it), color = MaterialTheme.colorScheme.primary) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        OutlinedButton({ run { refresh() } }, enabled = !busy) { Text("Aggiorna sicurezza") }
+        OutlinedButton({ run { refresh() } }, enabled = !busy) { Text(localized("Aggiorna sicurezza")) }
     }
-    confirmation?.let { (kind, id) -> AlertDialog(onDismissRequest = { confirmation = null },
-        title = { Text(if (kind == "factor") "Rimuovere l’autenticatore?" else "Revocare questa sessione?") },
-        text = { Text(if (kind == "factor") "La verifica in due passaggi sarà disattivata per questo autenticatore." else "Il dispositivo dovrà accedere nuovamente. Anche la sessione corrente potrebbe essere chiusa.") },
-        confirmButton = { TextButton({ confirmation = null; run {
-            if (kind == "factor") { api.unenrollTotp(id); refresh() }
-            else if (api.revokeSession(id)) onSignOut()
-            else { revokedSessionIds = revokedSessionIds + id; refresh(); message = "Accesso revocato." }
-        } }) { Text("Conferma") } }, dismissButton = { TextButton({ confirmation = null }) { Text("Annulla") } }) }
+    confirmation?.let { (kind, id) -> AlertDialog(onDismissRequest = {
+        if (!busy) { confirmation = null; removalCode = "" }
+    },
+        title = { Text(localized(when (kind) {
+            "factor" -> "Rimuovere l’autenticatore?"
+            "pending-factor" -> "Annullare la configurazione?"
+            else -> "Revocare questa sessione?"
+        })) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(localized(when (kind) {
+                "factor" -> "Inserisci un nuovo codice della tua app di autenticazione per rimuovere la verifica in due passaggi."
+                "pending-factor" -> "Rimuovi soltanto questa configurazione incompleta. Gli autenticatori già attivi resteranno disponibili."
+                else -> "Il dispositivo dovrà accedere nuovamente. Anche la sessione corrente potrebbe essere chiusa."
+            }))
+            if (kind == "factor") {
+                OutlinedTextField(removalCode, { value -> removalCode = value.filter { it in '0'..'9' }.take(6) },
+                    label = { Text(localized("Codice per rimuovere l’autenticatore")) }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !busy)
+            }
+            if (kind == "factor" || kind == "pending-factor") error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+        } },
+        confirmButton = { TextButton({
+            if (kind == "factor") {
+                val submittedCode = removalCode
+                run {
+                    try {
+                        api.verifyTotp(id, submittedCode)
+                        api.unenrollTotp(id)
+                        confirmation = null
+                        refresh()
+                        message = "Autenticatore rimosso."
+                    } finally { removalCode = "" }
+                }
+            } else if (kind == "pending-factor") {
+                run {
+                    api.unenrollPendingTotp(id)
+                    if (enrollment?.optString("id") == id) { enrollment = null; code = "" }
+                    confirmation = null
+                    refresh()
+                    message = "Configurazione incompleta rimossa."
+                }
+            } else {
+                confirmation = null
+                run {
+                    if (api.revokeSession(id)) onSignOut()
+                    else { revokedSessionIds = revokedSessionIds + id; refresh(); message = "Accesso revocato." }
+                }
+            }
+        }, enabled = !busy && (kind != "factor" || removalCode.length == 6)) { Text(localized("Conferma")) } },
+        dismissButton = { TextButton({ confirmation = null; removalCode = "" }, enabled = !busy) { Text(localized("Annulla")) } }) }
 }

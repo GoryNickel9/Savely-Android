@@ -1,34 +1,43 @@
 # APK e aggiornamenti
 
-La versione iniziale è un'alpha. Build e test locali non sostituiscono i gate backend e telefono in `TESTING.md`. Non è stata pubblicata una release stabile.
+La 0.1.8-alpha è una prerelease. Le prove locali e QA sono in TESTING.md e ROADMAP_CLOSURE.md; login reale con password, email/PKCE, MFA positivo, due utenti Coppia e Admin autorizzato non sono certificati. Nessuna release stabile è dichiarata.
 
-Ultimo APK locale verificato: `artifacts/savely-0.1.5-alpha.apk`, versionCode 6, 1.800.912 byte, SHA-256 `5c19146f97ddab4eb4e3e311440bcebadf6b6050a1c07a6cede41f217ee7d63e`. Firma v2 verificata, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1`. Aggiornamento sopra la 0.1.4-alpha riuscito sul solo AVD SavelyTest, senza account; sessione reale durante aggiornamento e telefono restano aperti. Le alpha precedenti e i checksum sono conservati in `artifacts/`, esclusa da Git.
+## APK e continuità della firma
 
-## Debug
+APK: `artifacts/savely-0.1.8-alpha-final.apk`, versionCode 9, 2.582.341 byte. SHA-256: `247950fadb10e93cb844a48b22d2792d011eca10e92afb83bb4cb56496801482`. Il nome del file distribuito è `savely-0.1.8-alpha.apk` (stessi byte).
 
-`./gradlew :app:assembleDebug` produce `app/build/outputs/apk/debug/app-debug.apk`, firmato dalla chiave debug locale. Serve alle prove; una firma diversa richiede disinstallazione e può rimuovere la sessione e le preferenze. Non usare la chiave debug per la distribuzione definitiva.
+Firma v2 verificata, RSA 3072, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1`: stesso certificato delle 0.1.5 e 0.1.7. Min SDK 26 e target 36. L’APK contiene la chiave pubblicabile Supabase; il controllo sul contenuto decompresso non trova le due chiavi server controllate. Non è una prova universale dell’assenza di qualsiasi segreto.
 
-## Firma di distribuzione
+Sul solo AVD Android 15, l’aggiornamento firmato 0.1.7/code 8 → 0.1.8/code 9 conserva la preferenza inglese. L’APK finale è installato e la schermata Accedi ispezionata, inclusi i pulsanti Show/Hide. Non verifica una sessione autenticata conservata durante l’aggiornamento. Il primo candidato non distribuito resta immutabile; il confronto ZIP conferma che il finale cambia soltanto le due etichette inglesi nel catalogo JSON e mantiene `classes.dex` byte per byte. Le precedenti prove backend restano associate alla stessa logica Kotlin.
 
-Il build legge la chiave solo attraverso queste variabili:
+La 0.1.7 installata dall’utente rimane un’evidenza distinta: uso generale corretto sul Doogee S100 Android 12, senza una nuova prova dettagliata dei flussi 0.1.8.
 
-```text
-SAVELY_KEYSTORE
-SAVELY_STORE_PASSWORD
-SAVELY_KEY_ALIAS
-SAVELY_KEY_PASSWORD
-```
+## Download e aggiornamenti
 
-Con le variabili configurate, `./gradlew :app:assembleRelease` genera un APK ottimizzato firmato. Senza chiave genera un APK unsigned, che non va offerto come installabile. La configurazione backend deve includere esclusivamente la chiave pubblica, mai service role, token CardTrader o credenziali server.
+La distribuzione della 0.1.8 usa il tag [v0.1.8-alpha](https://github.com/GoryNickel9/Savely-Android-Releases/releases/tag/v0.1.8-alpha), con quattro asset: APK, `SHA256SUMS.txt`, `RELEASE_NOTES.md` e `VALIDATION.json`. Il rapporto pubblico non contiene identificativi QA o credenziali.
 
-Conservare un backup protetto della chiave e della password fuori da Git. Per tutti gli aggiornamenti dello stesso applicationId mantenere la firma e aumentare versionCode. Verificare con `apksigner verify --verbose --print-certs` e pubblicare il checksum SHA-256 insieme all'APK.
+Sorgenti privati in [Savely-Android](https://github.com/GoryNickel9/Savely-Android); APK, checksum e note in [Savely-Android-Releases](https://github.com/GoryNickel9/Savely-Android-Releases), repository pubblico separato. Nessun token GitHub è incluso nell’app.
 
-Su questo checkout è stata generata una chiave locale RSA 3072 in `signing/savely-release.jks`. La password casuale è protetta per l'utente Windows con DPAPI in `signing/password.dpapi`; entrambi sono esclusi da Git. `tools/build-release.ps1` carica la password senza stamparla e ripristina le variabili del processo dopo la build. Il file DPAPI non è trasferibile a un altro utente o computer: prima della distribuzione definitiva serve un backup della chiave e della password in un archivio protetto recuperabile. La chiave non è stata caricata su GitHub.
+La 0.1.8 consulta quella destinazione senza autenticazione. Un’installazione alpha cerca la versione numericamente più recente tra le prime 20 release non draft, comprese le prerelease; una versione stabile consulta soltanto la release stabile più recente. Risposte e note hanno limiti di dimensione; tag, versione e URL della release vengono validati. Un errore del controllo non interrompe le funzioni finanziarie e resta ritentabile dalla schermata Versione e aggiornamenti.
 
-## Distribuzione
+**Il primo passaggio dalla 0.1.7 alla 0.1.8 richiede il download manuale:** il vecchio APK conserva l’indirizzo della repository privata. Dalla 0.1.8 i metadati pubblici sono raggiungibili. Il controllo propone un collegamento; download e conferma dell’installazione spettano al browser e ad Android. Non esiste installazione silenziosa. I dati backend possono cambiare senza APK, ma modifiche a UI e logica Kotlin richiedono una nuova versione.
 
-I workflow Android vivono solo in questa repo. Sono presenti build/test, audit sorgenti e `release.yml` per una build firmata manuale; build/test della versione 0.1.0-alpha passa su GitHub ([CI 38154018127](https://github.com/GoryNickel9/Savely-Android/actions/runs/38154018127)); firma e audit manuali non sono stati eseguiti. La prima CI ha fallito il setup SDK perché chiedeva il pacchetto rimosso tools; il workflow ora richiede esplicitamente i pacchetti Android 36 supportati. Il workflow di firma verifica APK e checksum e carica artifact, senza pubblicare una GitHub Release. Richiede variabili pubbliche Supabase e i secret `SAVELY_KEYSTORE_BASE64`, `SAVELY_STORE_PASSWORD`, `SAVELY_KEY_ALIAS`, `SAVELY_KEY_PASSWORD`; non sono ancora configurati. L'audit non cambia Savely o la baseline. Se Savely è privata, necessita di `SAVELY_WEB_READ_TOKEN` con accesso in sola lettura a quella repo.
+## Build locale
 
-L'installazione diretta richiede il consenso Android per la sorgente usata per aprire l'APK. La schermata nativa Versione e aggiornamenti consulta le release stabili pubbliche e apre note e download nel browser; l'utente conferma l'installazione. Un controllo pubblico all'apertura della sessione mostra un collegamento quando esiste una versione stabile più recente; un errore non interrompe le funzioni finanziarie e può essere ritentato dalla schermata. Il controllo usa la [REST API GitHub](https://docs.github.com/en/rest/releases/releases#get-the-latest-release) senza credenziali; le prerelease non sono proposte automaticamente. Il download e l'installazione restano gestiti dal browser e da Android secondo il [normale intent web](https://developer.android.com/guide/components/intents-common#Browser).
+`./gradlew :app:assembleDebug` genera un APK firmato con la chiave debug. Non distribuire questa firma come release. Non disinstallare un’app con dati dell’utente per aggirare una firma differente.
 
-La repository Android è attualmente privata. Il controllo pubblico non può distinguerla da una repository senza release pubbliche e non dichiara l'app aggiornata quando riceve HTTP 404. Il link apre comunque le release nel browser, dove il proprietario può autenticarsi a GitHub. Per aggiornamenti automatici distribuibili ad altri utenti serviranno metadati pubblici o una destinazione pubblica concordata; la visibilità della repo non è stata cambiata e nessun token GitHub viene incluso nell'APK.
+Il build release legge esclusivamente `SAVELY_KEYSTORE`, `SAVELY_STORE_PASSWORD`, `SAVELY_KEY_ALIAS` e `SAVELY_KEY_PASSWORD`. Senza configurazione produce un APK unsigned. `tools/build-release.ps1` carica la password DPAPI in memoria, genera la build e ripristina le variabili del processo; nessuna password viene stampata.
+
+La chiave locale è in `signing/savely-release.jks`, la password DPAPI in `signing/password.dpapi`; directory e credenziali escluse da Git. La configurazione dell’APK deve contenere solo URL e chiave pubblica Supabase. Credenziali amministrative, CardTrader e server restano fuori dalla build.
+
+## Backup portabile
+
+`tools/backup-signing.ps1` crea un archivio AES-256-GCM della chiave, alias e password, con chiave di recupero separata e ACL limitate all’utente Windows. Il backup è fuori da Git in `C:/Users/GoryNickel/Documents/Savely-Signing-Backup`. Sono passati decifratura senza DPAPI, confronto byte per byte e rifiuto di un archivio alterato. Non pubblicare nessuno dei due file.
+
+Entrambi i file sono ancora sullo stesso computer: `offDeviceBackupVerified=false`. Il backup è portabile, ma la sopravvivenza alla perdita del computer richiede una copia protetta altrove, non ancora verificata. La chiave di recupero va conservata separatamente dall’archivio.
+
+## CI e pubblicazione
+
+Per questa versione build, lint, test e firma sono locali. I workflow Android sono tutti manuali (`workflow_dispatch`); nessuna CI GitHub è stata avviata. Le vecchie esecuzioni 0.1.5 rimangono evidenza storica, non validazione della 0.1.8. Nessun workflow o deploy del sito è stato modificato.
+
+Prima di pubblicare: conservare APK immutabile e checksum, verificare firma e aggiornamento, associare le note al commit dei sorgenti, caricare solo APK/checksum/note e un rapporto pubblico privo di dati QA. Dopo la pubblicazione verificare metadati e download senza autenticazione, e confrontare il SHA-256 scaricato.

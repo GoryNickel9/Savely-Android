@@ -5,6 +5,7 @@ import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
@@ -122,7 +123,7 @@ class RealBackendSmokeTest {
             activity = launched
             compose.waitUntil(45_000) { compose.onAllNodesWithText("Dashboard", substring = false).fetchSemanticsNodes().isNotEmpty() }
             compose.waitUntil(45_000) { compose.onAllNodesWithText("Mese corrente fino a oggi").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Movimenti", substring = false).performClick()
+            compose.onNodeWithTag("nav-transactions").performClick()
             compose.waitUntil(45_000) { compose.onAllNodesWithText("Periodo: Questo mese").fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(marker))
             compose.waitUntil(45_000) { compose.onAllNodesWithText(marker, substring = false).fetchSemanticsNodes().isNotEmpty() }
