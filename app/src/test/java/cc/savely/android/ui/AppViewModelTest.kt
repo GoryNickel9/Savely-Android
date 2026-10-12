@@ -300,6 +300,45 @@ class AppViewModelTest {
         assertEquals("challenge-server-failure", JSONObject(verification.body.readUtf8()).getString("challenge_id"))
     }
 
+    @Test fun staleMfaGateCannotElevateAReplacementLoginOfTheSameUserBeforeRestore() = runTest {
+        val factor = """{"factors":[{"id":"factor-1","factor_type":"totp","status":"verified"}]}"""
+        server.enqueue(json(factor))
+        val model = createViewModel()
+        val shown = awaitIdle(model)
+        val original = requireNotNull(shown.session)
+        assertEquals("factor-1", shown.mfaFactor)
+        assertEquals("aal1", assuranceLevel(original))
+        assertEquals("/auth/v1/user", takeRequest().requestUrl?.encodedPath)
+
+        val replacement = liveSession("22222222-2222-4222-8222-222222222222").copy(refreshToken = "replacement-refresh")
+        val elevatedReplacement = replacement.copy(accessToken = liveSession(requireNotNull(replacement.authSessionId()), "aal2").accessToken)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.requestUrl?.encodedPath) {
+                "/auth/v1/factors/factor-1/challenge" -> json("""{"id":"replacement-challenge"}""")
+                "/auth/v1/factors/factor-1/verify" -> json(elevatedReplacement.toJson().toString())
+                "/auth/v1/user" -> json(factor)
+                "/rest/v1/profiles" -> json("""[{"permissions":{"poker":true}}]""")
+                else -> json("{}", 404)
+            }
+        }
+        // The store changes before the old gate's click; no restore observes the new session first.
+        store.save(replacement)
+        model.verifyMfa("123456")
+        val refused = awaitIdle(model)
+        assertEquals("La sessione è cambiata. Aggiorna la schermata prima di continuare.", refused.error)
+        assertEquals(original, refused.session)
+        assertEquals("factor-1", refused.mfaFactor)
+        assertTrue(refused.permissions.isEmpty())
+        assertEquals(replacement, store.load())
+        assertEquals("aal1", assuranceLevel(requireNotNull(store.load())))
+        assertNotEquals(original.authSessionId(), store.load()?.authSessionId())
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(1, server.requestCount) // No challenge, verify, profile, refresh or logout after the old gate click.
+        assertNull(server.takeRequest(100, TimeUnit.MILLISECONDS))
+        assertNull(api.sessionOwnerRevision(original))
+        assertNotNull(api.sessionOwnerRevision(replacement))
+    }
+
     @Test fun paneRefreshRevocationClearsForegroundAccountWithoutRestoreOrResume() = runTest {
         enqueueAcceptedAccount()
         val model = createViewModel()

@@ -477,9 +477,20 @@ class SupabaseApi(
         }
     }
 
-    suspend fun enrollTotp(expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject = objectValue(authorized(endpoint(base, "auth/v1/factors"), "POST",
-        JSONObject().put("factor_type", "totp").put("friendly_name", "Savely Android"),
-        expectedOwner = expectedOwner, expectedRevision = expectedRevision))
+    suspend fun enrollTotp(expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject {
+        val enrollment = objectValue(authorized(endpoint(base, "auth/v1/factors"), "POST",
+            JSONObject().put("factor_type", "totp").put("friendly_name", "Savely Android"),
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision))
+        val id = enrollment.opt("id") as? String ?: throw responseError()
+        try { validateId(id) } catch (_: ApiException) { throw responseError() }
+        val totp = enrollment.opt("totp") as? JSONObject ?: throw responseError()
+        val secret = totp.opt("secret") as? String ?: throw responseError()
+        val uri = totp.opt("uri") as? String ?: throw responseError()
+        if (secret.isBlank() || secret.length > MAX_TOTP_SECRET_CHARACTERS ||
+            uri.isBlank() || uri.length > MAX_TOTP_URI_CHARACTERS) throw responseError()
+        // QR is optional: the UI can use the manual key when SVG validation fails.
+        return enrollment
+    }
 
     suspend fun verifyTotp(factorId: String, code: String,
         expectedOwner: String? = null, expectedRevision: Long? = null): Session = authMutex.withLock {
@@ -805,6 +816,8 @@ class SupabaseApi(
         private val EMAIL = Regex("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")
         private const val REFRESH_MARGIN_SECONDS = 60
         private const val MAX_RESPONSE_BYTES = 32L * 1024 * 1024
+        private const val MAX_TOTP_SECRET_CHARACTERS = 4096
+        private const val MAX_TOTP_URI_CHARACTERS = 16_384
         private const val ACCESS_AUDIT_WARNING = "Accesso riuscito, ma questo dispositivo non è stato registrato nell’elenco degli accessi. Riprova al prossimo accesso."
         private val INVALID_REFRESH_CODES = setOf("refresh_token_not_found", "refresh_token_already_used", "session_not_found", "session_expired", "bad_jwt", "user_banned", "user_not_found")
         val PERMISSION_NAMES = listOf("admin", "poker", "fumo", "fire", "tcg", "libreria", "couple_expenses")

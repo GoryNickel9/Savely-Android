@@ -276,6 +276,75 @@ class SupabaseApiTest {
         assertEquals(0, server.requestCount)
     }
 
+    @Test fun malformedEnrollmentFieldsFailBeforePublishingSetupWithoutRetryOrSecretDisclosure() = runBlocking {
+        val saved = liveSession().also { store.save(it) }
+        val privateSecret = "PRIVATE_SYNTHETIC_SECRET"
+        val uri = "otpauth://totp/Synthetic?secret=$privateSecret"
+        fun valid() = JSONObject().put("id", "factor-1")
+            .put("totp", JSONObject().put("secret", privateSecret).put("uri", uri))
+        val malformed = mutableListOf<String>("[]", "{}", "{not-json", """{"id":"factor-1"}""")
+        malformed += valid().apply { remove("id") }.toString()
+        for (invalid in listOf(JSONObject.NULL, 42, true, JSONObject(), JSONArray(), "", " \t")) {
+            malformed += valid().put("id", invalid).toString()
+            malformed += valid().put("totp", invalid).toString()
+            malformed += valid().apply { getJSONObject("totp").put("secret", invalid) }.toString()
+            malformed += valid().apply { getJSONObject("totp").put("uri", invalid) }.toString()
+        }
+        malformed += valid().apply { getJSONObject("totp").remove("secret") }.toString()
+        malformed += valid().apply { getJSONObject("totp").remove("uri") }.toString()
+        malformed += valid().put("id", "factor/foreign").toString()
+        malformed += valid().put("id", "x".repeat(129)).toString()
+        for ((index, body) in malformed.withIndex()) {
+            server.enqueue(json(body))
+            val error = failure { api.enrollTotp() }
+            assertEquals("Payload $index", ApiError.RESPONSE, error.kind)
+            assertEquals("Il servizio ha restituito dati non validi.", error.message)
+            assertFalse(error.toString().contains(privateSecret))
+            assertFalse(error.toString().contains("otpauth"))
+            assertEquals(saved, store.load())
+            assertEquals(index + 1, server.requestCount)
+            assertEnrollmentPost()
+        }
+    }
+
+    @Test fun enrollmentRequiredTextBoundsRejectOversizeAndKeepBoundaryValuesUnchanged() = runBlocking {
+        val saved = liveSession().also { store.save(it) }
+        for ((secretLength, uriLength) in listOf(4097 to 1, 1 to 16_385)) {
+            server.enqueue(json(JSONObject().put("id", "factor-1").put("totp", JSONObject()
+                .put("secret", "S".repeat(secretLength)).put("uri", "U".repeat(uriLength))).toString()))
+            assertEquals(ApiError.RESPONSE, failure { api.enrollTotp() }.kind)
+            assertEnrollmentPost()
+        }
+        val boundary = JSONObject().put("id", "factor-1").put("totp", JSONObject()
+            .put("secret", "S".repeat(4096)).put("uri", "U".repeat(16_384)))
+        server.enqueue(json(boundary.toString()))
+        val accepted = api.enrollTotp()
+        assertEquals(boundary.toString(), accepted.toString())
+        assertEnrollmentPost()
+        assertEquals(3, server.requestCount)
+        assertEquals(saved, store.load())
+    }
+
+    @Test fun validEnrollmentPreservesManualSetupWithAbsentOrInvalidOptionalQr() = runBlocking {
+        val saved = liveSession().also { store.save(it) }
+        val secret = "JBSWY3DPEHPK3PXP"
+        val uri = "otpauth://totp/Synthetic%20Issuer:person?secret=$secret&issuer=Synthetic%20Issuer"
+        for ((index, qr) in listOf(null, JSONObject.NULL, "invalid SVG").withIndex()) {
+            val totp = JSONObject().put("secret", secret).put("uri", uri)
+            if (qr != null) totp.put("qr_code", qr)
+            val enrollment = JSONObject().put("id", "factor-1").put("totp", totp)
+            server.enqueue(json(enrollment.toString()))
+            val accepted = api.enrollTotp()
+            assertEquals("factor-1", accepted.getString("id"))
+            assertEquals(secret, accepted.getJSONObject("totp").getString("secret"))
+            assertEquals(uri, accepted.getJSONObject("totp").getString("uri"))
+            assertEquals(enrollment.toString(), accepted.toString())
+            assertEquals(index + 1, server.requestCount)
+            assertEnrollmentPost()
+            assertEquals(saved, store.load())
+        }
+    }
+
     @Test fun minimalSoftDeleteChecksAffectedCountWithoutSelectingHiddenRow() = runBlocking {
         store.save(liveSession())
         server.enqueue(MockResponse().setResponseCode(204).setHeader("Content-Range", "*/1"))
@@ -340,6 +409,18 @@ class SupabaseApiTest {
         try { block(); fail("Expected ApiException") }
         catch (error: ApiException) { return error }
         throw AssertionError("Unreachable")
+    }
+
+    private fun assertEnrollmentPost() {
+        val request = requireNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+        assertEquals("POST", request.method)
+        assertEquals("/auth/v1/factors", request.path)
+        assertEquals("Bearer access", request.getHeader("Authorization"))
+        assertEquals("public-key", request.getHeader("apikey"))
+        val body = JSONObject(request.body.readUtf8())
+        assertEquals(setOf("factor_type", "friendly_name"), body.keys().asSequence().toSet())
+        assertEquals("totp", body.getString("factor_type"))
+        assertEquals("Savely Android", body.getString("friendly_name"))
     }
 
     private suspend fun withWebTlsFixture(block: suspend (SupabaseApi, MockWebServer, List<HttpUrl>) -> Unit) {

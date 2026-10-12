@@ -22,6 +22,9 @@ import org.junit.runner.RunWith
 import java.util.ArrayDeque
 import java.util.UUID
 import java.io.File
+import java.nio.ByteBuffer
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /** Opt-in accessibility-only qualification of the installed, signed, non-debuggable target APK. */
 @Suppress("DEPRECATION") // recycle still releases accessibility nodes on supported API 26-32.
@@ -29,6 +32,230 @@ import java.io.File
 class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
+
+    @Test fun mfaTotpReferenceVector() {
+        val run = preflight(12)
+        requireCode(qaTotp("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 59) == "287082", "RFC6238_VECTOR_FAILED")
+        writeReport(run, "mfa-vector", baseReport(run, 12, "mfa-vector").put("stage", "passed"))
+    }
+
+    @Test fun qualifyDedicatedQaMfaForms() {
+        val run = preflight(12)
+        requireCode(InstrumentationRegistry.getArguments().getString("releaseQualificationAccount") == "a", "MFA_QA_OWNER_INVALID")
+        val loginRun = InstrumentationRegistry.getArguments().getString("releaseQualificationLoginRunId").orEmpty()
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false), "LOGIN_RUN_INVALID")
+        val previous = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(previous.optString("stage") == "passed" && previous.optString("user_id") == QA_USER &&
+            previous.optBoolean("settings_identity") && previous.optBoolean("english_selected"), "QA_LOGIN_CHECKPOINT_INVALID")
+        requireCode(!privateFile("release-qualification-$run-mfa-forms.json").exists(), "MFA_REPORT_ALREADY_EXISTS")
+        requireCode(MFA_STAGES.none { privateFile("release-qualification-$run-mfa-${it.replace('_', '-')}.json").exists() }, "MFA_CHECKPOINT_ALREADY_EXISTS")
+        val report = baseReport(run, 12, "mfa-forms")
+        var checkpoint = "started"
+        var lastSuccessfulCounter = -1L
+        fun checked(stage: String) {
+            checkpoint = stage
+            mfaCheckpoint(run, stage)
+        }
+        fun freshCode(secret: String): String {
+            val until = SystemClock.uptimeMillis() + 40_000
+            while (SystemClock.uptimeMillis() < until) {
+                val seconds = System.currentTimeMillis() / 1000
+                if (seconds / 30 > lastSuccessfulCounter && seconds % 30 < 22) {
+                    lastSuccessfulCounter = seconds / 30
+                    return qaTotp(secret, seconds)
+                }
+                SystemClock.sleep(250)
+            }
+            throw IllegalStateException("MFA_FRESH_COUNTER_TIMEOUT")
+        }
+        try {
+            // A second monouse input is consumed before any MFA action, solely for the later form login.
+            val credentials = consumeCredentials(run)
+            report.put("input_consumed", true).put("pid", launch())
+            openSettings(englishOnly = true)
+            requireQaEmail()
+            awaitProfileRead()
+            report.put("upgrade_preserved_authenticated_ui", true)
+            mfaOpenSecurity()
+
+            var secret = mfaStartEnrollment()
+            report.put("first_qr_accessible", true)
+            checked("pending_cancel_ready")
+            mfaTopClick("Cancel setup")
+            await("MFA_CANCEL_DIALOG_MISSING") { hasText("Cancel setup?") }
+            clickLabel(setOf("Cancel"), "MFA_CANCEL_BUTTON_MISSING")
+            await("MFA_CANCEL_NOT_DISMISSED") { !hasText("Cancel setup?") }
+            requireCode(exists { it.text?.toString() == secret }, "MFA_SETUP_LOST_AFTER_CANCEL")
+            checked("pending_cancel_kept")
+            clickLabel(setOf("Account"), "ACCOUNT_PANE_MISSING")
+            await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
+            requireCode(!exists { it.text?.toString() == secret }, "MFA_SECRET_RETAINED_OUTSIDE_SETUP")
+            mfaOpenSecurity()
+            seekLabel(setOf("Incomplete authenticator setup"), "MFA_PENDING_MISSING", scroll = true).recycle()
+            requireCode(!exists { it.text?.toString() == secret }, "MFA_SECRET_RESTORED")
+            secret = ""
+            checked("pending_persisted")
+            mfaTopClick("Cancel incomplete setup")
+            await("MFA_CANCEL_DIALOG_MISSING") { hasText("Cancel setup?") }
+            clickLabel(setOf("Confirm"), "MFA_CONFIRM_MISSING")
+            mfaAwaitMessage("Incomplete setup removed.")
+            checked("pending_removed")
+
+            secret = mfaStartEnrollment()
+            report.put("second_qr_accessible", true)
+            checked("enrollment_ready")
+            mfaFillCode("6-digit code", "12345")
+            requireCode(!exists { label(it, setOf("Enable verification")) && it.isEnabled && hasClickableAncestor(it) }, "MFA_SHORT_CODE_ENABLED")
+            mfaFillCode("6-digit code", mfaWrongCode(secret))
+            mfaTopClick("Enable verification")
+            mfaAwaitMessage("Incorrect or expired verification code.")
+            requireCode(exists { it.text?.toString() == secret }, "MFA_SETUP_LOST_AFTER_WRONG_CODE")
+            checked("enrollment_wrong")
+            mfaFillCode("6-digit code", freshCode(secret))
+            mfaTopClick("Enable verification")
+            mfaAwaitMessage("Authenticator enabled.")
+            requireCode(!exists { it.text?.toString() == secret }, "MFA_SECRET_RETAINED_AFTER_VERIFY")
+            checked("enrollment_verified")
+
+            openSettings(englishOnly = true)
+            requireQaEmail()
+            requireCode(logoutQa(report), "MFA_FIRST_LOGOUT_FAILED")
+            checked("logged_out")
+            setField(password = false, value = credentials.first)
+            setField(password = true, value = credentials.second)
+            hideKeyboardIfShown()
+            clickLabel(setOf("Sign in"), "LOGIN_SUBMIT_MISSING")
+            await("MFA_LOGIN_GATE_MISSING") { hasText("Two-step verification") && hasText("6-digit code") && !hasText("Dashboard") }
+            mfaFillCode("6-digit code", mfaWrongCode(secret))
+            mfaTopClick("Verify")
+            mfaAwaitMessage("Incorrect or expired verification code.")
+            requireCode(!hasText("Dashboard") && !hasText("Profile"), "MFA_GATE_EXPOSED_ACCOUNT_DATA")
+            checked("login_gate_wrong")
+            mfaFillCode("6-digit code", freshCode(secret))
+            mfaTopClick("Verify")
+            awaitDashboard()
+            checked("login_gate_verified")
+
+            openSettings(englishOnly = true)
+            requireQaEmail()
+            awaitProfileRead()
+            mfaOpenSecurity()
+            mfaTopClick("Remove authenticator")
+            await("MFA_REMOVE_DIALOG_MISSING") { hasText("Remove the authenticator?") }
+            clickLabel(setOf("Cancel"), "MFA_CANCEL_BUTTON_MISSING")
+            await("MFA_REMOVE_DIALOG_STILL_PRESENT") { !hasText("Remove the authenticator?") }
+            checked("removal_cancelled")
+            mfaTopClick("Remove authenticator")
+            await("MFA_REMOVE_DIALOG_MISSING") { hasText("Remove the authenticator?") }
+            mfaFillCode("Code to remove the authenticator", mfaWrongCode(secret))
+            clickLabel(setOf("Confirm"), "MFA_CONFIRM_MISSING")
+            mfaAwaitMessage("Incorrect or expired verification code.")
+            requireCode(exists { it.isEditable && it.text?.toString().orEmpty().isEmpty() }, "MFA_REMOVAL_CODE_NOT_CLEARED")
+            checked("removal_wrong")
+            mfaFillCode("Code to remove the authenticator", freshCode(secret))
+            clickLabel(setOf("Confirm"), "MFA_CONFIRM_MISSING")
+            mfaAwaitMessage("Authenticator removed.")
+            requireCode(!hasText("Remove the authenticator?"), "MFA_REMOVAL_DIALOG_RETAINED")
+            secret = ""
+            checked("removal_completed")
+            openSettings(englishOnly = true)
+            requireQaEmail()
+            requireCode(logoutQa(report), "MFA_FINAL_LOGOUT_FAILED")
+            checked("completed")
+            report.put("stage", "passed").put("cleanup_pending", false).put("checkpoint_count", MFA_STAGES.size)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("last_checkpoint", checkpoint).put("cleanup_pending", true)
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "mfa-forms", report) }
+    }
+
+    private fun mfaCheckpoint(run: String, stage: String) {
+        requireCode(stage in MFA_STAGES, "MFA_STAGE_INVALID")
+        val suffix = stage.replace('_', '-')
+        writeReport(run, "mfa-$suffix", JSONObject().put("run_id", run).put("user_id", QA_USER).put("stage", stage).put("status", "ready"))
+        val name = "release-qualification-$run-mfa-ack-$suffix.json"
+        val until = SystemClock.uptimeMillis() + 60_000
+        while (!privateFile(name).exists() && SystemClock.uptimeMillis() < until) SystemClock.sleep(250)
+        val ack = readJson(name, 1_024)
+        requireCode(ack.keys().asSequence().toSet() == setOf("run_id", "user_id", "stage", "status") &&
+            ack.optString("run_id") == run && ack.optString("user_id") == QA_USER &&
+            ack.optString("stage") == stage && ack.optString("status") == "observed", "MFA_ACK_INVALID")
+        requireCode(privateFile(name).delete(), "MFA_ACK_CONSUMPTION_FAILED")
+    }
+
+    private fun mfaOpenSecurity() {
+        scrollAccountToTop()
+        clickLabel(setOf("Security"), "SECURITY_PANE_MISSING")
+        await("MFA_SECURITY_MISSING") { hasText("Two-step verification") }
+    }
+
+    private fun mfaTopClick(label: String) {
+        hideKeyboardIfShown()
+        scrollAccountToTop()
+        clickLabel(setOf(label), "MFA_CONTROL_MISSING", scroll = true)
+    }
+
+    private fun mfaStartEnrollment(): String {
+        mfaTopClick("Set up authenticator")
+        seekLabel(setOf("Add this key manually to your authenticator app:"), "MFA_MANUAL_KEY_MISSING", scroll = true).recycle()
+        val node = find { !it.isEditable && Regex("[A-Z2-7]{16,256}").matches(it.text?.toString().orEmpty()) }
+            ?: throw IllegalStateException("MFA_MANUAL_KEY_INVALID")
+        val secret = try { node.text.toString() } finally { node.recycle() }
+        requireCode(hasText("QR code to set up your authenticator"), "MFA_QR_ACCESSIBILITY_MISSING")
+        return secret
+    }
+
+    private fun mfaFillCode(label: String, code: String) {
+        requireCode(Regex("[0-9]{5,6}").matches(code), "MFA_INPUT_INVALID")
+        hideKeyboardIfShown()
+        scrollAccountToTop()
+        var node = seekLabel(setOf(label), "MFA_CODE_FIELD_MISSING", scroll = true)
+        try {
+            for (depth in 0 until 8) {
+                if (node.isEditable && !node.isPassword) break
+                val parent = node.parent ?: throw IllegalStateException("MFA_EDITABLE_MISSING")
+                node.recycle(); node = parent
+            }
+            requireCode(node.isEditable && node.isEnabled && !node.isPassword, "MFA_EDITABLE_MISSING")
+            requireCode(node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,
+                Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, code) }), "MFA_SET_TEXT_REJECTED")
+            await("MFA_INPUT_NOT_CONFIRMED") { exists { it.isEditable && !it.isPassword && it.text?.toString() == code } }
+        } finally { node.recycle() }
+        hideKeyboardIfShown()
+    }
+
+    private fun mfaAwaitMessage(message: String) {
+        hideKeyboardIfShown()
+        scrollAccountToTop()
+        seekLabel(setOf(message), "MFA_MESSAGE_MISSING", scroll = true).recycle()
+    }
+
+    private fun mfaWrongCode(secret: String): String {
+        val seconds = System.currentTimeMillis() / 1000
+        val nearby = (-2L..2L).map { qaTotp(secret, seconds + it * 30) }.toSet()
+        return (0..9).map { it.toString().padStart(6, '0') }.first { it !in nearby }
+    }
+
+    // Same SHA1/30s/6-digit reference as RealAuthQualificationTest; real inputs stay in RAM only.
+    private fun qaTotp(secret: String, seconds: Long): String {
+        requireCode(Regex("[A-Z2-7]{16,256}").matches(secret), "MFA_SECRET_ENCODING_INVALID")
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        val key = ByteArray(secret.length * 5 / 8)
+        var buffer = 0; var bits = 0; var index = 0
+        for (char in secret) {
+            buffer = (buffer shl 5) or alphabet.indexOf(char); bits += 5
+            if (bits >= 8) { bits -= 8; key[index++] = (buffer shr bits).toByte() }
+        }
+        val hash = try {
+            Mac.getInstance("HmacSHA1").apply { init(SecretKeySpec(key, "HmacSHA1")) }
+                .doFinal(ByteBuffer.allocate(8).putLong(seconds / 30).array())
+        } finally { key.fill(0) }
+        val offset = hash.last().toInt() and 15
+        val value = ((hash[offset].toInt() and 127) shl 24) or ((hash[offset + 1].toInt() and 255) shl 16) or
+            ((hash[offset + 2].toInt() and 255) shl 8) or (hash[offset + 3].toInt() and 255)
+        hash.fill(0)
+        return (value % 1_000_000).toString().padStart(6, '0')
+    }
 
     @Test fun fillDedicatedQaCouplePublicField() {
         val run = preflight(11)
@@ -587,6 +814,9 @@ class ReleaseApkBlackBoxTest {
     private fun safeFailure(failure: Throwable): String = failure.message?.takeIf { it.matches(Regex("[A-Z_]{3,80}")) } ?: "BLACK_BOX_FAILURE"
 
     companion object {
+        private val MFA_STAGES = listOf("pending_cancel_ready", "pending_cancel_kept", "pending_persisted", "pending_removed",
+            "enrollment_ready", "enrollment_wrong", "enrollment_verified", "logged_out", "login_gate_wrong",
+            "login_gate_verified", "removal_cancelled", "removal_wrong", "removal_completed", "completed")
         private const val TARGET = "cc.savely.android"
         private const val TEST_PACKAGE = "cc.savely.android.releaseqa"
         private const val INPUT = "release-qualification-input.json"

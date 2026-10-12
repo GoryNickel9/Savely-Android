@@ -51,6 +51,7 @@ class SettingsMfaTest {
     private val verifyStatus = AtomicInteger(200)
     private val factorPresent = AtomicBoolean(true)
     private val pendingPresent = AtomicBoolean(false)
+    private val pendingVerified = AtomicBoolean(false)
     private val otherFactorsPresent = AtomicBoolean(false)
     private val pendingDeleteStatus = AtomicInteger(200)
     private val enrollments = AtomicInteger()
@@ -59,6 +60,7 @@ class SettingsMfaTest {
     private val verifyEntered = CountDownLatch(1)
     private val releaseVerification = CountDownLatch(1)
     private val challenges = AtomicInteger()
+    private val latestChallenge = AtomicReference("")
     private val verifications = AtomicInteger()
     private val deletions = AtomicInteger()
     private val unexpectedRequests = AtomicInteger()
@@ -66,6 +68,7 @@ class SettingsMfaTest {
     private val signedOut = AtomicBoolean(false)
     private val requests = CopyOnWriteArrayList<RecordedRequest>()
     private val enrollmentQr = AtomicReference(VALID_QR)
+    private val enrollmentStatus = AtomicInteger(200)
 
     @Before fun setup() {
         val certificate = HeldCertificate.Builder().commonName("Savely MFA removal fixture")
@@ -274,6 +277,121 @@ class SettingsMfaTest {
         assertNoLogoutOrForeignRequests()
     }
 
+    @Test fun enrollmentWrongCodeKeepsManualSetupAndExplicitRetryActivatesExactlyOnce() {
+        factorPresent.set(false)
+        verifyStatus.set(400)
+        startEnrollment()
+        val field = compose.onNodeWithText("Codice a 6 cifre", substring = false)
+        field.performScrollTo().performTextInput("000000")
+        activate().performScrollTo().performClick()
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithText("Codice di verifica non corretto o scaduto.").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(PENDING_SECRET).assertExists()
+        assertTrue(pendingPresent.get())
+        assertFalse(pendingVerified.get())
+        assertEquals(session, store.load())
+        assertEquals(1, challenges.get())
+        assertEquals(1, verifications.get())
+        assertEquals(1, enrollments.get())
+        assertEquals(0, requests.count { it.method == "DELETE" })
+        verifyStatus.set(200)
+        holdVerification.set(true)
+        field.performScrollTo().performTextReplacement("123456")
+        activate().performScrollTo()
+        val click = activate().fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+        compose.runOnIdle { click(); click() }
+        compose.waitUntil(15_000) { verifications.get() == 2 }
+        activate().assertIsNotEnabled()
+        field.assertIsNotEnabled()
+        compose.onNodeWithText("Apri autenticatore", substring = false).assertIsNotEnabled()
+        compose.onNodeWithText("Annulla configurazione", substring = false).assertIsNotEnabled()
+        assertEquals(2, challenges.get())
+        releaseVerification.countDown()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Autenticatore attivato.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(PENDING_SECRET).assertDoesNotExist()
+        compose.onNodeWithText("Codice a 6 cifre", substring = false).assertDoesNotExist()
+        compose.onNodeWithText("Autenticatore attivo").assertExists()
+        assertTrue(pendingVerified.get())
+        assertEquals(2, challenges.get())
+        assertEquals(2, verifications.get())
+        val challengeIds = requests.filter { it.requestUrl?.encodedPath == "/auth/v1/factors/$PENDING/verify" }
+            .map { JSONObject(it.body.clone().readUtf8()).getString("challenge_id") }
+        assertEquals(2, challengeIds.distinct().size)
+        assertEquals(token("verified"), store.load()?.accessToken)
+        assertEquals(SESSION_ID, store.load()?.authSessionId())
+        assertEquals(0, requests.count { it.method == "DELETE" })
+        assertNoLogoutOrForeignRequests()
+    }
+
+    @Test fun enrollmentServerFailureDoesNotRetryOrCreateAnAutomaticFactorDeletion() {
+        factorPresent.set(false)
+        enrollmentStatus.set(503)
+        openSecurity()
+        compose.waitUntil(15_000) { compose.onAllNodes(hasText("Configura autenticatore") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Configura autenticatore").performScrollTo().performClick()
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithText("Servizio temporaneamente non disponibile. Riprova.").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Configura autenticatore").assertIsEnabled()
+        compose.onNodeWithText(PENDING_SECRET).assertDoesNotExist()
+        assertEquals(1, enrollments.get())
+        assertFalse(pendingPresent.get())
+        assertEquals(0, challenges.get())
+        assertEquals(0, verifications.get())
+        assertEquals(0, requests.count { it.method == "DELETE" })
+        assertEquals(session, store.load())
+        assertNoLogoutOrForeignRequests()
+    }
+
+    @Test fun cancelEnrollmentRequiresConfirmationAndRemovesOnlyTheUnverifiedFactor() {
+        factorPresent.set(false)
+        startEnrollment()
+        compose.onNodeWithText("Annulla configurazione", substring = false).performScrollTo().performClick()
+        compose.onNode(hasText("Annulla", substring = false) and hasAnyAncestor(isDialog())).performClick()
+        compose.onNodeWithText(PENDING_SECRET).assertExists()
+        assertEquals(0, pendingDeletionAttempts.get())
+        compose.onNodeWithText("Annulla configurazione", substring = false).performScrollTo().performClick()
+        confirm().performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Configurazione incompleta rimossa.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(PENDING_SECRET).assertDoesNotExist()
+        compose.onNodeWithTag("totp-enrollment-qr").assertDoesNotExist()
+        compose.onNodeWithText("Configura autenticatore").assertExists()
+        assertEquals(1, pendingDeletionAttempts.get())
+        assertEquals(listOf("/auth/v1/factors/$PENDING"), requests.filter { it.method == "DELETE" }.map { it.requestUrl?.encodedPath })
+        assertEquals(0, challenges.get())
+        assertEquals(0, verifications.get())
+        assertEquals(session, store.load())
+        assertNoLogoutOrForeignRequests()
+    }
+
+    @Test fun sameUserReplacementLoginCannotConfirmThePreviousFactorDialog() {
+        openRemoval()
+        code().performTextInput("123456")
+        val replacement = session.copy(accessToken = token("replacement", REPLACEMENT_SESSION_ID), refreshToken = "replacement-refresh")
+        runBlocking { store.save(replacement); assertEquals(replacement, api.session()) }
+        val requestCount = requests.size
+        confirm().performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Rimuovere l’autenticatore?").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("Rimuovi autenticatore").assertDoesNotExist()
+        assertEquals(requestCount, requests.size)
+        assertEquals(0, challenges.get())
+        assertEquals(0, verifications.get())
+        assertEquals(0, deletions.get())
+        assertEquals(replacement, store.load())
+        assertNoLogoutOrForeignRequests()
+    }
+
+    private fun startEnrollment() {
+        openSecurity()
+        compose.waitUntil(15_000) { compose.onAllNodes(hasText("Configura autenticatore") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Configura autenticatore").performScrollTo().performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(PENDING_SECRET).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun activate() = compose.onNode(hasText("Attiva verifica", substring = false) and hasClickAction())
+
     private fun openSecurity() {
         compose.setContent { SavelyTheme("light") { SettingsScreen(api, session, "light", {}, { signedOut.set(true) }, {}) } }
         compose.waitUntil(15_000) { compose.onAllNodes(hasText("Salva profilo") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
@@ -337,7 +455,7 @@ class SettingsMfaTest {
                     val factors = JSONArray()
                     fun factor(id: String, type: String, status: String) = JSONObject().put("id", id).put("factor_type", type).put("status", status)
                     if (factorPresent.get()) factors.put(factor(FACTOR, "totp", "verified"))
-                    if (pendingPresent.get()) factors.put(factor(PENDING, "totp", "unverified"))
+                    if (pendingPresent.get()) factors.put(factor(PENDING, "totp", if (pendingVerified.get()) "verified" else "unverified"))
                     if (otherFactorsPresent.get()) {
                         factors.put(factor(OTHER_PENDING, "totp", "unverified"))
                         factors.put(factor(PHONE, "phone", "verified"))
@@ -349,28 +467,36 @@ class SettingsMfaTest {
                     if (request.method != "POST" || body == null || body.keys().asSequence().toSet() != setOf("factor_type", "friendly_name") ||
                         body.optString("factor_type") != "totp" || body.optString("friendly_name") != "Savely Android" || pendingPresent.get()) return unexpected()
                     enrollments.incrementAndGet()
+                    if (enrollmentStatus.get() == 503) return json("{}", 503)
                     pendingPresent.set(true)
                     json(JSONObject().put("id", PENDING).put("type", "totp")
                         .put("totp", JSONObject().put("secret", PENDING_SECRET).put("uri", "otpauth://totp/Synthetic?secret=$PENDING_SECRET")
                             .put("qr_code", enrollmentQr.get())).toString())
                 }
                 "/rest/v1/rpc/get_active_sessions" -> if (request.method == "POST" && request.body.readUtf8() == "{}") json("[]") else unexpected()
-                "/auth/v1/factors/$FACTOR/challenge" -> if (request.method == "POST" && request.body.readUtf8() == "{}") {
-                    challenges.incrementAndGet()
-                    json("""{"id":"synthetic-challenge"}""")
+                "/auth/v1/factors/$FACTOR/challenge", "/auth/v1/factors/$PENDING/challenge" -> if (request.method == "POST" && request.body.readUtf8() == "{}") {
+                    if (request.requestUrl?.encodedPath == "/auth/v1/factors/$PENDING/challenge" && !pendingPresent.get() ||
+                        request.requestUrl?.encodedPath == "/auth/v1/factors/$FACTOR/challenge" && !factorPresent.get()) return unexpected()
+                    latestChallenge.set("synthetic-challenge-${challenges.incrementAndGet()}")
+                    json(JSONObject().put("id", latestChallenge.get()).toString())
                 } else unexpected()
-                "/auth/v1/factors/$FACTOR/verify" -> {
-                    val body = runCatching { JSONObject(request.body.readUtf8()) }.getOrNull()
+                "/auth/v1/factors/$FACTOR/verify", "/auth/v1/factors/$PENDING/verify" -> {
+                    val body = runCatching { JSONObject(request.body.clone().readUtf8()) }.getOrNull()
                     if (request.method != "POST" || body == null || body.keys().asSequence().toSet() != setOf("challenge_id", "code") ||
-                        body.optString("challenge_id") != "synthetic-challenge" || body.optString("code") != "123456") return unexpected()
+                        body.optString("challenge_id") != latestChallenge.get() || body.optString("code") !in setOf("123456", "000000")) return unexpected()
+                    if (request.requestUrl?.encodedPath == "/auth/v1/factors/$PENDING/verify" && !pendingPresent.get() ||
+                        request.requestUrl?.encodedPath == "/auth/v1/factors/$FACTOR/verify" && !factorPresent.get()) return unexpected()
                     verifications.incrementAndGet()
                     verifyEntered.countDown()
                     if (holdVerification.get() && !releaseVerification.await(10, TimeUnit.SECONDS)) return json("{}", 503)
-                    when (verifyStatus.get()) {
+                    when (if (body.optString("code") == "000000") 400 else verifyStatus.get()) {
                         400 -> json("""{"code":"mfa_verification_failed","message":"private fixture diagnostic"}""", 400)
                         503 -> json("""{"message":"private fixture diagnostic"}""", 503)
-                        else -> json(JSONObject().put("access_token", token("verified")).put("refresh_token", "synthetic-refreshed")
-                            .put("expires_in", 3600).put("user", JSONObject().put("id", USER).put("email", EMAIL)).toString())
+                        else -> {
+                            if (request.requestUrl?.encodedPath == "/auth/v1/factors/$PENDING/verify") pendingVerified.set(true)
+                            json(JSONObject().put("access_token", token("verified")).put("refresh_token", "synthetic-refreshed")
+                                .put("expires_in", 3600).put("user", JSONObject().put("id", USER).put("email", EMAIL)).toString())
+                        }
                     }
                 }
                 "/auth/v1/factors/$FACTOR" -> if (request.method == "DELETE" && request.getHeader("Authorization") == "Bearer ${token("verified")}") {
@@ -390,14 +516,15 @@ class SettingsMfaTest {
 
     private fun unexpected(): MockResponse { unexpectedRequests.incrementAndGet(); return json("{}", 403) }
     private fun json(body: String, status: Int = 200) = MockResponse().setResponseCode(status).setHeader("Content-Type", "application/json").setBody(body)
-    private fun token(revision: String): String {
+    private fun token(revision: String, sessionId: String = SESSION_ID): String {
         val payload = Base64.getUrlEncoder().withoutPadding().encodeToString(
-            JSONObject().put("aal", "aal2").put("session_id", SESSION_ID).put("fixture", revision).toString().toByteArray(Charsets.UTF_8))
+            JSONObject().put("aal", "aal2").put("session_id", sessionId).put("fixture", revision).toString().toByteArray(Charsets.UTF_8))
         return "header.$payload.signature"
     }
     private companion object {
         const val USER = "10000000-0000-4000-8000-000000000071"
         const val SESSION_ID = "20000000-0000-4000-8000-000000000071"
+        const val REPLACEMENT_SESSION_ID = "20000000-0000-4000-8000-000000000072"
         const val FACTOR = "30000000-0000-4000-8000-000000000071"
         const val PENDING = "30000000-0000-4000-8000-000000000072"
         const val OTHER_PENDING = "30000000-0000-4000-8000-000000000073"

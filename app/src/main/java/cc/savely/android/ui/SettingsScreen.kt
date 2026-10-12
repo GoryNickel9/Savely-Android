@@ -230,9 +230,9 @@ private fun SecurityPane(api: SupabaseApi, owner: String, revision: Long?, modif
             TextButton({
                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(totp.getString("uri")))) }
                     .onFailure { error = "Nessuna app di autenticazione disponibile. Inserisci la chiave manualmente." }
-            }) { Text(localized("Apri autenticatore")) }
+            }, enabled = !busy) { Text(localized("Apri autenticatore")) }
             OutlinedTextField(code, { code = it.filter { digit -> digit in '0'..'9' }.take(6) }, label = { Text(localized("Codice a 6 cifre")) }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), enabled = !busy)
             Button({ run { api.verifyTotp(pending.getString("id"), code, expectedOwner = owner, expectedRevision = revision); enrollment = null; code = ""; refresh(); message = "Autenticatore attivato." } },
                 enabled = !busy && code.length == 6) { Text(localized("Attiva verifica")) }
             TextButton({ error = null; confirmation = "pending-factor" to pending.getString("id") }, enabled = !busy) { Text(localized("Annulla configurazione")) }

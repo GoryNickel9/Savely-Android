@@ -86,8 +86,13 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
     }
 
     fun verifyMfa(code: String) = runAction {
-        val factor = mutable.value.mfaFactor ?: error("Nessun codice richiesto.")
-        acceptSession(api.verifyTotp(factor, code))
+        val gate = mutable.value
+        val factor = gate.mfaFactor ?: error("Nessun codice richiesto.")
+        val session = gate.session
+            ?: throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        val owner = api.sessionOwnerRevision(session)
+            ?: throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        acceptSession(api.verifyTotp(factor, code, expectedOwner = session.userId, expectedRevision = owner))
     }
 
     // The central owner-bound invalidation collector handles logout, including HTTP failures.
