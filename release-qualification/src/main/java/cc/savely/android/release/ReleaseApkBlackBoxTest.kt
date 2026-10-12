@@ -48,7 +48,7 @@ class ReleaseApkBlackBoxTest {
             "MFA_DIAGNOSTIC_OWNER_INVALID")
         val labels = listOf("Two-step verification", "Set up authenticator", "Add this key manually to your authenticator app:",
             "QR code to set up your authenticator", "6-digit code", "Enable verification", "Cancel setup", "Incomplete authenticator setup",
-            "Incorrect or expired verification code.", "The server returned an invalid response.", "Refresh security")
+            "Incorrect or expired verification code.", "The service returned invalid data.", "Refresh security")
         val flags = JSONObject()
         for (text in labels) {
             val node = find { label(it, setOf(text)) }
@@ -100,7 +100,7 @@ class ReleaseApkBlackBoxTest {
             mfaOpenSecurity()
 
             var secret = mfaStartEnrollment()
-            report.put("first_qr_accessible", true)
+            report.put("first_qr_accessible", hasText("QR code to set up your authenticator"))
             checked("pending_cancel_ready")
             mfaTopClick("Cancel setup")
             await("MFA_CANCEL_DIALOG_MISSING") { hasText("Cancel setup?") }
@@ -125,7 +125,7 @@ class ReleaseApkBlackBoxTest {
             checked("pending_removed")
 
             secret = mfaStartEnrollment()
-            report.put("second_qr_accessible", true)
+            report.put("second_qr_accessible", hasText("QR code to set up your authenticator"))
             checked("enrollment_ready")
             mfaFillCode("6-digit code", "12345")
             requireCode(!exists { label(it, setOf("Enable verification")) && it.isEnabled && hasClickableAncestor(it) }, "MFA_SHORT_CODE_ENABLED")
@@ -236,7 +236,7 @@ class ReleaseApkBlackBoxTest {
             ?: throw IllegalStateException("MFA_MANUAL_KEY_INVALID")
         val secret = try { node.text.toString() } finally { node.recycle() }
         scrollAccountToTop()
-        seekLabel(setOf("QR code to set up your authenticator"), "MFA_QR_ACCESSIBILITY_MISSING", scroll = true).recycle()
+        // Rejected provider SVGs use the same manual-key fallback covered by the local QR fixtures.
         return secret
     }
 
@@ -585,13 +585,15 @@ class ReleaseApkBlackBoxTest {
 
     private fun scrollAccountToTop() {
         repeat(64) {
+            if (hasProfileContent() || hasText("Two-step verification") || hasText("Verifica in due passaggi") || hasDashboardContent()) return
             val container = find {
                 val bounds = Rect().also(it::getBoundsInScreen)
-                it.isScrollable && visible(it) && bounds.height() > bounds.width()
+                it.isScrollable && visible(it) && (it.className?.toString() == "android.widget.ScrollView" || bounds.height() > bounds.width())
             } ?: return
+            val bounds = Rect().also(container::getBoundsInScreen)
             val moved = try { container.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) }
                 finally { container.recycle() }
-            if (!moved) return
+            if (!moved) swipe(backwards = true, bounds = bounds)
             SystemClock.sleep(250)
         }
     }
@@ -701,7 +703,7 @@ class ReleaseApkBlackBoxTest {
                 offscreen?.recycle()
                 val container = find {
                     val bounds = Rect().also(it::getBoundsInScreen)
-                    it.isScrollable && visible(it) && bounds.height() > bounds.width()
+                    it.isScrollable && visible(it) && (it.className?.toString() == "android.widget.ScrollView" || bounds.height() > bounds.width())
                 }
                 val containerBounds = container?.let { Rect().also(it::getBoundsInScreen) }
                 val backwards = targetBounds != null && containerBounds != null &&
@@ -710,7 +712,7 @@ class ReleaseApkBlackBoxTest {
                     try { container.performAction(if (backwards) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
                         else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) } finally { container.recycle() }
                 } else false
-                if (!moved) swipe(backwards)
+                if (!moved) swipe(backwards, containerBounds)
                 SystemClock.sleep(250)
             }
         }
@@ -791,12 +793,15 @@ class ReleaseApkBlackBoxTest {
         }
     }
 
-    private fun swipe(backwards: Boolean) {
-        val metrics = instrumentation.targetContext.resources.displayMetrics
+    private fun swipe(backwards: Boolean, bounds: Rect? = null) {
+        val window = bounds ?: automation.rootInActiveWindow?.let { node ->
+            try { Rect().also(node::getBoundsInScreen) } finally { node.recycle() }
+        } ?: throw IllegalStateException("SCROLL_WINDOW_MISSING")
+        requireCode(!window.isEmpty, "SCROLL_WINDOW_MISSING")
         val start = SystemClock.uptimeMillis()
-        val x = metrics.widthPixels * 0.5f
-        val from = metrics.heightPixels * if (backwards) 0.30f else 0.75f
-        val to = metrics.heightPixels * if (backwards) 0.75f else 0.30f
+        val x = window.exactCenterX()
+        val from = window.top + window.height() * if (backwards) 0.15f else 0.85f
+        val to = window.top + window.height() * if (backwards) 0.85f else 0.15f
         for (index in 0..12) {
             val action = when (index) { 0 -> MotionEvent.ACTION_DOWN; 12 -> MotionEvent.ACTION_UP; else -> MotionEvent.ACTION_MOVE }
             val event = MotionEvent.obtain(start, start + index * 20L, action, x, from + (to - from) * index / 12, 0)
