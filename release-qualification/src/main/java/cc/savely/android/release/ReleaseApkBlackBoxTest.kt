@@ -39,6 +39,27 @@ class ReleaseApkBlackBoxTest {
         writeReport(run, "mfa-vector", baseReport(run, 12, "mfa-vector").put("stage", "passed"))
     }
 
+    @Test fun mfaFixedLabelDiagnostic() {
+        val run = preflight(12)
+        val failedRun = InstrumentationRegistry.getArguments().getString("releaseQualificationLoginRunId").orEmpty()
+        requireCode(runCatching { UUID.fromString(failedRun).toString() == failedRun }.getOrDefault(false), "MFA_DIAGNOSTIC_RUN_INVALID")
+        val failed = readJson("release-qualification-$failedRun-mfa-forms.json", 16_384)
+        requireCode(failed.optString("stage") == "failed" && failed.optString("user_id") == QA_USER && failed.optInt("target_code") == 12,
+            "MFA_DIAGNOSTIC_OWNER_INVALID")
+        val labels = listOf("Two-step verification", "Set up authenticator", "Add this key manually to your authenticator app:",
+            "QR code to set up your authenticator", "6-digit code", "Enable verification", "Cancel setup", "Incomplete authenticator setup",
+            "Incorrect or expired verification code.", "The server returned an invalid response.", "Refresh security")
+        val flags = JSONObject()
+        for (text in labels) {
+            val node = find { label(it, setOf(text)) }
+            flags.put(text, if (node == null) JSONObject().put("found", false) else try {
+                JSONObject().put("found", true).put("visible", visible(node)).put("enabled", node.isEnabled)
+                    .put("clickable", hasClickableAncestor(node)).put("bounds", Rect().also(node::getBoundsInScreen).toShortString())
+            } finally { node.recycle() })
+        }
+        writeReport(run, "mfa-diagnostic", baseReport(run, 12, "mfa-diagnostic").put("stage", "observed").put("labels", flags))
+    }
+
     @Test fun qualifyDedicatedQaMfaForms() {
         val run = preflight(12)
         requireCode(InstrumentationRegistry.getArguments().getString("releaseQualificationAccount") == "a", "MFA_QA_OWNER_INVALID")
