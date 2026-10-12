@@ -1,12 +1,22 @@
 # Changelog
 
+## 0.1.9-alpha — 12 ottobre 2026
+
+Completate le lacune individuate nell'audit: movimenti condivisi e quote, cambio automatico/manuale, palette categorie e periodi budget; import CSV con investimenti ISIN, mapping, nuove categorie, keyword e note; grafico FIRE nominale/reale, input mensili/annuali e reset dal database. Fumo conserva i derivati legacy, Poker mantiene il mese durante la modifica. Aggiunti consenso alla registrazione, QR TOTP locale, chiusura delle altre sessioni, conferma del recupero Admin e documenti IT/EN con navigazione nativa.
+
+Le scritture verificano utente e revisione della sessione iniziale. Mapping e importazioni conservano payload e UUID nelle risposte ambigue; le serie Manga conservano anche l'identità del login. Corretti il ripristino del form Manga e la chiusura prematura del dialogo mapping. La documentazione [PARITY_0_1_9.md](docs/PARITY_0_1_9.md) distingue implementazione, differenze intenzionali e prove reali ancora necessarie.
+
+Rettifica dell'inventario precedente: il web importa CSV. XLS/XLSX, ripristino globale dell'account e convertitore PDF nativo non sono funzioni web da portare.
+
+503 test JVM e due suite complete da 130 casi su Android 12 e 15 passano senza fallimenti o skip; lint debug/release senza errori. Firma e aggiornamento 0.1.8→0.1.9 verificati sul solo AVD anonimo, con inglese conservato. Backend: 41 contratti su 42, Google Books HTTP 429, pulizia completa. Nessuna CI GitHub o modifica web. La parità globale resta aperta.
+
 ## 0.1.8-alpha — 12 ottobre 2026
 
 Conferma email e recupero password hanno callback nativi PKCE, con stato e verifier cifrati e consumo prima dello scambio; una sessione di recupero resta separata finché la nuova password non è salvata. Aggiunti archivio dei collegamenti Coppia revocati, donut categorie e collegamenti Dashboard, icona originale web, palette, Inter/Space Grotesk e cinque destinazioni di navigazione. Completate le traduzioni Show/Hide della password. Gli insert delle tabelle note generano UUID nel client nativo, senza dipendere da default mancanti nel servizio distribuito.
 
 Gli aggiornamenti leggono una repository pubblica separata per APK: le alpha possono scoprire nuove prerelease. La prima installazione sopra la 0.1.7 resta manuale; nessuna installazione silenziosa. Backup della firma portabile, cifrato e verificato, ancora sullo stesso computer.
 
-399 JVM e 108 casi Android 12 con esito finale positivo dopo riesecuzioni mirate; lint debug/release senza errori. La singola suite finale Android 15 passa 108/108, senza skip; l’APK definitivo e la verifica della firma sono registrati in TESTING.md e RELEASE.md. Passano 42 contratti backend su 43, CRUD QA isolato e riavvio reale della sessione. Google Books riceve HTTP 429. La prima pulizia è stata bloccata dal confronto booleano del solo guard di test: regressione aggiunta e recovery esatta completata, nessun dato temporaneo pendente. Conservati i report falliti. Nessuna CI GitHub, modifica alla repo web, migrazione o cambio di password QA.
+399 JVM e 108 casi Android 12 con esito finale positivo dopo riesecuzioni mirate; lint debug/release senza errori. La singola suite finale Android 15 passa 108/108, senza skip; l’APK definitivo e la verifica della firma sono registrati in TESTING.md e RELEASE.md. Passano 41 contratti backend su 42, CRUD QA isolato e riavvio reale della sessione. Google Books riceve HTTP 429. La prima pulizia è stata bloccata dal confronto booleano del solo guard di test: regressione aggiunta e recovery esatta completata, nessun dato temporaneo pendente. Conservati i report falliti. Nessuna CI GitHub, modifica alla repo web, migrazione o cambio di password QA.
 
 La parità globale e i flussi reali con password, email/MFA, due utenti Coppia e ruolo Admin restano non certificati. Bank PDF è un’estensione separata; mapping ISIN/categorie e XLS/XLSX conservano i limiti dichiarati.
 

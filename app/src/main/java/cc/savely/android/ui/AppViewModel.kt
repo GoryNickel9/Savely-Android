@@ -24,6 +24,7 @@ data class AppState(
     val recovery: Boolean = false,
     val message: String? = null,
     val error: String? = null,
+    val registrationsEnabled: Boolean? = null,
 )
 
 class AppViewModel(val api: SupabaseApi) : ViewModel() {
@@ -56,6 +57,10 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
         mutable.value = mutable.value.copy(message = message)
     }
 
+    fun checkRegistrations() = runAction {
+        mutable.value = mutable.value.copy(registrationsEnabled = api.registrationsEnabled())
+    }
+
     fun resetPassword(email: String) = runAction {
         api.requestNativePasswordReset(email)
         mutable.value = mutable.value.copy(message = "Controlla la tua email e apri il link su questo dispositivo per recuperare la password.")
@@ -85,9 +90,8 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
         acceptSession(api.verifyTotp(factor, code))
     }
 
-    fun signOut() = runAction {
-        try { api.signOut() } finally { mutable.value = AppState(initialized = true) }
-    }
+    // The central owner-bound invalidation collector handles logout, including HTTP failures.
+    fun signOut() = runAction { api.signOut() }
 
     fun dismissMessage() { mutable.value = mutable.value.copy(message = null, error = null) }
 

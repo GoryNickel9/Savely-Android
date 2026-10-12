@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
@@ -237,9 +238,49 @@ class SupabaseApi(
                     }
                 }
             } finally {
-                clearStoredSession()
+                // Cancellation must finish local cleanup, without extending or retrying HTTP.
+                withContext(NonCancellable) {
+                    if (saved != null && sameAccountSession(saved, load())) clearStoredSession()
+                }
             }
         }
+    }
+
+    /** Revoke other devices without clearing this device or retrying an ambiguous logout request. */
+    suspend fun signOutOtherSessions() = authMutex.withLock {
+        val saved = load() ?: throw unauthorized()
+        val current = if (saved.expiresAt <= System.currentTimeMillis() / 1000 + REFRESH_MARGIN_SECONDS) refresh(saved) else saved
+        request(endpoint(base, "auth/v1/logout", "scope=others"), "POST", JSONObject(), current.accessToken)
+        if (!sameAccountSession(current, load())) {
+            throw ApiException(ApiError.VALIDATION, "Account cambiato. Aggiorna i dati prima di continuare.")
+        }
+    }
+
+    /** Clear only the caller's local session after the Edge Function explicitly confirms deletion. */
+    suspend fun deleteAccount(): Boolean = authMutex.withLock {
+        val saved = load() ?: throw unauthorized()
+        val current = if (saved.expiresAt <= System.currentTimeMillis() / 1000 + REFRESH_MARGIN_SECONDS) refresh(saved) else saved
+        val result = objectValue(request(endpoint(base, "functions/v1/delete-account"), "POST", JSONObject(), current.accessToken))
+        if (result.has("error") && !result.isNull("error")) {
+            throw ApiException(ApiError.SERVER, "Impossibile eliminare l’account. Riprova.")
+        }
+        if (result.opt("success") != true) throw responseError()
+        // A confirmed deletion must finish local cleanup even if its screen is disposed.
+        // This never retries the remote operation and preserves a replacement owner.
+        withContext(NonCancellable) {
+            if (!sameAccountSession(current, load())) false
+            else {
+                cancelPendingAudit()
+                clearStoredSession()
+                true
+            }
+        }
+    }
+
+    private fun sameAccountSession(expected: Session, actual: Session?): Boolean {
+        if (actual == null || actual.userId != expected.userId) return false
+        val expectedId = expected.authSessionId()
+        return if (expectedId != null) actual.authSessionId() == expectedId else actual.accessToken == expected.accessToken
     }
 
     suspend fun session(): Session? = authMutex.withLock {
@@ -253,32 +294,37 @@ class SupabaseApi(
         return arrayValue(authorized(endpoint(base, "rest/v1/$table", query)))
     }
 
-    suspend fun insert(table: String, body: JSONObject): JSONObject {
+    suspend fun insert(table: String, body: JSONObject, expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject {
         identifier(table)
-        return singleRow(authorized(endpoint(base, "rest/v1/$table"), "POST", insertPayload(table, body), representation = true))
+        return singleRow(authorized(endpoint(base, "rest/v1/$table"), "POST", insertPayload(table, body), representation = true,
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision))
     }
 
-    suspend fun update(table: String, id: String, body: JSONObject, query: String = ""): JSONObject {
+    suspend fun update(table: String, id: String, body: JSONObject, query: String = "", expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject {
         identifier(table)
-        return singleRow(authorized(rowEndpoint(table, id, query), "PATCH", body, representation = true))
+        return singleRow(authorized(rowEndpoint(table, id, query), "PATCH", body, representation = true,
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision))
     }
 
-    suspend fun delete(table: String, id: String, query: String = "") {
+    suspend fun delete(table: String, id: String, query: String = "", expectedOwner: String? = null, expectedRevision: Long? = null) {
         identifier(table)
-        val rows = arrayValue(authorized(rowEndpoint(table, id, query), "DELETE", representation = true))
+        val rows = arrayValue(authorized(rowEndpoint(table, id, query), "DELETE", representation = true,
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision))
         if (rows.length() != 1) throw ApiException(ApiError.PERMISSION, "Il record non è disponibile o non può essere eliminato.")
     }
 
     /** Soft-deleted rows can become invisible to SELECT; count verifies the mutation without selecting them. */
-    suspend fun updateMinimal(table: String, id: String, body: JSONObject, query: String = "") {
+    suspend fun updateMinimal(table: String, id: String, body: JSONObject, query: String = "", expectedOwner: String? = null, expectedRevision: Long? = null) {
         identifier(table)
-        authorized(rowEndpoint(table, id, query), "PATCH", body, exactMutation = true)
+        authorized(rowEndpoint(table, id, query), "PATCH", body, exactMutation = true,
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision)
     }
 
     /** Scalar, JSON object, JSON array or JSONObject.NULL, exactly as returned by the RPC. */
-    suspend fun rpc(name: String, body: JSONObject = JSONObject()): Any {
+    suspend fun rpc(name: String, body: JSONObject = JSONObject(), expectedOwner: String? = null, expectedRevision: Long? = null): Any {
         identifier(name)
-        return authorized(endpoint(base, "rest/v1/rpc/$name"), "POST", body)
+        return authorized(endpoint(base, "rest/v1/rpc/$name"), "POST", body,
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision)
     }
 
     suspend fun profile(): JSONObject? {
@@ -291,6 +337,8 @@ class SupabaseApi(
     }
 
     suspend fun permissions(): Map<String, Boolean> = parsePermissions(profile()?.optJSONObject("permissions"))
+
+    suspend fun registrationsEnabled(): Boolean = publicRpc("get_registrations_enabled", JSONObject()) as? Boolean ?: throw responseError()
 
     suspend fun updateProfile(body: JSONObject): JSONObject {
         val current = requireSession()
@@ -376,9 +424,10 @@ class SupabaseApi(
         else request(url, "POST", body, token = null, backend = false))
     }
 
-    suspend fun invokeFunction(name: String, body: JSONObject = JSONObject()): Any {
+    suspend fun invokeFunction(name: String, body: JSONObject = JSONObject(), expectedOwner: String? = null, expectedRevision: Long? = null): Any {
         identifier(name, allowHyphen = true)
-        return authorized(endpoint(base, "functions/v1/$name"), "POST", body)
+        return authorized(endpoint(base, "functions/v1/$name"), "POST", body,
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision)
     }
 
     suspend fun getFunction(name: String, query: String = ""): Any {
@@ -438,20 +487,53 @@ class SupabaseApi(
     private suspend fun authorized(
         url: HttpUrl, method: String = "GET", body: JSONObject? = null,
         representation: Boolean = false, backend: Boolean = true, exactMutation: Boolean = false,
+        expectedOwner: String? = null, expectedRevision: Long? = null,
     ): Any {
+        if ((expectedOwner == null) != (expectedRevision == null)) {
+            throw ApiException(ApiError.VALIDATION, "Il vincolo della sessione non è completo.")
+        }
         val current = requireSession()
-        try {
-            return request(url, method, body, current.accessToken, backend, representation, exactMutation)
+        val revision = sessionOwnerRevision(current) ?: throw changedOwner()
+        fun verifyOwner(selected: Session) {
+            if (!isSessionOwnerCurrent(revision) || selected.userId != current.userId ||
+                selected.authSessionId() != current.authSessionId() ||
+                expectedOwner != null && (selected.userId != expectedOwner || revision != expectedRevision)) throw changedOwner()
+        }
+        suspend fun verifyStoredOwner(selected: Session) = authMutex.withLock {
+            val saved = load() ?: throw changedOwner()
+            if (!sameAccountSession(selected, saved)) throw changedOwner()
+            verifyOwner(saved)
+        }
+        suspend fun send(selected: Session): Any = try {
+            request(url, method, body, selected.accessToken, backend, representation, exactMutation)
+        } catch (error: ApiException) {
+            // In particular, a late AUTH error on the second attempt cannot clear a newer login's UI.
+            verifyStoredOwner(selected)
+            throw error
+        }
+        verifyOwner(current)
+        var selected = current
+        val result = try {
+            send(selected)
         } catch (error: ApiException) {
             if (error.status != 401) throw error
             val renewed = authMutex.withLock {
                 val saved = load() ?: throw unauthorized()
+                // A 401 from an older login must never replay its request with a newer login's token.
+                if (!sameAccountSession(current, saved)) throw changedOwner()
+                verifyOwner(saved)
                 if (saved.accessToken != current.accessToken) saved else refresh(saved)
             }
+            verifyOwner(renewed)
+            selected = renewed
             // A write is retried only after an explicit 401, never after a timeout or 5xx.
-            return request(url, method, body, renewed.accessToken, backend, representation, exactMutation)
+            send(selected)
         }
+        if (expectedOwner != null) verifyStoredOwner(selected)
+        return result
     }
+
+    private fun changedOwner() = ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
 
     private suspend fun requireSession(): Session = session() ?: throw unauthorized()
 

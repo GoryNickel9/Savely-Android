@@ -45,6 +45,7 @@ class AdminScreenTest {
     private val deleteAttempts = AtomicInteger()
     private val unexpectedRequests = AtomicInteger()
     private val nonLocalRequests = AtomicInteger()
+    private val resetRequests = AtomicInteger()
     private val requests = CopyOnWriteArrayList<RecordedRequest>()
 
     @Before fun setup() {
@@ -130,6 +131,30 @@ class AdminScreenTest {
         }
     }
 
+    @Test fun passwordResetNeedsExplicitConfirmationAndCancelMakesNoRequest() {
+        renderAndAwaitLoaded()
+        compose.onNodeWithText("Gestisci").performScrollTo().performClick()
+        compose.onNodeWithText("Invia recupero password").performScrollTo().performClick()
+        compose.onNodeWithText("Inviare il recupero password?").assertIsDisplayed()
+        assertEquals(0, resetRequests.get())
+        compose.onNodeWithText("Annulla", substring = false).performClick()
+        assertEquals(0, resetRequests.get())
+        compose.onNodeWithText("Gestisci").performScrollTo().performClick()
+        compose.onNodeWithText("Invia recupero password").performScrollTo().performClick()
+        compose.onNodeWithText("Invia email", substring = false).assertIsDisplayed().performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Email di recupero inviata.").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(1, resetRequests.get())
+        val reset = requests.single { it.requestUrl?.encodedPath == "/api/reset-password" }
+        assertEquals("POST", reset.method)
+        assertEquals(OTHER_EMAIL, JSONObject(reset.body.clone().readUtf8()).getString("email"))
+        assertNull(reset.getHeader("Authorization"))
+        assertNull(reset.getHeader("apikey"))
+        assertEquals(session, store.load())
+        assertEquals(0, deleteAttempts.get())
+        assertEquals(0, unexpectedRequests.get())
+        assertEquals(0, nonLocalRequests.get())
+    }
+
     private fun awaitError(message: String) {
         compose.waitUntil(15_000) { compose.onAllNodesWithText(message).fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
@@ -187,6 +212,10 @@ class AdminScreenTest {
                         else -> unexpected()
                     }
                 }
+                "/api/reset-password" -> if (request.method == "POST" &&
+                    runCatching { JSONObject(request.body.clone().readUtf8()).getString("email") }.getOrNull() == OTHER_EMAIL) {
+                    resetRequests.incrementAndGet(); json("{}")
+                } else unexpected()
                 else -> unexpected()
             }
         }

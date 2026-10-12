@@ -73,8 +73,10 @@ fun resolveFinanceChartRange(
             transactions.maxOfOrNull { it.date } ?: today)
         FinanceChartPeriod.YEAR -> DashboardRange(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31))
         FinanceChartPeriod.MONTH -> YearMonth.of(year, month).let { DashboardRange(it.atDay(1), it.atEndOfMonth()) }
-        FinanceChartPeriod.SINCE -> DashboardRange(parseFinanceChartDate(fromText), today)
-        FinanceChartPeriod.BETWEEN -> DashboardRange(parseFinanceChartDate(fromText), parseFinanceChartDate(toText))
+        FinanceChartPeriod.SINCE -> DashboardRange(if (fromText.isBlank()) transactions.minOfOrNull { it.date } ?: today else parseFinanceChartDate(fromText), today)
+        FinanceChartPeriod.BETWEEN -> DashboardRange(
+            if (fromText.isBlank()) transactions.minOfOrNull { it.date } ?: today else parseFinanceChartDate(fromText),
+            if (toText.isBlank()) transactions.maxOfOrNull { it.date } ?: today else parseFinanceChartDate(toText))
     }
 }
 

@@ -71,5 +71,26 @@ class CoupleCalculationsTest {
 
     private fun row(date: String, amount: String, currency: String, category: String?, deleted: Boolean = false) =
         CoupleRepositoryTest.share(CoupleRepositoryTest.ROW1, date, amount, currency, category, deleted)
+
+    @Test fun budgetSummaryKeepsCurrenciesSeparateAndUsesAllLiveCategoriesForMonthlyMedian() {
+        val shares = JSONArray().put(row("2026-01-01", "10.00", "EUR", "Casa"))
+            .put(row("2026-02-01", "20.00", "EUR", null))
+            .put(row("2026-01-01", "7.00", "USD", "Casa"))
+            .put(row("2026-01-01", "9000", "EUR", "Casa", deleted = true))
+        val budgets = JSONArray().put(JSONObject().put("currency", "EUR").put("amount", "20.00"))
+            .put(JSONObject().put("currency", "EUR").put("amount", "15.00"))
+            .put(JSONObject().put("currency", "USD").put("amount", "10.00"))
+        val summaries = coupleBudgetSummaries(budgets, shares)
+        assertEquals(listOf("EUR", "USD"), summaries.map { it.currency })
+        assertEquals(BigDecimal("35.00"), summaries[0].planned)
+        assertEquals(BigDecimal("15.00"), summaries[0].median)
+        assertEquals(BigDecimal("-20.00"), summaries[0].difference)
+        assertEquals(BigDecimal("-3.00"), summaries[1].difference)
+    }
+
+    @Test fun summaryRejectsInvalidBudgetRatherThanPublishingPartialTotals() {
+        expectInvalid { coupleBudgetSummaries(JSONArray().put(JSONObject().put("currency", "EUR").put("amount", "-1")), JSONArray()) }
+        assertTrue(coupleBudgetSummaries(JSONArray(), JSONArray()).isEmpty())
+    }
     private fun expectInvalid(block: () -> Unit) { try { block(); fail("Expected invalid input") } catch (_: IllegalArgumentException) { } }
 }

@@ -19,6 +19,8 @@ import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
 import cc.savely.android.data.SupabaseApi
 import cc.savely.android.ui.SavelyTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -48,11 +50,13 @@ import java.util.concurrent.atomic.AtomicInteger
  * Saved-state restoration rebuilds the composition; it does not kill or recreate the Activity.
  */
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class, ExperimentalCoroutinesApi::class)
 class CollectionScreenTest {
     @get:Rule(order = 0) val timeout: Timeout = Timeout.seconds(90)
-    // ScrollBy launches Compose-managed animation work. A separately queued effect dispatcher
-    // prevents performScrollTo's internal loop from observing progress before it returns.
-    @get:Rule(order = 1) val compose = createComposeRule()
+    private val effectDispatcher = StandardTestDispatcher()
+    // Queue HTTP resumptions for the UI/test clock instead of continuing Compose work on I/O.
+    // Scroll gestures below drain this dispatcher between bounded attempts.
+    @get:Rule(order = 1) val compose = createComposeRule(effectContext = effectDispatcher)
     private lateinit var server: MockWebServer
     private lateinit var client: OkHttpClient
     private lateinit var api: SupabaseApi
@@ -139,6 +143,8 @@ class CollectionScreenTest {
         assertEquals(originalIds[1], idReads.single())
 
         // Restores the parent add-dialog flag and immutable plan/IDs through Android saved-state APIs.
+        // Owner/revision are loaded asynchronously again; the restored dialog must wait for that
+        // snapshot without crashing, discarding its pending UUIDs, or automatically writing.
         // This deliberately claims composition restoration, not Activity/process-death coverage.
         clearInput()
         restoration.emulateSavedInstanceStateRestore()
@@ -147,7 +153,7 @@ class CollectionScreenTest {
                 enabled(button("Riprendi serie"))
         }
         assertEquals(2, posts.size)
-        compose.onNodeWithText("Titolo").performScrollTo().assert(
+        scrollVisible(hasText("Titolo")).assert(
             SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("Serie sintetica")))
         compose.onNodeWithText("Titolo").assertIsNotEnabled()
         touch(button("Riprendi serie"))
@@ -171,9 +177,8 @@ class CollectionScreenTest {
             assertEquals(0, BigDecimal("6.25").compareTo(BigDecimal(body.get("purchase_price").toString())))
             assertEquals(0, BigDecimal("8.50").compareTo(BigDecimal(body.get("reselling_value").toString())))
         }
-        assertCount("3 di 3 elementi", 7)
-        list().performScrollToIndex(8)
-        compose.onNodeWithText("Titolo: Serie sintetica Vol. 1").assertIsDisplayed()
+        assertCount("3 di 3 elementi")
+        scrollVisible(hasText("Titolo: Serie sintetica Vol. 1")).assertIsDisplayed()
         assertEquals(0, denied.get())
     }
 
@@ -183,22 +188,21 @@ class CollectionScreenTest {
         add(book(3, "Terzo libro", "B", "P", 2024, 30, 35))
         mount("libreria")
         awaitLoaded("libri")
-        assertCount("3 di 3 elementi", 8)
-        val originalTotals = totals(6)
-        selectFilter(3, "Autore: Tutti", "A")
-        assertCount("2 di 3 elementi", 9)
-        selectFilter(4, "Editore: Tutti", "P")
-        assertCount("1 di 3 elementi", 9)
-        selectFilter(5, "Anno: Tutti", "2024")
-        assertCount("0 di 3 elementi", 9)
-        list().performScrollToIndex(10)
-        compose.onNodeWithText("Nessun elemento corrisponde ai filtri. Usa Azzera filtri per mostrare la collezione.")
+        assertCount("3 di 3 elementi")
+        val originalTotals = totals()
+        selectFilter("Autore: Tutti", "A")
+        assertCount("2 di 3 elementi")
+        selectFilter("Editore: Tutti", "P")
+        assertCount("1 di 3 elementi")
+        selectFilter("Anno: Tutti", "2024")
+        assertCount("0 di 3 elementi")
+        scrollVisible(hasText("Nessun elemento corrisponde ai filtri. Usa Azzera filtri per mostrare la collezione."))
             .assertIsDisplayed()
-        assertEquals(originalTotals, totals(7))
-        list().performScrollToIndex(6)
+        assertEquals(originalTotals, totals())
+        scrollVisible(button("Azzera filtri"))
         touch(button("Azzera filtri"))
-        assertCount("3 di 3 elementi", 8)
-        assertEquals(originalTotals, totals(6))
+        assertCount("3 di 3 elementi")
+        assertEquals(originalTotals, totals())
         assertEquals(0, posts.size)
         assertEquals(0, denied.get())
     }
@@ -213,40 +217,36 @@ class CollectionScreenTest {
         add(card(32, "yugioh", "Mago sintetico", "OTHER"))
         mount("tcg")
         awaitLoaded("magic")
-        list().performScrollToIndex(3)
+        scrollVisible(button("Set: Tutti"))
         touch(button("Set: Tutti"))
         compose.onNodeWithText("ABC", substring = false).assertIsDisplayed()
         compose.onNodeWithText("abc", substring = false).assertDoesNotExist()
         touch(button("ABC"))
-        assertCount("2 di 3 elementi", 7)
-        list().performScrollToIndex(2)
-        compose.onNodeWithText("Cerca per nome o set").performTextReplacement("XYZ")
-        assertCount("0 di 3 elementi", 7)
-        list().performScrollToIndex(4)
+        assertCount("2 di 3 elementi")
+        replace("Cerca per nome o set", "XYZ")
+        assertCount("0 di 3 elementi")
+        scrollVisible(button("Azzera filtri"))
         touch(button("Azzera filtri"))
-        list().performScrollToIndex(2)
-        compose.onNodeWithText("Cerca per nome o set").performTextReplacement("abc")
-        assertCount("2 di 3 elementi", 7)
+        replace("Cerca per nome o set", "abc")
+        assertCount("2 di 3 elementi")
 
         openTab("Pokémon", "pokemon")
-        list().performScrollToIndex(3)
+        scrollVisible(button("Set: Tutti"))
         touch(button("Set: Tutti"))
         compose.onNodeWithText("abc", substring = false).assertIsDisplayed()
         compose.onNodeWithText("ABC", substring = false).assertIsDisplayed()
         touch(button("abc"))
-        assertCount("1 di 2 elementi", 7)
-        list().performScrollToIndex(3)
+        assertCount("1 di 2 elementi")
+        scrollVisible(button("Set: abc"))
         touch(button("Set: abc"))
         touch(button("ABC"))
-        assertCount("1 di 2 elementi", 7)
+        assertCount("1 di 2 elementi")
 
         openTab("Yu-Gi-Oh", "yugioh")
-        list().performScrollToIndex(2)
-        compose.onNodeWithText("Cerca per nome").performTextReplacement("SET-ONLY")
-        assertCount("0 di 2 elementi", 7)
-        list().performScrollToIndex(2)
-        compose.onNodeWithText("Cerca per nome").performTextReplacement("Drago")
-        assertCount("1 di 2 elementi", 7)
+        replace("Cerca per nome", "SET-ONLY")
+        assertCount("0 di 2 elementi")
+        replace("Cerca per nome", "Drago")
+        assertCount("1 di 2 elementi")
         assertEquals(0, posts.size)
         assertEquals(0, denied.get())
     }
@@ -298,7 +298,57 @@ class CollectionScreenTest {
     }
     private fun replace(label: String, value: String) {
         clearInput()
-        compose.onNodeWithText(label).performScrollTo().performTextReplacement(value)
+        scrollVisible(hasText(label) and hasSetTextAction()).performTextReplacement(value)
+    }
+    private fun scrollVisible(matcher: SemanticsMatcher): SemanticsNodeInteraction {
+        var swipes = 0
+        var nextLazyIndex = 0
+        await("Visible scroll target: $matcher") {
+            val nodes = compose.onAllNodes(matcher).fetchSemanticsNodes()
+            check(nodes.size <= 1) { "Ambiguous collection scroll target: $matcher" }
+            val node = nodes.singleOrNull()
+            if (node == null) {
+                // Lazy items disappear from semantics. Inspect each item rather than flinging
+                // past a short count/summary row; no test depends on its particular index.
+                check(nextLazyIndex < 32) { "Collection target was not composed after $nextLazyIndex items: $matcher" }
+                list().performScrollToIndex(nextLazyIndex++)
+                settleScroll()
+                return@await false
+            }
+            val scrollable = generateSequence(node.parent) { it.parent }.firstOrNull {
+                it.config.contains(SemanticsProperties.VerticalScrollAxisRange)
+            }
+            val viewport = scrollable?.boundsInRoot
+            val targetY = node.positionInRoot.y + node.size.height / 2f
+            if (compose.onNode(matcher).isDisplayed() &&
+                (viewport == null || targetY in viewport.top..viewport.bottom)) true
+            else {
+                check(scrollable != null && swipes < 8) {
+                    "Collection target could not be exposed: $matcher, targetY=$targetY, viewport=$viewport, swipes=$swipes"
+                }
+                // Unlike performScrollTo's internal loop, a gesture yields between queued effects.
+                compose.onNode(SemanticsMatcher("Scrollable ancestor ${scrollable.id}") {
+                    it.id == scrollable.id
+                }).performTouchInput {
+                    if (targetY > scrollable.boundsInRoot.center.y) swipeUp() else swipeDown()
+                }
+                swipes++
+                settleScroll()
+                false
+            }
+        }
+        return compose.onNode(matcher).assertIsDisplayed()
+    }
+    private fun settleScroll() {
+        var previous: Float? = null
+        var stableFrames = 0
+        await("Collection scroll settled") {
+            compose.mainClock.advanceTimeByFrame()
+            val current = list().fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+            stableFrames = if (current == previous) stableFrames + 1 else 0
+            previous = current
+            stableFrames >= 2
+        }
     }
     private fun openTab(label: String, category: String) {
         touch(button(label))
@@ -307,34 +357,29 @@ class CollectionScreenTest {
     private fun awaitLoaded(category: String) {
         await("Collection loaded: $category") { category in listCategories && enabled(button("Aggiungi")) }
     }
-    private fun selectFilter(index: Int, label: String, option: String) {
+    private fun selectFilter(label: String, option: String) {
         clearInput()
-        list().performScrollToIndex(index)
+        scrollVisible(button(label))
         touch(button(label))
         touch(button(option))
     }
-    private fun assertCount(label: String, index: Int) {
+    private fun assertCount(label: String) {
         clearInput()
-        list().performScrollToIndex(index)
-        await("Count displayed: $label") {
-            compose.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty() &&
-                compose.onNodeWithText(label).isDisplayed()
-        }
-        compose.onNodeWithText(label).assertIsDisplayed()
+        scrollVisible(hasText(label)).assertIsDisplayed()
     }
-    private fun totals(index: Int): List<String> {
+    private fun totals(): List<String> {
         clearInput()
-        list().performScrollToIndex(index)
-        val cost = compose.onNode(hasText("pezzi · costo", substring = true)).assertIsDisplayed()
-        val value = compose.onNode(hasText("Valore ", substring = true) and
-            hasText(" · variazione ", substring = true)).assertIsDisplayed()
-        return listOf(cost, value).map { target ->
-            target.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString { it.text }
+        return listOf(hasText("pezzi · costo", substring = true),
+            hasText("Valore ", substring = true) and hasText(" · variazione ", substring = true)).map { matcher ->
+            scrollVisible(matcher).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString { it.text }
         }
     }
     private fun await(label: String, predicate: () -> Boolean) {
         try {
-            compose.waitUntil(15_000, predicate)
+            compose.waitUntil(15_000) {
+                compose.runOnUiThread { effectDispatcher.scheduler.runCurrent() }
+                predicate()
+            }
         } catch (failure: ComposeTimeoutException) {
             val trees = compose.onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().indices.map { index ->
                 runCatching { compose.onAllNodes(isRoot(), useUnmergedTree = true)[index].printToString() }

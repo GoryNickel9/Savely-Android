@@ -57,12 +57,14 @@ class FinanceViewModel(private val repository: FinanceRepository, private val se
                 onSuccess()
                 succeeded = true
             } catch (exception: CancellationException) {
+                mutableState.value = mutableState.value.copy(saving = false, reconciliationRequired = true,
+                    error = "Operazione interrotta. Aggiorna i dati e verifica le righe prima di continuare.")
                 throw exception
             } catch (exception: Exception) {
                 mutableState.value = mutableState.value.copy(saving = false,
                     error = exception.message ?: "Operazione fallita. Controlla la connessione e riprova.",
                     positionCloseFailure = exception as? PositionCloseException,
-                    reconciliationRequired = exception is PositionCloseException)
+                    reconciliationRequired = exception is PositionCloseException || exception is TransactionSharingException || exception is FinancePendingRefreshException)
             } finally {
                 writeBusy.set(false)
             }

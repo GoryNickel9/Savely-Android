@@ -95,4 +95,51 @@ class ModuleRecordValuesTest {
             fumoDetail(FumoCalculations.Derived(10, null, 0.0, 0.0)))
         assertNull(fumoDetail(FumoCalculations.Derived(null, null, null, null)))
     }
+
+    @Test fun liquidLegacyDurationsAndDerivedValuesRemainExactlyAsStoredAndNeverMutateRows() {
+        val row = JSONObject().put("data_arrivo", "2026-06-01").put("data_finito", "2026-06-11")
+            .put("costo", 12.50).put("millilitri", 25).put("giorni_durata", 20)
+            .put("millilitri_al_giorno", 1.25).put("euro_al_giorno", 0.625).put("costo_mensile", 18.75)
+        val before = row.toString()
+        assertEquals(FumoCalculations.Derived(20, 1.25, 0.625, 18.75), fumoDisplayedDerived(row, true))
+        assertEquals(1.25, fumoAnnualLiquidAverage(listOf(row)), 0.0)
+        assertEquals(before, row.toString())
+    }
+
+    @Test fun fumoLegacyFallbackMatchesConfiguredDateAliasesAndDoesNotInventLiquidDuration() {
+        val row = JSONObject().put("data_arrivo", "2026-06-01").put("data_finito", "2026-06-11")
+            .put("costo", 10).put("grammi", 20).put("giorni_durata", JSONObject.NULL)
+        assertEquals("2026-06-01", moduleRecordDate(row, "data_acquisto"))
+        val result = fumoDisplayedDerived(row, false)
+        assertEquals(10L, result.days)
+        assertEquals(1.0, result.euroPerDay!!, 0.0)
+        assertNull(result.quantityPerDay) // Web's fallback does not update grammi_al_giorno.
+        row.remove("grammi"); row.put("millilitri", 20)
+        assertNull(fumoDisplayedDerived(row, true).days)
+        assertEquals(0.0, fumoAnnualLiquidAverage(listOf(row)), 0.0)
+    }
+
+    @Test fun annualLiquidAverageIncludesUnfinishedQuantityButUsesOnlySavedDurations() {
+        val finished = JSONObject().put("millilitri", 25).put("giorni_durata", 20).put("costo", 10)
+        val open = JSONObject().put("millilitri", 15).put("giorni_durata", JSONObject.NULL).put("costo", 10)
+        assertEquals(2.0, fumoAnnualLiquidAverage(listOf(finished, open)), 0.0)
+    }
+
+    @Test fun liquidGenericLegacyQuantityUsesTheSameMappedDurationForDetailsAndAnnualAverage() {
+        val row = JSONObject().put("data_arrivo", "2026-06-01").put("data_finito", "2026-06-11")
+            .put("quantita", 20).put("costo", 10).put("giorni_durata", JSONObject.NULL)
+        assertEquals(20.0, fumoQuantity(row), 0.0)
+        assertEquals(10L, fumoDisplayedDerived(row, true).days)
+        assertEquals(2.0, fumoAnnualLiquidAverage(listOf(row)), 0.0)
+    }
+
+    @Test fun summaryDecimalsPreserveSubHourTimeAndMatchWebBinaryTieRounding() {
+        assertEquals("2,50", moduleTwoDecimals(2.5))
+        assertEquals("2,02", moduleTwoDecimals(121.0 / 60))
+        assertEquals("0,13", moduleTwoDecimals(0.125))
+        assertEquals("0,30", moduleTwoDecimals(0.305))
+        assertEquals("2h 30m", pokerHours(2.5))
+        assertEquals("2h 01m", pokerHours(121.0 / 60))
+        assertEquals("1h 60m", pokerHours(1.9999))
+    }
 }

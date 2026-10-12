@@ -41,6 +41,23 @@ data class CoupleSplit(val creator: BigDecimal, val partner: BigDecimal, val tot
     val roundingDifference: BigDecimal get() = creator + partner - total
 }
 
+data class CoupleBudgetSummary(val currency: String, val planned: BigDecimal, val median: BigDecimal) {
+    val difference: BigDecimal get() = median - planned
+}
+
+/** Same budget totals as the web, calculated separately for each currency. */
+fun coupleBudgetSummaries(budgets: JSONArray, shares: JSONArray): List<CoupleBudgetSummary> {
+    val planned = sortedMapOf<String, BigDecimal>()
+    for (index in 0 until budgets.length()) {
+        val row = budgets.getJSONObject(index)
+        val amount = row.get("amount").toString().toBigDecimal()
+        require(amount.signum() >= 0 && amount < MAX_COUPLE_AMOUNT) { "Budget condiviso non valido." }
+        val currency = row.getString("currency")
+        planned[currency] = (planned[currency] ?: BigDecimal.ZERO) + amount
+    }
+    return planned.map { (currency, amount) -> CoupleBudgetSummary(currency, amount, medianMonthlyCoupleShare(shares, currency)) }
+}
+
 /** Matches the repository's SQL view in migration 20260703070000, including equal-split rounding. */
 fun coupleSplit(total: BigDecimal, customPartner: BigDecimal? = null): CoupleSplit {
     require(total.signum() >= 0 && total.stripTrailingZeros().scale() <= 2 && total < MAX_COUPLE_AMOUNT) { "Importo della transazione non valido." }
@@ -117,7 +134,7 @@ class CoupleRepository(private val api: SupabaseApi) {
             val id = uuid(connection.getString("id"))
             shares = sortedRows(pages("shared_expenses_view", "connection_id=eq.$id"), "date", descending = true)
             budgets = sortedRows(pages("couple_budgets", "connection_id=eq.$id"), "couple_category_name")
-            transactions = api.select("transactions", "user_id=eq.$user&type=eq.expense&deleted_at=is.null&order=date.desc,id.desc&limit=500")
+            transactions = sortedRows(pages("transactions", "user_id=eq.$user&type=eq.expense&deleted_at=is.null"), "date", descending = true)
         }
         val comparisons = (0 until budgets.length()).map { index ->
             val row = budgets.getJSONObject(index)
@@ -156,11 +173,19 @@ class CoupleRepository(private val api: SupabaseApi) {
         api.insert("couple_connection_requests", JSONObject().put("sender_id", sender).put("receiver_id", receiver))
     }
 
-    suspend fun shareExpense(connectionId: String, transactionId: String, category: String, customPartner: String? = null) {
+    suspend fun shareExpense(connectionId: String, transactionId: String, category: String, customPartner: String? = null,
+        expectedOwner: String? = null, expectedRevision: Long? = null) {
         val id = uuid(connectionId)
         val txId = uuid(transactionId)
         val partner = customPartner?.let(::couplePartnerAmount)
-        val creator = userId()
+        require((expectedOwner == null) == (expectedRevision == null)) { "Il vincolo della sessione non è completo." }
+        val session = api.session() ?: throw ApiException(ApiError.AUTHENTICATION, "Accedi di nuovo.")
+        val creator = uuid(session.userId)
+        val revision = api.sessionOwnerRevision(session)
+            ?: throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        if (expectedOwner != null && (expectedOwner != creator || expectedRevision != revision)) {
+            throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        }
         val active = api.select("couple_connections", "select=id&id=eq.$id&or=(user_a.eq.$creator,user_b.eq.$creator)&revoked_at=is.null")
         require(active.length() == 1) { "La connessione non è più attiva. Aggiorna la schermata." }
         val owned = api.select("transactions", "select=id,amount,currency&id=eq.$txId&user_id=eq.$creator&type=eq.expense&deleted_at=is.null")
@@ -171,7 +196,8 @@ class CoupleRepository(private val api: SupabaseApi) {
         require(existing.length() == 0) { "Questa transazione è già condivisa." }
         api.insert("shared_expenses", JSONObject().put("connection_id", id).put("original_tx_id", txId).put("created_by", creator)
             .put("couple_category_name", category.trim().ifBlank { null } ?: JSONObject.NULL)
-            .put("split_mode", if (partner == null) "equal" else "custom").put("partner_amount", partner?.toPlainString() ?: JSONObject.NULL))
+            .put("split_mode", if (partner == null) "equal" else "custom").put("partner_amount", partner?.toPlainString() ?: JSONObject.NULL),
+            expectedOwner = creator, expectedRevision = revision)
     }
 
     /** Keyset pagination continues after server-truncated pages. Refuse totals if the dataset exceeds the bound. */

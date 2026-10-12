@@ -8,7 +8,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 
-class TransferException(message: String) : Exception(message)
+class TransferException(message: String, val notice: TransferNotice? = null) : Exception(message)
 
 enum class ImportFormat(val label: String) { REVOLUT("Revolut"), NORMALIZED("CSV transazioni"), BANK("BBVA / Trade Republic CSV") }
 
@@ -21,9 +21,13 @@ data class ImportTransaction(
     val type: String,
     val categoryId: String? = null,
     val exchangeRateEur: BigDecimal? = if (currency == "EUR") BigDecimal.ONE else null,
+    val isin: String? = null,
+    val investmentName: String? = null,
+    val bankInterest: Boolean = false,
 ) {
-    fun duplicateKey(): String = listOf(description, date.toString(), amount.setScale(2, RoundingMode.HALF_UP).toPlainString(), currency, type).joinToString("\u0000")
+    fun duplicateKey(): String = listOf(if (type == "investment") isin.orEmpty() else description, date.toString(), amount.setScale(2, RoundingMode.HALF_UP).toPlainString(), currency, type).joinToString("\u0000")
     fun body(userId: String, category: String, rate: BigDecimal? = exchangeRateEur): JSONObject {
+        if (type !in setOf("income", "expense") || category.isBlank()) throw TransferException("Categoria o tipo transazione non validi.")
         if (rate == null || rate.signum() <= 0) throw TransferException("Imposta il cambio EUR prima di importare una valuta estera.")
         return JSONObject().put("user_id", userId).put("description", description).put("date", date.toString())
             .put("amount", amount).put("currency", currency).put("type", type).put("category_id", category)
@@ -161,9 +165,7 @@ object TransferCsv {
         val description = field { it.contains("descrizione") || it.contains("nota") } ?: throw TransferException("Descrizione assente.")
         val tipo = field { it.startsWith("tipo") }.orEmpty()
         if (description.uppercase().contains("TRASFERIMENTO") || tipo.uppercase().contains("TRASFERIMENTO") || description.uppercase().contains("SPORT. AUT.")) return null
-        if (tipo.lowercase().let { it.contains("saving") || it.contains("buy trade") || it.contains("savings plan") }) {
-            throw TransferException("Investimento ISIN non supportato: nessuna posizione sarà creata.")
-        }
+        val investment = tipo.lowercase().let { it.contains("saving") || it.contains("buy trade") || it.contains("savings plan") }
         val income = field { it.contains("entrata") }
         val expense = field { it.contains("uscita") }
         val signed = if (income == null && expense == null) field { it.contains("importo") } else null
@@ -182,16 +184,25 @@ object TransferCsv {
             if (income == null && expense == null) throw TransferException("Colonne Importo oppure Entrata/Uscita assenti.")
         }
         if (amount.signum() == 0) return null
-        return create(number, description, field { it.contains("data") } ?: "", amount,
-            field { it.contains("valuta") || it == "currency" }?.takeIf { it.isNotBlank() } ?: defaultCurrency, type)
+        val isin = if (investment) Regex("[A-Z]{2}[A-Z0-9]{10}").find(tipo)?.value
+            ?: throw TransferException("Investimento senza ISIN riconoscibile: associazione richiesta.") else null
+        val name = isin?.let { tipo.substringAfter(it).trim().ifEmpty { description } }
+        val upper = description.uppercase()
+        val lowerDescription = description.lowercase()
+        val interest = !investment && type == "income" &&
+            ((upper.contains("SPESE ACCREDITO") && upper.contains("A FRONTE DEL SALDO MENSILE")) ||
+                (lowerDescription.contains("interessi") && lowerDescription.contains("interest payment")))
+        return create(number, description.ifBlank { name.orEmpty() }, field { it.contains("data") } ?: "", amount,
+            field { it.contains("valuta") || it == "currency" }?.takeIf { it.isNotBlank() } ?: defaultCurrency,
+            if (investment) "investment" else type, allowInvestment = investment).copy(isin = isin, investmentName = name, bankInterest = interest)
     }
 
-    private fun create(row: Int, description: String, date: String, amount: BigDecimal, currency: String, type: String, categoryId: String? = null, rate: BigDecimal? = null): ImportTransaction {
+    private fun create(row: Int, description: String, date: String, amount: BigDecimal, currency: String, type: String, categoryId: String? = null, rate: BigDecimal? = null, allowInvestment: Boolean = false): ImportTransaction {
         if (description.isBlank() || description.length > 1000) throw TransferException("Descrizione assente o superiore a 1.000 caratteri.")
         val normalizedCurrency = currency.trim().uppercase()
         if (normalizedCurrency !in currencies) throw TransferException("Valuta non supportata: ${currency.take(12)}.")
         val normalizedType = type.trim().lowercase()
-        if (normalizedType !in setOf("income", "expense")) throw TransferException("Tipo richiesto: income oppure expense.")
+        if (normalizedType !in setOf("income", "expense") && !(allowInvestment && normalizedType == "investment")) throw TransferException("Tipo richiesto: income oppure expense.")
         if (amount.signum() <= 0) throw TransferException("L'importo deve essere positivo; usa type per indicare entrata o uscita.")
         if (amount.precision() > 18 || amount.scale() > 8) throw TransferException("Precisione dell'importo non supportata.")
         val day = try {

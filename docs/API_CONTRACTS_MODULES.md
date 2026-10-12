@@ -2,6 +2,14 @@
 
 Riferimento letto: `Savely/main`, `1cfcf6297e85d56bfafe3522362ceecef6f6b281`. Questa verifica riguarda i sorgenti e lo schema TypeScript della repository. Non conferma policy RLS, funzioni o dati effettivamente distribuiti.
 
+## Candidata 0.1.9
+
+FIRE aggiunge grafico nominale/reale, target, selezione dell'anno e input mensili/annuali. I parametri salvati restano annuali nel formato v1. Il reset da database conserva le spese; «Usa i miei dati» sostituisce i quattro valori soltanto dopo una lettura completa legata all'account iniziale. Il limite di 24 mesi riproduce il rollover di `Date.setMonth` e considera le date delle righe a mezzanotte UTC.
+
+Fumo conserva i derivati salvati anche senza una durata; i fallback e gli arrotondamenti seguono i campi legacy del riferimento. Poker rende il mese non modificabile per i record esistenti e lo omette dal PATCH. Le serie Manga mantengono UUID, payload e login iniziale durante il ripristino del form; la ripresa resta esplicita. È corretta la ricomposizione mentre la revisione dell'account viene ricaricata.
+
+Le nuove fixture e le regressioni locali sono incluse nella verifica integrata descritta in [TESTING.md](TESTING.md). Le prove storiche sotto mantengono il proprio ambito e la propria versione. Non sono verificati due client Poker concorrenti, dati Fumo legacy reali o ripristino Manga dopo un nuovo login reale.
+
 ## Lettura e scrittura
 
 Il client usa PostgREST con JWT dell'utente. Le letture filtrano `user_id`; gli insert lo includono; update e delete usano l'identificativo del record. L'autorizzazione deve essere applicata dalle policy backend, anche quando l'interfaccia nasconde un modulo. Le schermate mostrano errore e retry, confermano le cancellazioni e aggiornano i dati dopo una scrittura riuscita. Non accodano scritture offline.
@@ -37,7 +45,9 @@ Nella suite corrente di 399 test JVM passano le quattro nuove fixture repository
 
 FIRE replica `src/lib/fire/calculations.ts`: rendimento reale `(1+r)/(1+i)-1`; obiettivo `spese/prelievo`; contributi a fine anno; fallback prelievo 4% se non positivo; limite di 100 anni per `yearsToTarget`; proiezione nominale con valore corretto per inflazione, fino a 50 anni. I calcoli usano `Double`, come i `number` JavaScript; gli arrotondamenti seguono `Math.round`, inclusa la direzione delle parità. I test confrontano i valori monetari già arrotondati esattamente e i rapporti entro `1e-12`. Non vengono mostrati probabilità di successo o dati storici simulati.
 
-Il pulsante FIRE “Usa i miei dati” legge `portfolio_assets` e `transactions`: esclude posizioni chiuse solo se hanno sia data sia prezzo di vendita; prezzo corrente null usa quello d'acquisto. Reddito e spesa degli ultimi 24 mesi sono divisi per 2 per annualizzare; contributo annuo `max(0, reddito-spese)`. Il pulsante sostituisce parametri soltanto dopo lettura riuscita. La selezione di date usa `LocalDate`; i casi esattamente al confine dei 24 mesi/730 giorni richiedono verifica rispetto al timestamp JavaScript del web.
+La candidata 0.1.9 aggiunge grafico nominale/reale, guide al 25/50/75/100% del target, indicatore di progresso e selezione dell'anno. Il progresso numerico può superare il 100%; la barra si ferma al 100%. La tabella completa conserva valori annuali e contributi. Gli importi Standard possono essere inseriti al mese o all'anno; la snapshot versione 1 conserva sempre importi annuali. Barista usa importi annuali. Parametri con proiezioni non finite producono un errore esplicito. Le nuove fixture JVM e Android sono scritte; i risultati della verifica integrata saranno registrati in TESTING.md.
+
+Il pulsante FIRE “Usa i miei dati” legge `portfolio_assets` e `transactions`: esclude posizioni chiuse solo se hanno sia data sia prezzo di vendita; prezzo corrente null usa quello d'acquisto. Reddito e spesa degli ultimi 24 mesi sono divisi per 2 per annualizzare; contributo annuo `max(0, reddito-spese)`. La soglia replica `Date.setMonth`: conserva ora e fuso, con rollover dei giorni non disponibili nel mese di destinazione. Le date delle transazioni sono mezzanotte UTC, come il parsing ISO JavaScript; le transazioni future sono incluse come nel riferimento. Il reset dal database conserva le spese inserite, mentre “Usa i miei dati” le sostituisce. Entrambi pubblicano i risultati soltanto dopo lettura completa e verifica della revisione della sessione.
 
 Poker NextCut: `mediana(spese mensili negli ultimi 730 giorni) + somma(spese manuali)`, poi `spesa/deal-profit_loss`. Come il codice web, la mediana considera soltanto mesi con transazioni di spesa e non applica un limite superiore alle date. Questa scelta è osservata nel codice, anche se il commento web menziona valori zero. `amount` viene aggiornato con Salva, evitando scritture durante una semplice lettura.
 
@@ -45,7 +55,7 @@ Guadagno orario: `hours_played=minuti/60`; rate memorizzati lordi `NetWon/ore` e
 
 Fumo: giorni tra date ISO; quantità/giorno e euro/giorno divisi per la durata positiva; costo mensile convenzionale `euro/giorno*30`; riepilogo annuo costo/12. THC e Liquido mostrano nel dettaglio solo l'anno corrente, mantenendo riepiloghi su tutti gli anni. CBD mostra tutte le righe.
 
-La media giornaliera annua Liquido presenta una differenza per record legacy incoerenti: `src/pages/FumoLiquidoSigaretta.tsx` divide i millilitri totali per la somma di `giorni_durata` salvata, mentre Android ricalcola le durate dalle date. Con 25 ml, date dal primo all'undicesimo giorno e durata salvata 20, il web restituisce 1,25 ml/giorno e Android 2,5. Questa differenza è osservata nei sorgenti; la fixture descritta sotto usa date e durate coerenti e non verifica né corregge dati legacy.
+La lettura Fumo conserva `giorni_durata` e derivati salvati anche se differiscono dalle date. La media giornaliera Liquido divide la quantità totale per le durate così mappate: 25 ml e durata salvata 20 producono 1,25 ml/giorno anche con dieci giorni tra le date. La quantità usa gli alias `quantita`, `grammi`, `millilitri` in questo ordine. Il fallback legacy di `fumoCrud` usa soltanto `quantita` o `grammi` per derivare giorni, euro/giorno e costo mensile quando manca la durata; non sostituisce i campi di consumo giornaliero e non deriva giorni dal solo campo `millilitri`. Queste particolarità del riferimento vengono preservate senza riscrivere i dati.
 
 TCG: costo e valore sono prezzi unitari moltiplicati per quantità; prezzo corrente null usa il prezzo d'acquisto. La panoramica e i riepiloghi di categoria separano le valute registrate, senza conversioni. Libreria: acquisto e rivendita moltiplicati per quantità; null vale zero, in EUR perché la tabella non ha una colonna valuta. Le panoramiche leggono tutte le categorie dell'account; categorie sconosciute restano visibili e incluse nei totali. Una pagina incompleta, duplicata o illeggibile produce un errore e non espone totali parziali.
 

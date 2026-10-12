@@ -22,10 +22,13 @@ function load(relative, imports = {}) {
   return exports;
 }
 const legal = load('src/lib/legalContents.ts');
-const t = (text, values = {}) => text.replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] ?? `{{${key}}}`);
+const english = JSON.parse(fs.readFileSync(path.join(source, 'src/i18n/locales/en.json'), 'utf8'));
+let language = 'it';
+const t = (text, values = {}) => (language === 'en' ? english[text] || text : text)
+  .replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] ?? `{{${key}}}`);
 const imports = {
   'react-i18next': { useTranslation: () => ({ t }) },
-  'react-router': { Link: ({ children }) => React.createElement('span', null, children) },
+  'react-router': { Link: ({ children, to }) => React.createElement('a', { href: to }, children) },
   '@/lib/legalContents': legal,
   '@/components/legal/LegalLayout': {
     __esModule: true,
@@ -43,10 +46,18 @@ function textFromHtml(html) {
 }
 const target = path.resolve('app/src/main/assets/legal');
 fs.mkdirSync(target, { recursive: true });
-for (const [page, file] of [['Privacy', 'privacy'], ['Cookies', 'cookies'], ['Termini', 'terms']]) {
+for (const locale of ['it', 'en']) for (const [page, file] of [['Privacy', 'privacy'], ['Cookies', 'cookies'], ['Termini', 'terms']]) {
+  language = locale;
   const Page = load(`src/pages/${page}.tsx`, imports).default;
-  const text = textFromHtml(renderToStaticMarkup(React.createElement(Page)));
+  const html = renderToStaticMarkup(React.createElement(Page));
+  const text = textFromHtml(html);
   if (text.length < 1000 || /\{\{\w+\}\}/.test(text)) throw new Error(`Incomplete legal document: ${page}`);
-  fs.writeFileSync(path.join(target, `${file}.txt`), `${text}\n`, 'utf8');
-  console.log(`${file}: ${text.length} characters`);
+  const destination = locale === 'it' ? target : path.join(target, locale);
+  fs.mkdirSync(destination, { recursive: true });
+  const links = [...html.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gs)].map(([, href, body]) => ({
+    href: href.replace(/&amp;/g, '&'), label: textFromHtml(body),
+  })).filter(({ href, label }) => label && (/^https:\/\//.test(href) || /^mailto:/.test(href) || ['/privacy', '/terms', '/cookies'].includes(href)));
+  fs.writeFileSync(path.join(destination, `${file}.txt`), `${text}\n`, 'utf8');
+  fs.writeFileSync(path.join(destination, `${file}-links.json`), `${JSON.stringify(links, null, 2)}\n`, 'utf8');
+  console.log(`${locale}/${file}: ${text.length} characters, ${links.length} links`);
 }

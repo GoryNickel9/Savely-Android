@@ -28,7 +28,7 @@ class FinanceChartsTest {
     }
 
     @Test fun `custom dates reject malformed nonexistent reversed and future since boundaries`() {
-        listOf("", "2024-2-29", "2023-02-29", "0000-01-01", "2024-03-15T00:00:00Z", " 2024-03-15").forEach { invalid ->
+        listOf("2024-2-29", "2023-02-29", "0000-01-01", "2024-03-15T00:00:00Z", " 2024-03-15").forEach { invalid ->
             assertThrows(IllegalArgumentException::class.java) { resolveFinanceChartRange(FinanceChartPeriod.BETWEEN, emptyList(), today,
                 fromText = invalid, toText = "2024-03-15") }
         }
@@ -37,6 +37,15 @@ class FinanceChartsTest {
         assertThrows(IllegalArgumentException::class.java) { resolveFinanceChartRange(FinanceChartPeriod.SINCE, emptyList(), today, fromText = "2024-03-16") }
         assertThrows(IllegalArgumentException::class.java) { resolveFinanceChartRange(FinanceChartPeriod.MONTH, emptyList(), today, month = 13) }
         assertThrows(IllegalArgumentException::class.java) { resolveFinanceChartRange(FinanceChartPeriod.YEAR, emptyList(), today, year = 10000) }
+    }
+
+    @Test fun `optional chart bounds use full data extrema and empty data remains a day`() {
+        val rows = listOf(row("2024-02-01", "1"), row("2024-04-01", "2"))
+        assertEquals(range("2024-02-01", "2024-04-01"), resolveFinanceChartRange(FinanceChartPeriod.BETWEEN, rows, today))
+        assertEquals(range("2024-02-01", "2024-03-10"), resolveFinanceChartRange(FinanceChartPeriod.BETWEEN, rows, today, toText = "2024-03-10"))
+        assertEquals(range("2024-02-10", "2024-04-01"), resolveFinanceChartRange(FinanceChartPeriod.BETWEEN, rows, today, fromText = "2024-02-10"))
+        assertEquals(range("2024-02-01", "2024-03-15"), resolveFinanceChartRange(FinanceChartPeriod.SINCE, rows, today))
+        assertEquals(DashboardRange(today, today), resolveFinanceChartRange(FinanceChartPeriod.BETWEEN, emptyList(), today))
     }
 
     @Test fun `filters use inclusive boundaries ID currency and type and preserve input`() {

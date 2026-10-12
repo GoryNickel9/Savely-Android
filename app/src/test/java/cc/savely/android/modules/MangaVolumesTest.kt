@@ -3,6 +3,8 @@ package cc.savely.android.modules
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
+import cc.savely.android.data.authSessionId
+import cc.savely.android.data.SessionStore
 import cc.savely.android.data.SupabaseApi
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
@@ -18,8 +20,10 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -28,6 +32,10 @@ class MangaVolumesTest {
     private lateinit var client: OkHttpClient
     private lateinit var store: MemorySessionStore
     private lateinit var repository: MangaVolumeRepository
+    private lateinit var boundApi: SupabaseApi
+    private var originRevision = 0L
+    private val sessionLoads = AtomicInteger()
+    private var switchAtLoad: Int? = null
     private val rows = ConcurrentHashMap<String, JSONObject>()
     private val posts = CopyOnWriteArrayList<JSONObject>()
     private val reads = CopyOnWriteArrayList<RecordedRequest>()
@@ -85,10 +93,13 @@ class MangaVolumesTest {
             }
             start()
         }
-        repository = MangaVolumeRepository(api())
+        boundApi = createApi()
+        originRevision = runBlocking { requireNotNull(boundApi.sessionOwnerRevision(requireNotNull(boundApi.session()))) }
+        repository = MangaVolumeRepository(boundApi)
     }
 
     @After fun teardown() {
+        boundApi.close()
         server.shutdown()
         client.dispatcher.executorService.shutdown()
         client.connectionPool.evictAll()
@@ -185,7 +196,7 @@ class MangaVolumesTest {
     @Test fun successfulSavePublishesPendingSnapshotBeforePostAndNeverRewritesCompletedBatch(): Unit = runBlocking {
         val batch = plan()
         val progress = mutableListOf<MangaVolumeBatch>()
-        val result = repository.save(batch) { current ->
+        val result = repository.save(batch, OWNER, originRevision) { current ->
             beforePostSnapshot.set(current.encode())
             progress.add(current)
         }
@@ -204,14 +215,14 @@ class MangaVolumesTest {
         }
         val requestsBefore = server.requestCount
         val restored = MangaVolumeBatch.decode(result.encode())
-        MangaVolumeRepository(api()).save(restored) { fail("Completed batches must not publish another request") }
+        MangaVolumeRepository(boundApi).save(restored, OWNER, originRevision) { fail("Completed batches must not publish another request") }
         assertEquals(requestsBefore, server.requestCount)
     }
 
     @Test fun ambiguousCommitReconcilesExactOwnerAndPayloadWithoutDuplicatePost(): Unit = runBlocking {
         outcomes[2] = Outcome.COMMIT_AND_DISCONNECT
         val batch = plan()
-        val result = repository.save(batch) {}
+        val result = repository.save(batch, OWNER, originRevision) {}
         assertTrue(result.complete)
         assertEquals(3, posts.size)
         assertEquals(batch.volumes.map { it.body().getString("id") }, posts.map { it.getString("id") })
@@ -225,13 +236,13 @@ class MangaVolumesTest {
         outcomes[2] = Outcome.REJECT
         val batch = plan()
         var snapshot = batch
-        expectFailure { repository.save(batch) { snapshot = it } }
+        expectFailure { repository.save(batch, OWNER, originRevision) { snapshot = it } }
         assertEquals(1, snapshot.completed)
         assertTrue(snapshot.reconcileCurrent)
         assertEquals(2, posts.size) // Failure does not automatically re-POST even after a successful empty read.
         assertEquals(1, rows.size)
         val restored = MangaVolumeBatch.decode(snapshot.encode())
-        val finished = MangaVolumeRepository(api()).save(restored) { snapshot = it }
+        val finished = MangaVolumeRepository(boundApi).save(restored, OWNER, originRevision) { snapshot = it }
         assertTrue(finished.complete)
         val ids = batch.volumes.map { it.body().getString("id") }
         assertEquals(listOf(ids[0], ids[1], ids[1], ids[2]), posts.map { it.getString("id") })
@@ -243,11 +254,11 @@ class MangaVolumesTest {
         outcomes[1] = Outcome.REJECT
         failReads.set(true)
         var snapshot = plan()
-        expectFailure { repository.save(snapshot) { snapshot = it } }
+        expectFailure { repository.save(snapshot, OWNER, originRevision) { snapshot = it } }
         assertTrue(snapshot.reconcileCurrent)
         assertEquals(0, snapshot.completed)
         assertEquals(1, posts.size)
-        expectFailure { repository.save(MangaVolumeBatch.decode(snapshot.encode())) { snapshot = it } }
+        expectFailure { repository.save(MangaVolumeBatch.decode(snapshot.encode()), OWNER, originRevision) { snapshot = it } }
         assertEquals(1, posts.size)
         assertTrue(rows.isEmpty())
         assertEquals(2, reads.size)
@@ -257,7 +268,7 @@ class MangaVolumesTest {
         val batch = plan().copy(reconcileCurrent = true)
         val existing = batch.volumes[0].body().put("notes", "Changed on another client")
         rows[existing.getString("id")] = existing
-        expectFailure { repository.save(batch) {} }
+        expectFailure { repository.save(batch, OWNER, originRevision) {} }
         assertTrue(posts.isEmpty())
         assertEquals("Changed on another client", rows[existing.getString("id")]!!.getString("notes"))
     }
@@ -265,7 +276,7 @@ class MangaVolumesTest {
     @Test fun conflictAfterCommitIsReadAndVerifiedWithoutAnotherPost(): Unit = runBlocking {
         outcomes[1] = Outcome.COMMIT_AND_CONFLICT
         val batch = MangaVolumes.prepare(OWNER, base(), listOf(3))
-        assertTrue(repository.save(batch) {}.complete)
+        assertTrue(repository.save(batch, OWNER, originRevision) {}.complete)
         assertEquals(1, posts.size)
         assertEquals(1, reads.size)
         assertEquals(1, rows.size)
@@ -274,7 +285,7 @@ class MangaVolumesTest {
     @Test fun malformedSuccessfulResponseUsesExactIdReadInsteadOfDuplicatingInsertion(): Unit = runBlocking {
         outcomes[1] = Outcome.COMMIT_BAD_REPRESENTATION
         val batch = MangaVolumes.prepare(OWNER, base(), listOf(3))
-        assertTrue(repository.save(batch) {}.complete)
+        assertTrue(repository.save(batch, OWNER, originRevision) {}.complete)
         assertEquals(1, posts.size)
         assertEquals(1, reads.size)
     }
@@ -282,8 +293,61 @@ class MangaVolumesTest {
     @Test fun accountSwitchStopsBeforeAnyReadOrWrite(): Unit = runBlocking {
         val batch = plan().copy(reconcileCurrent = true)
         store.save(session(OTHER_OWNER))
-        expectFailure { repository.save(batch) { fail("Different account must not advance the batch") } }
+        expectFailure { repository.save(batch, OWNER, originRevision) { fail("Different account must not advance the batch") } }
         assertEquals(0, server.requestCount)
+    }
+
+    @Test fun restoredBatchFromOldLoginOfSameUidCannotReadWriteOrAdvance(): Unit = runBlocking {
+        val restored = MangaVolumeBatch.decode(plan().copy(reconcileCurrent = true).encode())
+        store.clear()
+        assertNull(boundApi.session())
+        store.save(session(OWNER).copy(accessToken = "replacement-access", refreshToken = "replacement-refresh"))
+        val snapshot = requireNotNull(boundApi.session())
+        assertNotEquals(originRevision, boundApi.sessionOwnerRevision(snapshot))
+        expectFailure { repository.save(restored, OWNER, originRevision) { fail("Old login advanced") } }
+        assertEquals(0, server.requestCount)
+        assertTrue(posts.isEmpty())
+        assertTrue(reads.isEmpty())
+    }
+
+    @Test fun accountSwitchBetweenLastCheckAndAuthorizedLoadNeverSendsOldPayloadWithNewToken(): Unit = runBlocking {
+        val batch = plan()
+        // save checks at entry, loop entry and immediately before insert; switch at API's own session load.
+        switchAtLoad = sessionLoads.get() + 4
+        var pending = batch
+        expectFailure { repository.save(batch, OWNER, originRevision) { pending = it } }
+        assertEquals(OTHER_OWNER, store.load()!!.userId)
+        assertEquals(0, server.requestCount)
+        assertTrue(posts.isEmpty())
+        assertTrue(reads.isEmpty())
+        assertEquals(0, pending.completed)
+        assertTrue(pending.reconcileCurrent)
+        assertEquals(batch.volumes.map { it.payload }, pending.volumes.map { it.payload })
+    }
+
+    @Test fun newApiInstanceWithSameRevisionAndUidRejectsRestoredPlanFromDifferentAuthSession(): Unit = runBlocking {
+        fun login(id: String): Session {
+            fun part(json: String) = Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray(Charsets.UTF_8))
+            val access = part("{\"alg\":\"fixture\"}") + "." + part(JSONObject().put("sub", OWNER).put("session_id", id).toString()) + ".fixture"
+            return session(OWNER).copy(accessToken = access)
+        }
+        val originLogin = "32000000-0000-4000-8000-000000000001"
+        store.save(login(originLogin))
+        val originalApi = createApi()
+        val oldSnapshot = requireNotNull(originalApi.session())
+        val oldRevision = requireNotNull(originalApi.sessionOwnerRevision(oldSnapshot))
+        originalApi.close()
+        store.save(login("32000000-0000-4000-8000-000000000002"))
+        val restartedApi = createApi()
+        try {
+            val current = requireNotNull(restartedApi.session())
+            assertEquals(oldRevision, restartedApi.sessionOwnerRevision(current)) // API counters restart; UUIDs must distinguish logins.
+            assertNotEquals(oldSnapshot.authSessionId(), current.authSessionId())
+            expectFailure { MangaVolumeRepository(restartedApi).save(MangaVolumeBatch.decode(plan().encode()), OWNER,
+                oldRevision, originLogin) { fail("Different restored login advanced") } }
+            assertEquals(0, server.requestCount)
+            assertTrue(posts.isEmpty())
+        } finally { restartedApi.close() }
     }
 
     private suspend fun expectFailure(action: suspend () -> Unit) {
@@ -291,7 +355,18 @@ class MangaVolumesTest {
         try { action() } catch (caught: Exception) { failure = caught }
         assertNotNull("Expected explicit failure", failure)
     }
-    private fun api() = SupabaseApi(BackendConfig(server.url("/").toString(), "public-test-key"), store, client)
+    private fun createApi(): SupabaseApi {
+        val wrappedStore = object : SessionStore {
+            override fun load(): Session? {
+                if (sessionLoads.incrementAndGet() == switchAtLoad)
+                    store.save(session(OTHER_OWNER).copy(accessToken = "foreign-access", refreshToken = "foreign-refresh"))
+                return store.load()
+            }
+            override fun save(session: Session) = store.save(session)
+            override fun clear() = store.clear()
+        }
+        return SupabaseApi(BackendConfig(server.url("/").toString(), "public-test-key"), wrappedStore, client)
+    }
     private fun session(owner: String) = Session("synthetic-access", "synthetic-refresh", Long.MAX_VALUE, owner, "manga@example.test")
     private fun plan() = MangaVolumes.prepare(OWNER, base(), listOf(1, 2, 3))
     private fun base() = JSONObject().put("title", "Berserk").put("category", "manga").put("quantity", 1)

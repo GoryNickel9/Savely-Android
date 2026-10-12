@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cc.savely.android.data.SupabaseApi
+import cc.savely.android.data.authSessionId
 import cc.savely.android.BuildConfig
 import cc.savely.android.ui.localized
 import coil.compose.AsyncImage
@@ -56,12 +57,19 @@ private fun number(value: String): Double {
 }
 private fun JSONArray.rows() = (0 until length()).map { getJSONObject(it) }
 private suspend fun SupabaseApi.userRows(table: String, extra: String = ""): List<JSONObject> {
-    val userId = session()?.userId ?: error("Accedi per leggere i tuoi dati")
-    if (extra.contains("&limit=")) return select(table, "user_id=eq.$userId$extra").rows()
+    val snapshot = session() ?: error("Accedi per leggere i tuoi dati")
+    val userId = snapshot.userId
+    val ownerRevision = requireNotNull(sessionOwnerRevision(snapshot))
+    fun checkPage(page: List<JSONObject>) {
+        check(isSessionOwnerCurrent(ownerRevision)) { "Account cambiato. Riapri la schermata." }
+        check(page.all { it.optString("user_id") == userId }) { "Dati di un altro account rifiutati" }
+    }
+    if (extra.contains("&limit=")) return select(table, "user_id=eq.$userId$extra").rows().also(::checkPage)
     val rows = mutableListOf<JSONObject>()
     val order = if (extra.contains("&order=")) "" else "&order=id.asc"
     while (true) {
         val page = select(table, "user_id=eq.$userId$extra$order&limit=500&offset=${rows.size}").rows()
+        checkPage(page)
         if (page.isEmpty()) return rows
         rows.addAll(page)
         require(rows.size <= 100000) { "Dataset troppo grande: restringi il periodo sul web" }
@@ -151,6 +159,9 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
     var inflation by rememberSaveable { mutableStateOf((initial.inputs.inflationRate * 100).toString()) }
     var withdrawal by rememberSaveable { mutableStateOf((initial.inputs.withdrawalRate * 100).toString()) }
     var partTime by rememberSaveable { mutableStateOf(initial.partTimeIncome.toString()) }
+    var contributionMonthly by rememberSaveable { mutableStateOf(false) }
+    var incomeMonthly by rememberSaveable { mutableStateOf(false) }
+    var expensesMonthly by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var storageWarning by remember { mutableStateOf(restoreWarning) }
     var storageError by remember { mutableStateOf<String?>(null) }
@@ -162,9 +173,10 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
     var sharingError by remember { mutableStateOf<String?>(null) }
     fun currentParameters(): FireParameters {
         require(number(age) % 1 == 0.0 && number(retirement) % 1 == 0.0) { "Usa età intere" }
+        fun annual(raw: String, monthly: Boolean) = number(if (monthly) fireMonthlyToAnnual(raw) else raw)
         return FireParameters(FireCalculations.Inputs(number(age).toInt(), number(retirement).toInt(), number(savings),
-            number(contribution), number(income), number(expectedReturn) / 100, number(inflation) / 100,
-            number(withdrawal) / 100, number(expenses)), number(partTime)).also { it.encode() }
+            annual(contribution, contributionMonthly), annual(income, incomeMonthly), number(expectedReturn) / 100, number(inflation) / 100,
+            number(withdrawal) / 100, annual(expenses, expensesMonthly)), number(partTime)).also { it.encode() }
     }
     val parameters = runCatching { currentParameters() }
     val encoded = parameters.getOrNull()?.encode()
@@ -174,21 +186,28 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
             val current = parameters.getOrThrow()
             if (tab == 0) {
                 val calculated = FireCalculations.standard(current.inputs)
-                listOf("Obiettivo FIRE" to money(calculated.fireNumber),
+                require(calculated.fireNumber.isFinite() && calculated.coastFireNumber.isFinite() && calculated.projections.all {
+                    it.portfolio.isFinite() && it.inflationAdjusted.isFinite() && it.totalContributions.isFinite()
+                }) { "Proiezione non rappresentabile: controlla importi e tassi." }
+                Triple(listOf("Obiettivo FIRE" to money(calculated.fireNumber),
                     "Anni al FIRE" to years(calculated.yearsToFire), "Età al FIRE" to years(calculated.fireAge),
                     "Tasso di risparmio" to "${format(calculated.savingsRate * 100)}%",
-                    "Contributo mensile" to money(calculated.monthlyContribution), "Coast FIRE" to money(calculated.coastFireNumber)) to calculated.projections
+                    "Contributo mensile" to money(calculated.monthlyContribution), "Coast FIRE" to money(calculated.coastFireNumber)), calculated.projections, calculated.fireNumber)
             } else {
                 val calculated = FireCalculations.barista(current.inputs, current.partTimeIncome)
-                listOf("Obiettivo Barista" to money(calculated.baristaNumber), "Obiettivo FIRE completo" to money(calculated.fullFireNumber),
+                require(calculated.baristaNumber.isFinite() && calculated.fullFireNumber.isFinite() && calculated.projections.all {
+                    it.portfolio.isFinite() && it.inflationAdjusted.isFinite() && it.totalContributions.isFinite()
+                }) { "Proiezione non rappresentabile: controlla importi e tassi." }
+                Triple(listOf("Obiettivo Barista" to money(calculated.baristaNumber), "Obiettivo FIRE completo" to money(calculated.fullFireNumber),
                     "Anni al Barista FIRE" to years(calculated.yearsToBaristaFire),
                     "Reddito part-time richiesto" to money(calculated.partTimeIncomeNeeded),
-                    "Capitale risparmiato con part-time" to money(calculated.savingsFromPartTime)) to calculated.projections
+                    "Capitale risparmiato con part-time" to money(calculated.savingsFromPartTime)), calculated.projections, calculated.baristaNumber)
             }
         }
     }
     val result = calculation.getOrNull()?.first.orEmpty()
     val projections = calculation.getOrNull()?.second.orEmpty()
+    val target = calculation.getOrNull()?.third
     val calculationError = parameters.exceptionOrNull()?.message ?: calculation.exceptionOrNull()?.message
         ?: if (calculation.isFailure) "Parametri FIRE non validi" else null
     val latestEncoded = rememberUpdatedState(encoded)
@@ -209,9 +228,37 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
         } catch (failure: CancellationException) { throw failure }
         catch (failure: Exception) { storageError = "Parametri non salvati sul dispositivo. Riprova o libera spazio." }
     }
+    fun loadDatabaseDefaults(keepExpenses: Boolean) {
+        scope.launch {
+            importing = true
+            try {
+                val snapshot = requireNotNull(api.session())
+                check(snapshot.userId == ownerId) { "Account cambiato. Riapri FIRE per continuare." }
+                val ownerRevision = requireNotNull(api.sessionOwnerRevision(snapshot))
+                val holdings = api.userRows("portfolio_assets")
+                val transactions = api.userRows("transactions", "&deleted_at=is.null")
+                val defaults = requireNotNull(fireDatabaseDefaults(holdings, transactions, java.time.ZonedDateTime.now())) { "Nessuna transazione negli ultimi 24 mesi" }
+                check(api.isSessionOwnerCurrent(ownerRevision)) { "Account cambiato. Riapri FIRE per continuare." }
+                api.withCurrentSessionOwner(ownerRevision) {
+                    contributionMonthly = false; incomeMonthly = false
+                    savings = defaults.savings.toString(); income = defaults.income.toString(); contribution = defaults.contribution.toString()
+                    if (!keepExpenses) { expensesMonthly = false; expenses = defaults.expenses.toString() }
+                }
+                error = null
+            } catch (failure: CancellationException) { throw failure }
+            catch (failure: Exception) { error = failure.message ?: "Impossibile caricare i parametri" }
+            finally { importing = false }
+        }
+    }
     LazyColumn(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text(localized("FIRE"), style = MaterialTheme.typography.headlineMedium) }
-        item { Tabs(listOf("Standard", "Barista"), tab) { tab = it } }
+        item { Tabs(listOf("Standard", "Barista"), tab) {
+            if (contributionMonthly) contribution = runCatching { fireMonthlyToAnnual(contribution) }.getOrDefault(contribution)
+            if (incomeMonthly) income = runCatching { fireMonthlyToAnnual(income) }.getOrDefault(income)
+            if (expensesMonthly) expenses = runCatching { fireMonthlyToAnnual(expenses) }.getOrDefault(expenses)
+            contributionMonthly = false; incomeMonthly = false; expensesMonthly = false
+            tab = it
+        } }
         item { Text(localized("Parametri di esempio modificabili. Proiezione deterministica: rendimenti e inflazione restano costanti.")) }
         item {
             Text(localized(when {
@@ -236,6 +283,7 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                                 check(preferences.edit().putString(FireParameters.STORAGE_KEY, reset).commit()) { "Ripristino locale non riuscito" }
                             } }
                             age = defaults.inputs.currentAge.toString(); retirement = defaults.inputs.retirementAge.toString()
+                            contributionMonthly = false; incomeMonthly = false; expensesMonthly = false
                             savings = defaults.inputs.currentSavings.toString(); contribution = defaults.inputs.annualContribution.toString()
                             income = defaults.inputs.annualIncome.toString(); expenses = defaults.inputs.annualExpenses.toString()
                             expectedReturn = (defaults.inputs.expectedReturn * 100).toString(); inflation = (defaults.inputs.inflationRate * 100).toString()
@@ -250,27 +298,12 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                scope.launch {
-                    importing = true
-                    try {
-                        val holdings = api.userRows("portfolio_assets")
-                        val transactions = api.userRows("transactions").filter { LocalDate.parse(it.getString("date").take(10)) >= LocalDate.now().minusMonths(24) }
-                        require(transactions.isNotEmpty()) { "Nessuna transazione negli ultimi 24 mesi" }
-                        val totalIncome = transactions.filter { it.getString("type") == "income" }.sumOf { it.getDouble("amount") }
-                        val totalExpenses = transactions.filter { it.getString("type") == "expense" }.sumOf { it.getDouble("amount") }
-                        savings = holdings.filter { it.isNull("sold_at") || it.optString("sold_at").isBlank() || it.isNull("sold_price") }.sumOf {
-                            (if (it.isNull("current_price")) it.getDouble("purchase_price") else it.getDouble("current_price")) * it.getDouble("quantity")
-                        }.toString()
-                        income = (totalIncome / 2).toString()
-                        expenses = (totalExpenses / 2).toString()
-                        contribution = ((totalIncome - totalExpenses) / 2).coerceAtLeast(0.0).toString()
-                        error = null
-                    } catch (failure: CancellationException) { throw failure }
-                    catch (failure: Exception) { error = failure.message ?: "Impossibile caricare i parametri" }
-                    finally { importing = false }
-                }
-            }, enabled = !importing && !resetting) { Text(localized(if (importing) "Caricamento…" else "Usa i miei dati (24 mesi)")) }
+            OutlinedButton(onClick = { loadDatabaseDefaults(keepExpenses = false) }, enabled = !importing && !resetting) {
+                Text(localized(if (importing) "Caricamento…" else "Usa i miei dati (24 mesi)"))
+            }
+            OutlinedButton(onClick = { loadDatabaseDefaults(keepExpenses = true) }, enabled = !importing && !resetting) {
+                Text(localized("Reset ai valori dal database"))
+            }
             Text(localized("Il link condiviso contiene i tuoi parametri finanziari. Condividilo soltanto con i destinatari scelti."),
                 style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = {
@@ -299,19 +332,24 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
         item { NumberInput("Età attuale", age) { age = it } }
         item { NumberInput("Età pensionamento", retirement) { retirement = it } }
         item { NumberInput("Risparmi attuali (€)", savings) { savings = it } }
-        item { NumberInput("Contributo annuo (€)", contribution) { contribution = it } }
-        item { NumberInput("Reddito netto annuo (€)", income) { income = it } }
-        item { NumberInput("Spese annue (€)", expenses) { expenses = it } }
+        item { FireAmountInput("Contributo annuo (€)", "Contributo mensile (€)", contribution, contributionMonthly, tab == 0, "fire-contribution-unit",
+            { contribution = it }) { contribution = switchFireAmountUnit(contribution, !contributionMonthly); contributionMonthly = !contributionMonthly } }
+        item { FireAmountInput("Reddito netto annuo (€)", "Reddito netto mensile (€)", income, incomeMonthly, tab == 0, "fire-income-unit",
+            { income = it }) { income = switchFireAmountUnit(income, !incomeMonthly); incomeMonthly = !incomeMonthly } }
+        item { FireAmountInput("Spese annue (€)", "Spese mensili (€)", expenses, expensesMonthly, tab == 0, "fire-expenses-unit",
+            { expenses = it }) { expenses = switchFireAmountUnit(expenses, !expensesMonthly); expensesMonthly = !expensesMonthly } }
         item { NumberInput("Rendimento nominale (%)", expectedReturn) { expectedReturn = it } }
         item { NumberInput("Inflazione (%)", inflation) { inflation = it } }
         item { NumberInput("Prelievo annuo (%)", withdrawal) { withdrawal = it } }
         if (tab == 1) item { NumberInput("Reddito part-time annuo (€)", partTime) { partTime = it } }
         (calculationError ?: error)?.let { item { Text(localized(it), color = MaterialTheme.colorScheme.error) } }
         items(result) { (label, value) -> Metric(label, value) }
+        if (target != null) item { FireProjectionChart(projections, parameters.getOrThrow().inputs.currentSavings, target) }
         if (projections.isNotEmpty()) item { Text(localized("Proiezione annuale"), style = MaterialTheme.typography.titleLarge) }
         items(projections) { point ->
             Metric(localized("{{year}} · {{age}} anni", "year" to point.year, "age" to point.age),
-                localized("{{amount}} · valore reale {{real}}", "amount" to money(point.portfolio), "real" to money(point.inflationAdjusted)))
+                localized("{{amount}} · valore reale {{real}}\nVersamento {{contribution}} · totale versato {{total}}", "amount" to money(point.portfolio), "real" to money(point.inflationAdjusted),
+                    "contribution" to money(point.contributions), "total" to money(point.totalContributions)))
         }
     }
     if (sharingOpen) FireSharingImportDialog(BuildConfig.WEB_URL, sharingBaseline, importing, sharingError,
@@ -333,6 +371,7 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                     } }
                     check(api.session()?.userId == ownerId) { "Account cambiato. Riapri FIRE per continuare." }
                     val imported = shared.parameters.inputs
+                    contributionMonthly = false; incomeMonthly = false; expensesMonthly = false
                     age = imported.currentAge.toString(); retirement = imported.retirementAge.toString()
                     savings = imported.currentSavings.toString(); contribution = imported.annualContribution.toString()
                     income = imported.annualIncome.toString(); expenses = imported.annualExpenses.toString()
@@ -387,6 +426,8 @@ private fun PokerScreen(api: SupabaseApi, modifier: Modifier) {
 private fun NextCutScreen(api: SupabaseApi, modifier: Modifier) {
     val scope = rememberCoroutineScope()
     var record by remember { mutableStateOf<JSONObject?>(null) }
+    var owner by remember { mutableStateOf("") }
+    var ownerRevision by remember { mutableStateOf<Long?>(null) }
     var spending by remember { mutableDoubleStateOf(0.0) }
     var deal by rememberSaveable { mutableStateOf("0,55") }
     var profit by rememberSaveable { mutableStateOf("0") }
@@ -398,15 +439,19 @@ private fun NextCutScreen(api: SupabaseApi, modifier: Modifier) {
         loading = true
         dataReady = false
         try {
-            record = api.userRows("poker_next_cut", "&order=created_at.asc&limit=1").firstOrNull()
+            val snapshot = requireNotNull(api.session())
+            val expectedRevision = requireNotNull(api.sessionOwnerRevision(snapshot))
+            val loadedRecord = api.userRows("poker_next_cut", "&order=created_at.asc&limit=1").firstOrNull()
             val transactions = api.userRows("transactions").map { PokerCalculations.Expense(
                 LocalDate.parse(it.getString("date").take(10)), it.getDouble("amount"), it.getString("type")) }
             val manual = api.userRows("poker_manual_expenses").sumOf { it.getDouble("amount") }
-            spending = PokerCalculations.medianMonthlySpending(transactions, LocalDate.now().minusDays(730)) + manual
-            deal = record?.getDouble("deal")?.toString() ?: "0,55"
-            profit = record?.getDouble("profit_loss")?.toString() ?: "0"
-            error = null
-            dataReady = true
+            val monthly = PokerCalculations.medianMonthlySpending(transactions, LocalDate.now().minusDays(730)) + manual
+            check(api.isSessionOwnerCurrent(expectedRevision)) { "Account cambiato. Riapri la schermata." }
+            api.withCurrentSessionOwner(expectedRevision) {
+                owner = snapshot.userId; ownerRevision = expectedRevision; record = loadedRecord; spending = monthly
+                deal = loadedRecord?.getDouble("deal")?.toString() ?: "0,55"; profit = loadedRecord?.getDouble("profit_loss")?.toString() ?: "0"
+                error = null; dataReady = true
+            }
         } catch (failure: CancellationException) { throw failure }
         catch (failure: Exception) { error = failure.message ?: "Impossibile leggere Next Cut" }
         finally { loading = false }
@@ -427,12 +472,13 @@ private fun NextCutScreen(api: SupabaseApi, modifier: Modifier) {
                 scope.launch {
                     loading = true
                     try {
+                        check(ownerRevision?.let(api::isSessionOwnerCurrent) == true) { "Account cambiato. Riapri la schermata." }
                         val ratio = number(deal)
                         val pnl = number(profit)
                         PokerCalculations.nextCut(spending, ratio, pnl)
                         val payload = JSONObject().put("deal", ratio).put("profit_loss", pnl).put("amount", spending)
-                        if (record == null) api.insert("poker_next_cut", payload.put("name", "Next Cut").put("user_id", api.session()?.userId ?: error("Sessione scaduta")))
-                        else api.update("poker_next_cut", record!!.getString("id"), payload)
+                        if (record == null) api.insert("poker_next_cut", payload.put("name", "Next Cut").put("user_id", owner), expectedOwner = owner, expectedRevision = ownerRevision)
+                        else api.update("poker_next_cut", record!!.getString("id"), payload, expectedOwner = owner, expectedRevision = ownerRevision)
                         revision++
                         error = null
                     } catch (failure: CancellationException) { throw failure }
@@ -585,6 +631,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
         val scope = rememberCoroutineScope()
         var rows by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
         var owner by remember { mutableStateOf("") }
+        var ownerRevision by remember { mutableStateOf<Long?>(null) }
         var loading by remember { mutableStateOf(true) }
         var dataReady by remember { mutableStateOf(false) }
         var deal by remember { mutableDoubleStateOf(0.55) }
@@ -607,14 +654,22 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
             loading = true
             dataReady = false
             try {
-                owner = api.session()?.userId ?: error("Accedi per leggere i tuoi dati")
-                rows = api.userRows(schema.table, "&order=created_at.desc" + (schema.category?.let { "&category=eq.$it" } ?: ""))
-                if (schema.table == "poker_hourly_earnings") {
-                    deal = api.userRows("poker_next_cut", "&order=created_at.asc&limit=1").firstOrNull()?.optDouble("deal", 0.55) ?: 0.55
-                    if (deal == 0.0) deal = 0.55
+                val snapshot = requireNotNull(api.session())
+                val expectedRevision = requireNotNull(api.sessionOwnerRevision(snapshot))
+                val loadedRows = api.userRows(schema.table, "&order=created_at.desc" + (schema.category?.let { "&category=eq.$it" } ?: ""))
+                val loadedDeal = if (schema.table == "poker_hourly_earnings")
+                    (api.userRows("poker_next_cut", "&order=created_at.asc&limit=1").firstOrNull()?.optDouble("deal", 0.55) ?: 0.55).takeUnless { it == 0.0 } ?: 0.55
+                    else deal
+                if (schema.table in listOf("cbd", "thc", "liquido_sigaretta")) loadedRows.forEach { row ->
+                    LocalDate.parse(moduleRecordDate(row, if (schema.table == "liquido_sigaretta") "data_arrivo" else "data_acquisto"))
+                    fumoDisplayedDerived(row, schema.table == "liquido_sigaretta")
+                    require(fumoQuantity(row).isFinite() && row.getDouble("costo").isFinite()) { "Dati Fumo non validi" }
                 }
-                error = null
-                dataReady = true
+                check(api.isSessionOwnerCurrent(expectedRevision)) { "Account cambiato. Riapri la schermata." }
+                api.withCurrentSessionOwner(expectedRevision) {
+                    owner = snapshot.userId; ownerRevision = expectedRevision; rows = loadedRows; deal = loadedDeal
+                    error = null; dataReady = true
+                }
             } catch (failure: CancellationException) { throw failure }
             catch (failure: Exception) { error = failure.message ?: "Impossibile leggere i dati" }
             finally { loading = false }
@@ -706,11 +761,9 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                         }
                         if (schema.table in listOf("cbd", "thc", "liquido_sigaretta")) {
                             val liquid = schema.table == "liquido_sigaretta"
-                            val derived = FumoCalculations.derived(LocalDate.parse(row.getString(if (liquid) "data_arrivo" else "data_acquisto")),
-                                if (row.isNull("data_finito")) null else LocalDate.parse(row.getString("data_finito")),
-                                if (row.isNull(if (liquid) "millilitri" else "grammi")) null else row.getDouble(if (liquid) "millilitri" else "grammi"), row.getDouble("costo"))
+                            val derived = fumoDisplayedDerived(row, liquid)
                             fumoDetailValues(derived)?.let { Text(localized("{{days}} giorni · {{quantity}}/giorno · {{daily}}/giorno · {{monthly}}/mese",
-                                "days" to it.days, "quantity" to it.quantity, "daily" to it.dailyCost, "monthly" to it.monthlyCost)) }
+                                "days" to (it.days ?: "-"), "quantity" to it.quantity, "daily" to it.dailyCost, "monthly" to it.monthlyCost)) }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton({ editRow = row; seed = null; formOpen = true }, enabled = !loading && dataReady) { Text(localized("Modifica")) }
@@ -723,7 +776,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                                     try {
                                         val price = catalog.cardPrice(row.getString("card_id"), row.getString("condition"))
                                         require(price != null) { "Nessun prezzo disponibile per questa carta" }
-                                        api.update(schema.table, row.getString("id"), JSONObject().put("current_price", price))
+                                        api.update(schema.table, row.getString("id"), JSONObject().put("current_price", price), expectedOwner = owner, expectedRevision = ownerRevision)
                                         revision++
                                         error = null
                                     } catch (failure: CancellationException) { throw failure }
@@ -739,7 +792,10 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
         if (searchOpen) CatalogSearchDialog(catalog, schema, { searchOpen = false }) {
             seed = it; editRow = null; searchOpen = false; formOpen = true
         }
-        if (formOpen || mangaCreationOpen) RecordForm(api, catalog, schema, editRow, seed, rows,
+        // The restored Manga dialog flag arrives before the asynchronous owner snapshot.
+        // Keep a mounted form through subsequent refreshes so its immutable pending plan survives.
+        val loadedOwnerRevision = ownerRevision
+        if ((formOpen || mangaCreationOpen) && loadedOwnerRevision != null) RecordForm(api, catalog, schema, editRow, seed, rows, owner, loadedOwnerRevision,
             { formOpen = false; mangaCreationOpen = false }) { revision++ }
         deleteRow?.let { row ->
             AlertDialog(onDismissRequest = { if (!loading) { deleteRow = null; deleteError = null } }, title = { Text(localized("Eliminare questo record?")) },
@@ -752,7 +808,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                     scope.launch {
                         loading = true
                         deleteError = null
-                        try { api.delete(schema.table, row.getString("id")); deleteRow = null; revision++; error = null }
+                        try { api.delete(schema.table, row.getString("id"), expectedOwner = owner, expectedRevision = ownerRevision); deleteRow = null; revision++; error = null }
                         catch (failure: CancellationException) { throw failure }
                         catch (failure: Exception) { deleteError = failure.message ?: "Cancellazione non riuscita. Riprova." }
                         finally { loading = false }
@@ -764,6 +820,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
 }
 
 private fun readField(row: JSONObject, field: Field): String {
+    if (field.key in setOf("data_arrivo", "data_acquisto")) return moduleRecordDate(row, field.key)
     if (row.isNull(field.key)) return ""
     if (field.key == "hours_played") return (row.getDouble(field.key) * 60).toString()
     if (field.type == FieldType.MONTH) return row.getString(field.key).take(7)
@@ -771,7 +828,7 @@ private fun readField(row: JSONObject, field: Field): String {
 }
 
 @Composable
-private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: RecordSchema, row: JSONObject?, seed: JSONObject?, existing: List<JSONObject>, close: () -> Unit, saved: () -> Unit) {
+private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: RecordSchema, row: JSONObject?, seed: JSONObject?, existing: List<JSONObject>, expectedOwner: String, expectedRevision: Long, close: () -> Unit, saved: () -> Unit) {
     val scope = rememberCoroutineScope()
     val mangaCreation = row == null && schema.table == "library_items" && schema.category == "manga"
     var volumeRange by rememberSaveable { mutableStateOf("") }
@@ -781,6 +838,9 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
     val rangeResult = remember(volumeRange) { runCatching { MangaVolumes.parse(volumeRange) } }
     val volumeNumbers = rangeResult.getOrNull()
     val mangaRepository = remember(api) { MangaVolumeRepository(api) }
+    val formOriginRevision = rememberSaveable { expectedRevision }
+    var formOriginAuthSessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var formOriginCaptured by rememberSaveable { mutableStateOf(false) }
     val values = remember { mutableStateMapOf<String, String>().apply { schema.fields.forEach { field ->
         val initial = row ?: seed ?: batch?.volumes?.firstOrNull()?.body()
         put(field.key, if (field.key == "title" && batch != null) batch.baseTitle
@@ -789,10 +849,30 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var invalidField by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(api, formOriginRevision) {
+        if (!mangaCreation || formOriginCaptured) return@LaunchedEffect
+        try {
+            check(batchSnapshot == null) { "Serie locale non leggibile. Chiudi e controlla la collezione prima di riprovare." }
+            val snapshot = requireNotNull(api.session())
+            check(snapshot.userId == expectedOwner && api.sessionOwnerRevision(snapshot) == formOriginRevision) {
+                "Account cambiato. Riapri la schermata."
+            }
+            // Persist only the non-secret login UUID, never an access/refresh token.
+            formOriginAuthSessionId = snapshot.authSessionId()
+            formOriginCaptured = true
+        } catch (failure: CancellationException) { throw failure }
+        catch (failure: Exception) { error = failure.message ?: "Sessione scaduta" }
+    }
     suspend fun saveSeries(plan: MangaVolumeBatch) {
         var latest = plan
         try {
-            mangaRepository.save(plan) { progress -> latest = progress; batchSnapshot = progress.encode() }
+            val snapshot = api.session()
+            check(formOriginCaptured && formOriginRevision == expectedRevision && snapshot != null && snapshot.userId == expectedOwner &&
+                api.isSessionOwnerCurrent(formOriginRevision) &&
+                (formOriginAuthSessionId == null || snapshot.authSessionId() == formOriginAuthSessionId)) {
+                "Account cambiato. Riapri la schermata."
+            }
+            mangaRepository.save(plan, expectedOwner, formOriginRevision, formOriginAuthSessionId) { progress -> latest = progress; batchSnapshot = progress.encode() }
         } finally {
             if (latest.completed > plan.completed) saved()
         }
@@ -825,6 +905,7 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                 } else OutlinedTextField(values[field.key] ?: "", { values[field.key] = it; invalidField = null }, Modifier.fillMaxWidth(),
                     label = { Text(localized(field.label) + if (field.optional) " " + localized("(facoltativo)") else "") }, enabled = !loading && batchSnapshot == null,
                     singleLine = field.key != "notes", isError = invalidField == field.key,
+                    readOnly = schema.uniqueMonth && row != null && field.type == FieldType.MONTH,
                     keyboardOptions = KeyboardOptions(keyboardType = when (field.type) {
                         FieldType.NUMBER, FieldType.INTEGER -> KeyboardType.Decimal
                         FieldType.URL -> KeyboardType.Uri
@@ -839,6 +920,7 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
             if (loading) return@launch
             loading = true
             try {
+                check(api.isSessionOwnerCurrent(expectedRevision)) { "Account cambiato. Riapri la schermata." }
                 if (mangaCreation && batchSnapshot != null) {
                     saveSeries(batch ?: error("Serie locale non leggibile"))
                     return@launch
@@ -846,6 +928,7 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                 if (mangaCreation) rangeResult.getOrThrow()
                 val payload = if (row == null && seed != null) JSONObject(seed.toString()) else JSONObject()
                 for (field in schema.fields) {
+                    if (schema.uniqueMonth && row != null && field.type == FieldType.MONTH) continue
                     if (mangaCreation && volumeNumbers != null && field.key == "quantity") { payload.put("quantity", 1); continue }
                     invalidField = field.key
                     val text = values[field.key].orEmpty().trim()
@@ -866,7 +949,7 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                     }
                 }
                 invalidField = null
-                if (schema.uniqueMonth) require(existing.none { it.getString("id") != row?.optString("id") && it.getString("date") == payload.getString("date") }) { "Esiste già un record per questo mese" }
+                if (schema.uniqueMonth && row == null) require(existing.none { it.getString("date") == payload.getString("date") }) { "Esiste già un record per questo mese" }
                 if (schema.table == "poker_hourly_earnings") {
                     val hourly = PokerCalculations.hourly(payload.getDouble("hours_played"), payload.getDouble("profit_loss"), payload.getDouble("net_won_ev"))
                     payload.put("hours_played", hourly.hours).put("hourly_rate", hourly.hourlyRate).put("hourly_rate_ev", hourly.hourlyRateEv)
@@ -883,8 +966,7 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                 }
                 schema.category?.let { payload.put("category", it) }
                 if (mangaCreation && volumeNumbers != null) {
-                    val owner = api.session()?.userId ?: error("Sessione scaduta")
-                    val plan = MangaVolumes.prepare(owner, payload, volumeNumbers)
+                    val plan = MangaVolumes.prepare(expectedOwner, payload, volumeNumbers)
                     batchSnapshot = plan.encode()
                     error = null
                     saveSeries(plan)
@@ -896,14 +978,14 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                         catch (_: Exception) { null } // Web also allows adding a card while its price service is unavailable.
                     payload.put("current_price", price ?: JSONObject.NULL)
                 }
-                if (row == null) api.insert(schema.table, payload.put("user_id", api.session()?.userId ?: error("Sessione scaduta")))
-                else api.update(schema.table, row.getString("id"), payload)
+                if (row == null) api.insert(schema.table, payload.put("user_id", expectedOwner), expectedOwner = expectedOwner, expectedRevision = expectedRevision)
+                else api.update(schema.table, row.getString("id"), payload, expectedOwner = expectedOwner, expectedRevision = expectedRevision)
                 saved(); close()
             } catch (failure: CancellationException) { throw failure }
             catch (failure: Exception) { error = failure.message ?: "Salvataggio non riuscito" }
             finally { loading = false }
         }
-    }, enabled = !loading && (!mangaCreation || (restoredBatch.isSuccess && (batchSnapshot != null || rangeResult.isSuccess)))) {
+    }, enabled = !loading && (!mangaCreation || (formOriginCaptured && restoredBatch.isSuccess && (batchSnapshot != null || rangeResult.isSuccess)))) {
         Text(when { batchSnapshot != null -> localized("Riprendi serie"); mangaCreation && volumeNumbers != null -> localized("Aggiungi {{count}} volumi", "count" to volumeNumbers.size); else -> localized("Salva") })
     } }, dismissButton = { TextButton(close, enabled = !loading) { Text(localized(if (batchSnapshot != null) "Chiudi serie" else "Annulla")) } })
 }
@@ -922,14 +1004,14 @@ private fun yearlyMetrics(schema: RecordSchema, rows: List<JSONObject>, deal: Do
         "liquido_sigaretta" -> "data_arrivo"
         else -> return emptyList()
     }
-    return rows.groupBy { it.getString(dateField).take(4) }.toSortedMap(compareByDescending { it }).map { (year, group) ->
+    return rows.groupBy { moduleRecordDate(it, dateField).take(4) }.toSortedMap(compareByDescending { it }).map { (year, group) ->
         val result = when (schema.table) {
             "poker_hourly_earnings" -> {
                 val totals = PokerCalculations.aggregate(group.map { PokerCalculations.Hourly(it.getDouble("hours_played"), it.getDouble("profit_loss"), it.optDouble("net_won_ev", 0.0)) })
-                localized("{{hours}} h · Net Won {{won}} · EV {{ev}}\nOrario dopo deal {{rate}} · EV/h {{evRate}}\nMediana ore {{median}}",
-                    "hours" to format(totals.hours), "won" to money(totals.netWon), "ev" to money(totals.netWonEv),
+                localized("{{hours}} · Net Won {{won}} · EV {{ev}}\nOrario dopo deal {{rate}} · EV/h {{evRate}}\nMediana ore {{median}}",
+                    "hours" to pokerHours(totals.hours), "won" to money(totals.netWon), "ev" to money(totals.netWonEv),
                     "rate" to pokerRateMoney(totals.hourlyRate * deal), "evRate" to pokerRateMoney(totals.hourlyRateEv * deal),
-                    "median" to format(PokerCalculations.median(group.map { it.getDouble("hours_played") })))
+                    "median" to pokerHours(PokerCalculations.median(group.map { it.getDouble("hours_played") })))
             }
             "poker_rakeback" -> {
                 val rake = group.sumOf { it.getDouble("rake_generated") }
@@ -939,16 +1021,12 @@ private fun yearlyMetrics(schema: RecordSchema, rows: List<JSONObject>, deal: Do
             else -> {
                 val cost = group.sumOf { it.getDouble("costo") }
                 val liquid = schema.table == "liquido_sigaretta"
-                val quantity = group.sumOf { it.optDouble(if (liquid) "millilitri" else "grammi", 0.0) }
+                val quantity = group.sumOf(::fumoQuantity)
                 val detail = if (liquid) {
-                    val days = group.sumOf { row ->
-                        if (row.isNull("data_finito")) 0L else FumoCalculations.derived(LocalDate.parse(row.getString("data_arrivo")),
-                            LocalDate.parse(row.getString("data_finito")), row.getDouble("millilitri"), row.getDouble("costo")).days ?: 0L
-                    }
-                    localized(" · {{quantity}} ml/giorno", "quantity" to format(if (days > 0) quantity / days else 0.0))
+                    localized(" · {{quantity}} ml/giorno", "quantity" to moduleTwoDecimals(fumoAnnualLiquidAverage(group)))
                 } else " · ${money(if (quantity > 0) cost / quantity else 0.0)}/g"
                 localized("Costo {{cost}} · mensile {{monthly}} · {{quantity}} {{unit}}{{detail}}", "cost" to money(cost),
-                    "monthly" to money(cost / 12), "quantity" to format(quantity), "unit" to if (liquid) "ml" else "g", "detail" to detail)
+                    "monthly" to money(cost / 12), "quantity" to moduleTwoDecimals(quantity), "unit" to if (liquid) "ml" else "g", "detail" to detail)
             }
         }
         year to result

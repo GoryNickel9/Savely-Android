@@ -3,6 +3,8 @@ package cc.savely.android.data
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -17,6 +19,7 @@ import org.junit.Test
 import java.util.Base64
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class AuthSecurityTest {
     private lateinit var server: MockWebServer
@@ -205,6 +208,177 @@ class AuthSecurityTest {
     private suspend fun assertValidation(action: suspend () -> Unit) {
         try { action(); fail("Expected validation failure") }
         catch (error: ApiException) { assertEquals(ApiError.VALIDATION, error.kind) }
+    }
+
+    @Test fun signingOutOtherSessionsUsesOthersScopeAndKeepsCurrentOwner() = runBlocking {
+        val previous = session().also(store::save)
+        api.session()
+        val revision = api.sessionOwnerRevision()
+        server.enqueue(json("", 204))
+        api.signOutOtherSessions()
+        val request = server.takeRequest(5, TimeUnit.SECONDS)!!
+        assertEquals("POST", request.method)
+        assertEquals("/auth/v1/logout?scope=others", request.path)
+        assertEquals("Bearer ${previous.accessToken}", request.getHeader("Authorization"))
+        assertEquals(previous, store.load())
+        assertEquals(revision, api.sessionOwnerRevision())
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun signingOutOthersPreservesSessionOnServerFailureOrLostResponseWithoutRetry() = runBlocking {
+        val previous = session().also(store::save)
+        server.enqueue(json("{}", 503))
+        try { api.signOutOtherSessions(); fail("Expected server failure") }
+        catch (failure: ApiException) { assertEquals(ApiError.SERVER, failure.kind) }
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        try { withTimeout(5_000) { api.signOutOtherSessions() }; fail("Expected lost response") }
+        catch (failure: ApiException) { assertEquals(ApiError.NETWORK, failure.kind) }
+        assertEquals(previous, store.load())
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun signingOutOthersNeverOverwritesANewSessionArrivingBeforeResponse() = runBlocking {
+        val previous = session().also(store::save)
+        val replacement = session(OTHER_SID, OTHER_USER)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                store.save(replacement)
+                return json("", 204)
+            }
+        }
+        try { api.signOutOtherSessions(); fail("Expected owner change") }
+        catch (failure: ApiException) { assertEquals(ApiError.VALIDATION, failure.kind) }
+        assertEquals("Bearer ${previous.accessToken}", server.takeRequest().getHeader("Authorization"))
+        assertEquals(replacement, store.load())
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun accountDeletionRequiresExplicitSuccessfulBodyAndPreservesSessionForLogicalErrors() = runBlocking {
+        val previous = session().also(store::save)
+        for (response in listOf("""{"error":"provider-private-diagnostic"}""", "{}", """{"success":false}""", """{"success":"true"}""", """{"success":true,"error":"failed"}""")) {
+            server.enqueue(json(response))
+            try { api.deleteAccount(); fail("Expected rejected deletion result") }
+            catch (failure: ApiException) { assertFalse(failure.message!!.contains("provider-private")) }
+            assertEquals(previous, store.load())
+            assertNull(api.sessionInvalidation.value)
+        }
+        server.enqueue(json("{}", 503))
+        try { api.deleteAccount(); fail("Expected server failure") }
+        catch (failure: ApiException) { assertEquals(ApiError.SERVER, failure.kind) }
+        assertEquals(previous, store.load())
+        assertEquals(6, server.requestCount)
+    }
+
+    @Test fun confirmedAccountDeletionClearsOnlyOwnSessionAndDoesNotSendExtraLogout() = runBlocking {
+        val previous = session().also(store::save)
+        server.enqueue(json("""{"success":true}"""))
+        assertTrue(api.deleteAccount())
+        val request = server.takeRequest()
+        assertEquals("/functions/v1/delete-account", request.path)
+        assertEquals("Bearer ${previous.accessToken}", request.getHeader("Authorization"))
+        assertEquals("{}", request.body.readUtf8())
+        assertNull(store.load())
+        assertTrue(api.isSessionInvalidationCurrent(requireNotNull(api.sessionInvalidation.value)))
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun confirmedDeletionOfOldSessionPreservesReplacementOfSameOrAnotherUser() = runBlocking {
+        for (replacementUser in listOf(USER, OTHER_USER)) {
+            store.save(session())
+            val replacement = session(OTHER_SID, replacementUser)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    store.save(replacement)
+                    return json("""{"success":true}""")
+                }
+            }
+            assertFalse(api.deleteAccount())
+            assertEquals(replacement, store.load())
+            assertNull(api.sessionInvalidation.value)
+            assertEquals("/functions/v1/delete-account", server.takeRequest().path)
+        }
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun confirmedDeletionFinishesLocalCleanupWhenCallerIsCancelled() = runBlocking {
+        val previous = session().also(store::save)
+        val checkingOwner = CountDownLatch(1)
+        val releaseOwner = CountDownLatch(1)
+        val reads = AtomicInteger()
+        val guardedStore = object : SessionStore {
+            override fun load(): Session? {
+                if (reads.incrementAndGet() == 2) {
+                    checkingOwner.countDown()
+                    check(releaseOwner.await(5, TimeUnit.SECONDS))
+                }
+                return store.load()
+            }
+            override fun save(session: Session) = store.save(session)
+            override fun clear() = store.clear()
+        }
+        val guardedApi = SupabaseApi(BackendConfig(server.url("/").toString(), "public-key"), guardedStore)
+        try {
+            server.enqueue(json("""{"success":true}"""))
+            val deletion = launch(Dispatchers.Default) { guardedApi.deleteAccount() }
+            assertTrue(checkingOwner.await(5, TimeUnit.SECONDS))
+            deletion.cancel()
+            releaseOwner.countDown()
+            withTimeout(5_000) { deletion.join() }
+            assertNull(store.load())
+            assertTrue(guardedApi.isSessionInvalidationCurrent(requireNotNull(guardedApi.sessionInvalidation.value)))
+            assertEquals("Bearer ${previous.accessToken}", server.takeRequest().getHeader("Authorization"))
+            assertEquals(1, server.requestCount)
+        } finally { releaseOwner.countDown(); guardedApi.close() }
+    }
+
+    @Test fun registrationAvailabilityReadUsesPublicRpcWithoutSessionOrUserToken() = runBlocking {
+        server.enqueue(json("false"))
+        assertFalse(api.registrationsEnabled())
+        val request = server.takeRequest()
+        assertEquals("/rest/v1/rpc/get_registrations_enabled", request.path)
+        assertEquals("{}", request.body.readUtf8())
+        assertEquals("Bearer public-key", request.getHeader("Authorization"))
+        assertNull(store.load())
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun cancellationDuringPendingLogoutClearsOnlyTheOriginalSessionWithoutRetry() = runBlocking {
+        val original = session().also(store::save)
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        val logout = launch(Dispatchers.Default) { api.signOut() }
+        try {
+            val request = requireNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+            assertEquals("/auth/v1/logout?scope=local", request.path)
+            assertEquals("POST", request.method)
+            assertEquals("{}", request.body.readUtf8())
+            assertEquals("Bearer ${original.accessToken}", request.getHeader("Authorization"))
+        } finally { logout.cancel(); withTimeout(5_000) { logout.join() } }
+        assertTrue(logout.isCancelled)
+        assertNull(store.load())
+        assertTrue(api.isSessionInvalidationCurrent(requireNotNull(api.sessionInvalidation.value)))
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun pendingLogoutCancellationPreservesReplacementSessionOfSameOrAnotherUser() = runBlocking {
+        for (replacementUser in listOf(USER, OTHER_USER)) {
+            val original = session().also(store::save)
+            val replacement = session(OTHER_SID, replacementUser)
+            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            val logout = launch(Dispatchers.Default) { api.signOut() }
+            try {
+                val request = requireNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+                assertEquals("Bearer ${original.accessToken}", request.getHeader("Authorization"))
+                assertEquals("/auth/v1/logout?scope=local", request.path)
+                store.save(replacement)
+            } finally { logout.cancel(); withTimeout(5_000) { logout.join() } }
+            assertEquals(replacement, store.load())
+            assertNull(api.sessionInvalidation.value)
+            assertNotNull(api.sessionOwnerRevision(replacement))
+        }
+        assertEquals(2, server.requestCount)
     }
     private fun session(id: String = SID, user: String = USER) = Session(jwt(JSONObject().put("session_id", id)), "refresh",
         System.currentTimeMillis() / 1000 + 3600, user, "person@example.test")

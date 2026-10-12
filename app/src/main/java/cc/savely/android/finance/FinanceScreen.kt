@@ -23,6 +23,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -96,6 +104,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
         return
     }
     val applicationContext = LocalContext.current.applicationContext
+    val financeLocale = Locale.forLanguageTag(LocalAppLanguage.current.tag)
     val factory = remember(api, section, applicationContext) {
         object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -118,12 +127,13 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
     var deleteRequest by remember { mutableStateOf<DeleteRequest?>(null) }
     var closingId by rememberSaveable { mutableStateOf<String?>(null) }
     var closingGroup by remember { mutableStateOf<PortfolioPositionGroup?>(null) }
+    var removingShare by remember { mutableStateOf<FinanceSharedExpense?>(null) }
     var showClosedAssets by rememberSaveable { mutableStateOf(false) }
     var insightFilter by rememberSaveable(section) { mutableStateOf("all") }
     val data = state.data
     val writeBlocked = state.saving || state.reconciliationRequired
     LaunchedEffect(state.reconciliationRequired) {
-        if (state.reconciliationRequired) { closingId = null; editorOpen = false; deleteRequest = null }
+        if (state.reconciliationRequired) { closingId = null; editorOpen = false; deleteRequest = null; removingShare = null }
     }
     val suggestions = remember(data, section) { if (section == "recurring" && data != null) availableRecurringSuggestions(data) else emptyList() }
     val writable = section in setOf("transactions", "categories", "budget", "recurring", "portfolio")
@@ -132,7 +142,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
     if (section == "transactions" && data != null) {
         TransactionList(data, !writeBlocked, { edit(it) }, {
             deleteRequest = DeleteRequest("transactions", it.id, it.description, if (it.description.isBlank()) it.date else null)
-        }, modifier) { FinanceHeading(section, state, writable, model::refresh) { edit(null) } }
+        }, { removingShare = it }, modifier) { FinanceHeading(section, state, writable, model::refresh) { edit(null) } }
     } else LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { FinanceHeading(section, state, writable, model::refresh) { edit(null) } }
         if (data == null && state.loading) item { CircularProgressIndicator(Modifier.padding(24.dp)) }
@@ -142,9 +152,14 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
             }
             "categories" -> {
                 if (data.categories.isEmpty()) item { EmptyCard("Nessuna categoria") }
-                items(data.categories, key = { it.id }) { category ->
-                    FinanceRow(category.name, localized(category.type.label), "", !writeBlocked,
-                        { edit(category.id) }, { deleteRequest = DeleteRequest("categories", category.id, category.name) })
+                TransactionType.entries.reversed().forEach { type ->
+                    val categories = data.categories.filter { it.type == type }
+                    item { Text(localized(if (type == TransactionType.EXPENSE) "Categorie di uscita" else "Categorie di entrata"), style = MaterialTheme.typography.titleLarge) }
+                    if (categories.isEmpty()) item { EmptyCard(if (type == TransactionType.EXPENSE) "Nessuna categoria di uscita" else "Nessuna categoria di entrata") }
+                    items(categories, key = { it.id }) { category ->
+                        FinanceRow(category.name, "${category.icon} · ${localized(category.type.label)} · ${category.color}", "", !writeBlocked,
+                            { edit(category.id) }, { deleteRequest = DeleteRequest("categories", category.id, category.name) })
+                    }
                 }
             }
             "budget" -> {
@@ -156,7 +171,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                     item { Text(localized("Il riepilogo include tutte le uscite, anche senza categoria o senza un budget dedicato."), style = MaterialTheme.typography.bodySmall) }
                 }
                 if (data.budgets.isEmpty()) item { EmptyCard("Nessun budget impostato") }
-                items(data.budgets, key = { it.id }) { budget ->
+                items(sortedFinanceBudgets(data, financeLocale), key = { it.id }) { budget ->
                     val median = medianMonthlyExpense(data.transactions, LocalDate.now(), budget.categoryId, budget.currency)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         FinanceRow(data.categories.find { it.id == budget.categoryId }?.name ?: localized("Categoria rimossa"),
@@ -214,6 +229,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
             }
             "charts" -> item { FinanceChartsScreen(data) }
             "portfolio" -> {
+                item { TextButton(onClick = { onNavigate("net-worth") }) { Text(localized("Patrimonio")) } }
                 item { PortfolioSummary(data, state.saving, { model.mutate({ updatePrices() }) {} }, writeAllowed = !state.reconciliationRequired) }
                 item { PortfolioHistoryPanel(data.assets, data.priceHistory) }
                 if (!showClosedAssets) item { PortfolioGroupClosures(data.assets, writeBlocked) { closingGroup = it } }
@@ -235,6 +251,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 }
             }
             "net-worth" -> {
+                item { TextButton(onClick = { onNavigate("portfolio") }) { Text(localized("Portafoglio")) } }
                 item { Text(localized("Formula Savely per valuta: saldo transazioni + profitto investimenti aperti + 75% del valore immobiliare.")) }
                 val components = netWorthComponents(data.transactions, data.assets)
                 if (components.isEmpty()) item { EmptyCard("Nessun dato disponibile") }
@@ -242,6 +259,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 item { NetWorthHistoryPanel(data.snapshots) }
             }
             "insights" -> {
+                item { TextButton(onClick = { onNavigate("dashboard") }) { Text(localized("Dashboard")) } }
                 item { Text(localized("Controlli disponibili (8 su 8): anomalie di spesa rispetto agli importi storici, budget superati, posizioni con perdita di almeno 15%, massimi del valore registrato dal server, mesi di risparmio sopra la media, categorie con importi in crescita, possibili spese ricorrenti e variazioni dei loro importi. Gli snapshot server non distinguono le valute e non sono confrontabili con i totali nativi per valuta.")) }
                 val insights = financeInsights(data)
                 val filtered = insights.filter { insightFilter == "all" || it.severity.name == insightFilter }
@@ -294,6 +312,20 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
             }) { Text(localized(if (state.saving) "Eliminazione…" else "Elimina")) } },
             dismissButton = { TextButton(enabled = !state.saving, onClick = { deleteRequest = null }) { Text(localized("Annulla")) } })
     }
+    removingShare?.let { expense ->
+        AlertDialog(onDismissRequest = { if (!state.saving) removingShare = null },
+            title = { Text(localized("Rimuovere la condivisione?")) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(localized(if (expense.createdBy == data?.userId)
+                    "La condivisione verrà rimossa. La tua transazione rimarrà nel tuo ledger ma il partner non la vedrà più."
+                    else "La spesa condivisa verrà rimossa dalla tua lista. La transazione originale rimarrà nel ledger del tuo partner."))
+                state.error?.let { Text(localizedFinanceMessage(it), color = MaterialTheme.colorScheme.error) }
+            } },
+            confirmButton = { TextButton(enabled = !writeBlocked, onClick = {
+                model.mutate({ removeTransactionShare(expense) }) { removingShare = null }
+            }) { Text(localized("Rimuovi condivisione")) } },
+            dismissButton = { TextButton(enabled = !state.saving, onClick = { removingShare = null }) { Text(localized("Annulla")) } })
+    }
 }
 
 @Composable
@@ -306,7 +338,22 @@ private fun FinanceInsightCard(insight: FinanceInsight) {
     Card(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "Insight ${insight.id}" }) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val values = insight.textValues.map { (key, value) -> key to if (key in insight.localizedValueKeys) localized(value.toString()) else value }.toTypedArray()
-            Text(localized(insight.titleTemplate ?: insight.title, *values), style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                val icon = when (insight.kind) {
+                    InsightKind.SPENDING_ANOMALY -> Icons.Default.TrendingUp
+                    InsightKind.RECURRING_PRICE_CHANGE -> Icons.Default.NotificationsActive
+                    InsightKind.BUDGET_EXCEEDED -> Icons.Default.Warning
+                    InsightKind.PORTFOLIO_LOSS -> Icons.Default.TrendingDown
+                    InsightKind.NET_WORTH_MILESTONE -> Icons.Default.EmojiEvents
+                    InsightKind.SAVING_MONTH -> Icons.Default.Savings
+                    InsightKind.CATEGORY_TREND -> Icons.Default.ReceiptLong
+                    InsightKind.NEW_RECURRING_DETECTED -> Icons.Default.Repeat
+                    null -> null
+                }
+                if (icon != null) Icon(icon, contentDescription = null)
+                Text(localized(insight.titleTemplate ?: insight.title, *values), style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f))
+            }
             Surface(color = colors.first, contentColor = colors.second, shape = MaterialTheme.shapes.small) {
                 Text(localized(insight.severity.label), Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
             }
@@ -611,31 +658,24 @@ private fun TransactionCard(transaction: FinanceTransaction, data: FinanceData, 
 }
 
 @Composable
-private fun TransactionList(data: FinanceData, enabled: Boolean, edit: (String) -> Unit, delete: (FinanceTransaction) -> Unit,
+private fun TransactionList(data: FinanceData, enabled: Boolean, edit: (String) -> Unit, delete: (FinanceTransaction) -> Unit, removeShare: (FinanceSharedExpense) -> Unit,
     modifier: Modifier, header: @Composable () -> Unit) {
     var search by rememberSaveable { mutableStateOf("") }
     var period by rememberSaveable { mutableStateOf("month") }
     var category by rememberSaveable { mutableStateOf("") }
     var type by rememberSaveable { mutableStateOf("") }
-    var fromText by rememberSaveable { mutableStateOf(LocalDate.now().withDayOfMonth(1).toString()) }
-    var toText by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    var onlyShared by rememberSaveable { mutableStateOf(false) }
+    var fromText by rememberSaveable { mutableStateOf("") }
+    var toText by rememberSaveable { mutableStateOf("") }
     var year by rememberSaveable { mutableStateOf(LocalDate.now().year.toString()) }
     val today = LocalDate.now()
     val interval = runCatching {
-        when (period) {
-            "month" -> today.withDayOfMonth(1) to YearMonth.from(today).atEndOfMonth()
-            "previous" -> YearMonth.from(today).minusMonths(1).let { it.atDay(1) to it.atEndOfMonth() }
-            "semester" -> today.minusMonths(5).withDayOfMonth(1) to YearMonth.from(today).atEndOfMonth()
-            "twelve" -> today.minusMonths(11).withDayOfMonth(1) to YearMonth.from(today).atEndOfMonth()
-            "year" -> LocalDate.of(year.toInt(), 1, 1) to LocalDate.of(year.toInt(), 12, 31)
-            "custom" -> LocalDate.parse(fromText) to LocalDate.parse(toText)
-            else -> null to null
-        }
+        transactionDateRange(period, today, year, fromText, toText)
     }
     val filtered = runCatching {
         val (from, to) = interval.getOrThrow()
-        filterTransactions(data.transactions, from, to, category.ifBlank { null },
-            type.ifBlank { null }?.let(TransactionType::fromWire), search, data.categories)
+        transactionDisplayItems(data, from, to, category.ifBlank { null },
+            type.ifBlank { null }?.let(TransactionType::fromWire), search, onlyShared && data.coupleConnection != null)
     }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { header() }
@@ -646,7 +686,9 @@ private fun TransactionList(data: FinanceData, enabled: Boolean, edit: (String) 
         if (period == "year") OutlinedTextField(year, { year = it }, label = { Text(localized("Anno")) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
         if (period == "custom") {
             DateField("Da", fromText) { fromText = it }
+            TextButton(onClick = { fromText = "" }) { Text(localized("Rimuovi data iniziale")) }
             DateField("A", toText) { toText = it }
+            TextButton(onClick = { toText = "" }) { Text(localized("Rimuovi data finale")) }
         }
         Selection("Categoria", category, listOf("" to localized("Tutte")) + data.categories.map { it.id to it.name }) { category = it }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -654,17 +696,41 @@ private fun TransactionList(data: FinanceData, enabled: Boolean, edit: (String) 
                 FilterChip(selected = type == value, onClick = { type = value }, label = { Text(localized(label)) })
             }
         }
+        if (data.coupleConnection != null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(localized("Solo condivise"), Modifier.weight(1f))
+            val sharedLabel = localized("Solo condivise")
+            Switch(checked = onlyShared, onCheckedChange = { onlyShared = it }, modifier = Modifier.semantics { contentDescription = sharedLabel })
+        }
         } }
         if (filtered.isFailure) item { Text(localized("Periodo non valido: controlla le date e l’anno."), color = MaterialTheme.colorScheme.error) }
         else {
             val transactions = filtered.getOrThrow()
             item { Text(localized("{{count}} transazioni", "count" to transactions.size), style = MaterialTheme.typography.labelLarge) }
             if (transactions.isEmpty()) item { EmptyCard("Nessuna transazione corrisponde ai filtri") }
-            items(transactions, key = { it.id }) { transaction ->
-                FinanceRow(transaction.description.ifBlank { data.categories.find { it.id == transaction.categoryId }?.name ?: localized("Senza categoria") },
-                    "${transaction.date} · ${data.categories.find { it.id == transaction.categoryId }?.name ?: localized("Senza categoria")}",
-                    (if (transaction.type == TransactionType.INCOME) "+" else "−") + formatMoney(transaction.amount, transaction.currency), enabled,
-                    { edit(transaction.id) }, { delete(transaction) })
+            items(transactions, key = { it.key }) { row ->
+                val transaction = row.transaction
+                val share = row.share
+                Column {
+                    if (transaction != null) {
+                        FinanceRow(transaction.description.ifBlank { data.categories.find { it.id == transaction.categoryId }?.name ?: localized("Senza categoria") },
+                            "${transaction.date} · ${data.categories.find { it.id == transaction.categoryId }?.name ?: localized("Senza categoria")}",
+                            (if (transaction.type == TransactionType.INCOME) "+" else "−") + formatMoney(share?.creatorShare ?: transaction.amount, share?.currency ?: transaction.currency), enabled,
+                            { edit(transaction.id) }, { delete(transaction) })
+                        if (share != null) Text(localized("Condivisa · Quota {{share}} / totale {{total}}", "share" to formatMoney(share.creatorShare, share.currency), "total" to formatMoney(share.total, share.currency)))
+                    } else if (share != null) Card {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(share.description.ifBlank { share.categoryName ?: localized("Spesa condivisa") }, style = MaterialTheme.typography.titleMedium)
+                            Text("${share.date} · ${share.categoryName ?: localized("Senza categoria")}")
+                            Text(localized("Dal partner"))
+                            Text("−" + formatMoney(share.partnerShare, share.currency), style = MaterialTheme.typography.titleLarge)
+                        }
+                    }
+                    if (share != null) {
+                        val removeLabel = localized("Rimuovi condivisione {{name}}", "name" to share.description.ifBlank { share.categoryName.orEmpty() })
+                        TextButton(onClick = { removeShare(share) }, enabled = enabled,
+                            modifier = Modifier.semantics { contentDescription = removeLabel }) { Text(localized("Rimuovi condivisione")) }
+                    }
+                }
             }
         }
     }
@@ -696,6 +762,9 @@ internal fun DateField(label: String, value: String, enabled: Boolean = true, ch
 /** Known operation result shapes keep raw values separate from translation; unknown errors use exact lookup. */
 @Composable
 private fun localizedFinanceMessage(message: String): String {
+    val categoryRemoval = Regex("Rimozione interrotta: ([0-9]+) transazioni scollegate con conferma\\. Aggiorna i dati e verifica la categoria prima di continuare\\.").matchEntire(message)
+    if (categoryRemoval != null) return localized("Rimozione interrotta: {{count}} transazioni scollegate con conferma. Aggiorna i dati e verifica la categoria prima di continuare.",
+        "count" to categoryRemoval.groupValues[1])
     val prices = Regex("Aggiornamento parziale: ([0-9]+) prezzi aggiornati, ([0-9]+) errori(?: \\((.*?)\\))?\\. Aggiorna la schermata per leggere i prezzi salvati\\.").matchEntire(message)
     if (prices != null) return if (prices.groupValues[3].isBlank())
         localized("Aggiornamento parziale: {{updated}} prezzi aggiornati, {{errors}} errori. Aggiorna la schermata per leggere i prezzi salvati.",

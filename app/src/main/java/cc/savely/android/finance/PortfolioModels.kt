@@ -92,10 +92,13 @@ internal fun snapshotFromJson(json: JSONObject): FinanceSnapshot = FinanceSnapsh
 
 enum class InsightSeverity(val label: String) { WARNING("Attenzione"), POSITIVE("Positivo"), INFO("Info") }
 
+enum class InsightKind { SPENDING_ANOMALY, RECURRING_PRICE_CHANGE, BUDGET_EXCEEDED, PORTFOLIO_LOSS,
+    NET_WORTH_MILESTONE, SAVING_MONTH, CATEGORY_TREND, NEW_RECURRING_DETECTED }
+
 data class FinanceInsight(val id: String, val title: String, val message: String, val warning: Boolean, val value: BigDecimal,
     val severity: InsightSeverity = if (warning) InsightSeverity.WARNING else InsightSeverity.INFO,
     val titleTemplate: String? = null, val messageTemplate: String? = null, val textValues: List<Pair<String, Any?>> = emptyList(),
-    val localizedValueKeys: Set<String> = emptySet())
+    val localizedValueKeys: Set<String> = emptySet(), val kind: InsightKind? = null)
 
 /** Date.setMonth overflow used by web Insights, deliberately distinct from recurring-date clamp. */
 internal fun insightWindowStart(today: LocalDate, months: Long): LocalDate =
@@ -135,7 +138,7 @@ internal fun spendingAnomalyInsights(data: FinanceData, today: LocalDate): List<
         FinanceInsight("spending-anomaly-$currency-$category", "Spesa anomala in $name: $currency",
             "Hai speso ${formatMoney(amount, currency)} questo mese, +$percent% rispetto alla mediana dei singoli importi (${formatMoney(median, currency)}).",
             true, difference, InsightSeverity.WARNING,
-            titleTemplate = "Spesa anomala in {{name}}: {{currency}}",
+            kind = InsightKind.SPENDING_ANOMALY, titleTemplate = "Spesa anomala in {{name}}: {{currency}}",
             messageTemplate = "Hai speso {{amount}} questo mese, +{{percent}}% rispetto alla mediana dei singoli importi ({{median}}).",
             textValues = listOf("name" to name, "currency" to currency, "amount" to formatMoney(amount, currency), "percent" to percent,
                 "median" to formatMoney(median, currency)), localizedValueKeys = if (category in names) emptySet() else setOf("name"))
@@ -161,7 +164,7 @@ internal fun netWorthMilestoneInsights(snapshots: List<FinanceSnapshot>): List<F
         "La snapshot del ${latest.date} ha raggiunto $recordedValue, almeno 1 sopra il massimo precedente. " +
             "La serie server non distingue le valute e non è confrontabile con i totali nativi per valuta.",
         false, latest.value, InsightSeverity.POSITIVE,
-        titleTemplate = "Nuovo massimo del valore registrato dal server",
+        kind = InsightKind.NET_WORTH_MILESTONE, titleTemplate = "Nuovo massimo del valore registrato dal server",
         messageTemplate = "La snapshot del {{date}} ha raggiunto {{amount}}, almeno 1 sopra il massimo precedente. La serie server non distingue le valute e non è confrontabile con i totali nativi per valuta.",
         textValues = listOf("date" to latest.date, "amount" to recordedValue)))
 }
@@ -188,7 +191,7 @@ internal fun savingMonthInsights(transactions: List<FinanceTransaction>, today: 
         FinanceInsight("saving-month-$currency", "Ottimo mese di risparmio: $currency",
             "Stai risparmiando ${formatMoney(currentNet, currency)} questo mese, +$percent% rispetto alla media dei mesi registrati (${formatMoney(averageDisplay, currency)}).",
             false, currentNet, InsightSeverity.POSITIVE,
-            titleTemplate = "Ottimo mese di risparmio: {{currency}}",
+            kind = InsightKind.SAVING_MONTH, titleTemplate = "Ottimo mese di risparmio: {{currency}}",
             messageTemplate = "Stai risparmiando {{amount}} questo mese, +{{percent}}% rispetto alla media dei mesi registrati ({{average}}).",
             textValues = listOf("currency" to currency, "amount" to formatMoney(currentNet, currency), "percent" to percent,
                 "average" to formatMoney(averageDisplay, currency)))
@@ -232,7 +235,7 @@ internal fun categoryTrendInsights(data: FinanceData, today: LocalDate): List<Fi
         FinanceInsight("category-trend-$currency-$category", "$name in trend crescente: $currency",
             "La mediana dei singoli importi in $name è cresciuta del $percent% nel campione degli ultimi 3 mesi (${formatMoney(medianRecent, currency)} rispetto a ${formatMoney(medianBaseline, currency)} nei 12 mesi).",
             false, difference, InsightSeverity.INFO,
-            titleTemplate = "{{name}} in trend crescente: {{currency}}",
+            kind = InsightKind.CATEGORY_TREND, titleTemplate = "{{name}} in trend crescente: {{currency}}",
             messageTemplate = "La mediana dei singoli importi in {{name}} è cresciuta del {{percent}}% nel campione degli ultimi 3 mesi ({{recent}} rispetto a {{baseline}} nei 12 mesi).",
             textValues = listOf("name" to name, "currency" to currency, "percent" to percent, "recent" to formatMoney(medianRecent, currency),
                 "baseline" to formatMoney(medianBaseline, currency)), localizedValueKeys = if (category in names) emptySet() else setOf("name"))
@@ -249,7 +252,7 @@ internal fun newRecurringInsights(data: FinanceData): List<FinanceInsight> = ava
     FinanceInsight("new-recurring-${candidate.key}", "Possibile spesa ricorrente: ${candidate.description}",
         "Rilevata $cadence di ${formatMoney(candidate.medianAmount, candidate.currency)} (${candidate.occurrenceCount} occorrenze). Vuoi tenerla tracciata?",
         false, candidate.medianAmount, InsightSeverity.INFO,
-        titleTemplate = "Possibile spesa ricorrente: {{name}}",
+        kind = InsightKind.NEW_RECURRING_DETECTED, titleTemplate = "Possibile spesa ricorrente: {{name}}",
         messageTemplate = "Rilevata {{cadence}} di {{amount}} ({{count}} occorrenze). Vuoi tenerla tracciata?",
         textValues = listOf("name" to candidate.description, "cadence" to cadence, "amount" to formatMoney(candidate.medianAmount, candidate.currency),
             "count" to candidate.occurrenceCount), localizedValueKeys = setOf("cadence"))
@@ -281,7 +284,7 @@ internal fun recurringPriceChangeInsights(
         FinanceInsight("recurring-price-${candidate.key}", "Spesa ricorrente $direction: ${candidate.description}",
             "L'ultimo importo (${formatMoney(latest.amount, candidate.currency)}) è $percent% rispetto al solito (${formatMoney(candidate.medianAmount, candidate.currency)}).",
             increased, difference, if (increased) InsightSeverity.WARNING else InsightSeverity.INFO,
-            titleTemplate = if (increased) "Spesa ricorrente aumentato: {{name}}" else "Spesa ricorrente diminuito: {{name}}",
+            kind = InsightKind.RECURRING_PRICE_CHANGE, titleTemplate = if (increased) "Spesa ricorrente aumentato: {{name}}" else "Spesa ricorrente diminuito: {{name}}",
             messageTemplate = "L'ultimo importo ({{amount}}) è {{percent}}% rispetto al solito ({{median}}).",
             textValues = listOf("name" to candidate.description, "amount" to formatMoney(latest.amount, candidate.currency), "percent" to percent,
                 "median" to formatMoney(candidate.medianAmount, candidate.currency)))
@@ -302,7 +305,7 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
             val name = data.categories.find { it.id == budget.categoryId }?.name ?: "Categoria rimossa"
             result.add(FinanceInsight("budget-${budget.id}", "Budget superato: $name",
                 "Speso ${formatMoney(spend, budget.currency)} su ${formatMoney(budget.amount, budget.currency)}.", true, spend - budget.amount,
-                titleTemplate = "Budget superato: {{name}}", messageTemplate = "Speso {{spent}} su {{limit}}.",
+                kind = InsightKind.BUDGET_EXCEEDED, titleTemplate = "Budget superato: {{name}}", messageTemplate = "Speso {{spent}} su {{limit}}.",
                 textValues = listOf("name" to name, "spent" to formatMoney(spend, budget.currency), "limit" to formatMoney(budget.amount, budget.currency)),
                 localizedValueKeys = if (data.categories.any { it.id == budget.categoryId }) emptySet() else setOf("name")))
         }
@@ -314,7 +317,7 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
         val change = (asset.marketPrice - asset.purchasePrice).divide(asset.purchasePrice, 10, RoundingMode.HALF_UP)
         result.add(FinanceInsight("loss-${asset.id}", "Posizione in perdita: ${asset.name}",
             "${asset.symbol ?: asset.name}: ${(change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP)}% rispetto al prezzo di acquisto.", true, change,
-            titleTemplate = "Posizione in perdita: {{name}}", messageTemplate = "{{symbol}}: {{percent}}% rispetto al prezzo di acquisto.",
+            kind = InsightKind.PORTFOLIO_LOSS, titleTemplate = "Posizione in perdita: {{name}}", messageTemplate = "{{symbol}}: {{percent}}% rispetto al prezzo di acquisto.",
             textValues = listOf("name" to asset.name, "symbol" to (asset.symbol ?: asset.name),
                 "percent" to (change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP))))
     }

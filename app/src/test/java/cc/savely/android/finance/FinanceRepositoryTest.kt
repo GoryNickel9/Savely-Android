@@ -246,11 +246,26 @@ class FinanceRepositoryTest {
         val detach = server.takeRequest()
         assertTrue(JSONObject(detach.body.readUtf8()).isNull("category_id"))
         assertEquals("eq.$user", detach.requestUrl!!.queryParameter("user_id"))
+        assertEquals("eq.$record", detach.requestUrl!!.queryParameter("category_id"))
         val remove = server.takeRequest()
         assertEquals("PATCH", remove.method)
         assertEquals("/rest/v1/categories", remove.requestUrl!!.encodedPath)
         assertTrue(JSONObject(remove.body.readUtf8()).getString("deleted_at").endsWith("Z"))
         assertEquals("return=minimal,count=exact", remove.getHeader("Prefer"))
+    }
+
+    @Test fun `category reassignment CAS failure stops detach and preserves category with explicit partial count`() = runBlocking {
+        val tx1 = "33333333-3333-4333-8333-333333333333"
+        val tx2 = "44444444-4444-4444-8444-444444444444"
+        server.enqueue(response("""[{"id":"$tx1"},{"id":"$tx2"}]""")); server.enqueue(response("[]"))
+        server.enqueue(response("""[{"id":"$tx1","category_id":null}]""")); server.enqueue(response("[]"))
+        val failure = runCatching { repository.delete("categories", record) }.exceptionOrNull()
+        assertTrue(failure is FinancePendingRefreshException)
+        assertTrue(failure!!.message.orEmpty().contains("1 transazioni scollegate con conferma"))
+        val requests = (0 until 4).map { server.takeRequest() }
+        requests.takeLast(2).forEach { assertEquals("PATCH", it.method); assertEquals("eq.$record", it.requestUrl!!.queryParameter("category_id")); assertEquals("eq.$user", it.requestUrl!!.queryParameter("user_id")) }
+        assertEquals(4, server.requestCount)
+        assertTrue(requests.none { it.requestUrl!!.encodedPath == "/rest/v1/categories" })
     }
 
     @Test fun `existing budget amount remains editable after category is soft deleted`() = runBlocking {

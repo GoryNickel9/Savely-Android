@@ -15,6 +15,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.decode.SvgDecoder
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import cc.savely.android.BuildConfig
 import cc.savely.android.data.Session
 import cc.savely.android.data.SupabaseApi
@@ -26,6 +31,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import org.xmlpull.v1.XmlPullParser
+import android.util.Xml
+import java.io.StringReader
 
 @Composable
 fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (String) -> Unit, onSignOut: () -> Unit, onLegal: (String) -> Unit) {
@@ -123,18 +131,18 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
                 TextButton({ onLegal("cookies") }) { Text(localized("Memorizzazione locale")) }
                 Text(localized("Le operazioni sincronizzate sono visibili anche nel tuo account web."), style = MaterialTheme.typography.bodyMedium)
                 OutlinedButton(onSignOut, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(localized("Esci dall’account")) }
-                TextButton({ deleteDialog = true }, enabled = !busy) { Text(localized("Elimina definitivamente l’account"), color = MaterialTheme.colorScheme.error) }
+                TextButton({ deleteConfirmation = ""; error = null; deleteDialog = true }, enabled = !busy) { Text(localized("Elimina definitivamente l’account"), color = MaterialTheme.colorScheme.error) }
             }
         }
     }
-    if (deleteDialog) AlertDialog(onDismissRequest = { if (!busy) deleteDialog = false },
+    if (deleteDialog) AlertDialog(onDismissRequest = { if (!busy) { deleteDialog = false; deleteConfirmation = "" } },
         title = { Text(localized("Eliminare l’account?")) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(localized("L’account e i dati saranno eliminati anche da Savely web. Questa operazione non può essere annullata. Scrivi ELIMINA per continuare."))
             OutlinedTextField(deleteConfirmation, { deleteConfirmation = it }, label = { Text(localized("Conferma")) }, enabled = !busy)
             error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         } }, confirmButton = {
-            TextButton({ run { api.invokeFunction("delete-account"); deleteDialog = false; onSignOut() } },
+            TextButton({ run { api.deleteAccount(); deleteDialog = false; deleteConfirmation = "" } },
                 enabled = !busy && deleteConfirmation == "ELIMINA") { Text(localized("Elimina account")) }
         }, dismissButton = { TextButton({ deleteDialog = false; deleteConfirmation = "" }, enabled = !busy) { Text(localized("Annulla")) } })
 }
@@ -178,6 +186,7 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
         }
         enrollment?.let { pending ->
             val totp = pending.getJSONObject("totp")
+            TotpEnrollmentQr(totp.optString("qr_code"))
             Text(localized("Aggiungi questa chiave manuale alla tua app di autenticazione:"))
             androidx.compose.foundation.text.selection.SelectionContainer { Text(totp.getString("secret")) }
             TextButton({
@@ -208,6 +217,8 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
         HorizontalDivider()
         Text(localized("Accessi registrati"), style = MaterialTheme.typography.titleLarge)
         Text(localized("L’elenco mostra gli accessi degli ultimi 30 giorni. Revoca l’accesso di un dispositivo per impedirne il rinnovo."), style = MaterialTheme.typography.bodySmall)
+        OutlinedButton({ confirmation = "other-sessions" to "" }, enabled = !busy,
+            modifier = Modifier.testTag("sign-out-other-sessions")) { Text(localized("Chiudi le altre sessioni")) }
         for (index in 0 until sessions.length()) {
             val row = sessions.getJSONObject(index)
             val sessionId = revocableSessionId(row)
@@ -235,12 +246,14 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
         title = { Text(localized(when (kind) {
             "factor" -> "Rimuovere l’autenticatore?"
             "pending-factor" -> "Annullare la configurazione?"
+            "other-sessions" -> "Chiudere le altre sessioni?"
             else -> "Revocare questa sessione?"
         })) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(localized(when (kind) {
                 "factor" -> "Inserisci un nuovo codice della tua app di autenticazione per rimuovere la verifica in due passaggi."
                 "pending-factor" -> "Rimuovi soltanto questa configurazione incompleta. Gli autenticatori già attivi resteranno disponibili."
+                "other-sessions" -> "Gli altri dispositivi dovranno accedere nuovamente. Questa sessione rimane aperta."
                 else -> "Il dispositivo dovrà accedere nuovamente. Anche la sessione corrente potrebbe essere chiusa."
             }))
             if (kind == "factor") {
@@ -248,7 +261,7 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
                     label = { Text(localized("Codice per rimuovere l’autenticatore")) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !busy)
             }
-            if (kind == "factor" || kind == "pending-factor") error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+            if (kind == "factor" || kind == "pending-factor" || kind == "other-sessions") error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         } },
         confirmButton = { TextButton({
             if (kind == "factor") {
@@ -270,6 +283,13 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
                     refresh()
                     message = "Configurazione incompleta rimossa."
                 }
+            } else if (kind == "other-sessions") {
+                run {
+                    api.signOutOtherSessions()
+                    confirmation = null
+                    refresh()
+                    message = "Altre sessioni chiuse."
+                }
             } else {
                 confirmation = null
                 run {
@@ -280,3 +300,70 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
         }, enabled = !busy && (kind != "factor" || removalCode.length == 6)) { Text(localized("Conferma")) } },
         dismissButton = { TextButton({ confirmation = null; removalCode = "" }, enabled = !busy) { Text(localized("Annulla")) } }) }
 }
+
+/** QR payloads contain the TOTP secret: local bytes only, no image caches or external SVG resources. */
+@Composable
+private fun TotpEnrollmentQr(raw: String) {
+    val bytes = remember(raw) { boundedTotpSvg(raw) } ?: return
+    val context = LocalContext.current
+    val loader = remember(context) { ImageLoader.Builder(context).components { add(SvgDecoder.Factory()) }.build() }
+    DisposableEffect(loader) { onDispose { loader.shutdown() } }
+    val request = remember(bytes, context) {
+        ImageRequest.Builder(context).data(bytes).size(256)
+            .memoryCachePolicy(CachePolicy.DISABLED).diskCachePolicy(CachePolicy.DISABLED).build()
+    }
+    Text(localized("Scansiona questo codice con la tua app di autenticazione."))
+    AsyncImage(request, localized("Codice QR per configurare l’autenticatore"), imageLoader = loader,
+        modifier = Modifier.size(240.dp).testTag("totp-enrollment-qr"))
+}
+
+internal fun boundedTotpSvg(raw: String): ByteArray? = runCatching {
+    require(raw.length in 1..262_144 && raw.trimStart().startsWith("<svg"))
+    val bytes = raw.toByteArray(Charsets.UTF_8)
+    require(bytes.size <= 262_144)
+    // QR output needs only geometric shapes; reject XML entities and every reference-bearing element/attribute.
+    require(!raw.contains("<!") && !raw.contains("<?"))
+    val parser = Xml.newPullParser().apply { setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true); setInput(StringReader(raw)) }
+    val number = Regex("[-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][-+]?[0-9]+)?(?:px|%)?")
+    val geometry = Regex("[-+0-9.eE,\\sMmLlHhVvCcSsQqTtAaZz]+")
+    val color = Regex("#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?|black|white|none")
+    var elements = 0
+    var roots = 0
+    var rootClosed = false
+    while (parser.eventType != XmlPullParser.END_DOCUMENT) {
+        when (parser.eventType) {
+            XmlPullParser.START_TAG -> {
+                require(!rootClosed)
+                require(++elements <= 4096 && parser.depth <= 8 && parser.attributeCount <= 20)
+                require(parser.name in setOf("svg", "g", "path", "rect"))
+                require(parser.namespace.isNullOrEmpty() || parser.namespace == "http://www.w3.org/2000/svg")
+                if (parser.depth == 1) require(parser.name == "svg" && ++roots == 1)
+                else require(roots == 1)
+                for (index in 0 until parser.attributeCount) {
+                    require(parser.getAttributeNamespace(index).isNullOrEmpty())
+                    val value = parser.getAttributeValue(index)
+                    require(when (parser.getAttributeName(index)) {
+                        "width", "height", "x", "y", "stroke-width" -> number.matches(value)
+                        "viewBox" -> value.trim().split(Regex("[\\s,]+")).let { it.size == 4 && it.all(number::matches) }
+                        "d" -> geometry.matches(value)
+                        "fill", "stroke" -> color.matches(value)
+                        "version" -> value == "1.0" || value == "1.1"
+                        "shape-rendering" -> value in setOf("auto", "crispEdges", "geometricPrecision")
+                        "stroke-linecap" -> value in setOf("butt", "round", "square")
+                        "stroke-linejoin" -> value in setOf("miter", "round", "bevel")
+                        else -> false
+                    })
+                }
+            }
+            XmlPullParser.END_TAG -> if (parser.depth == 1) {
+                require(roots == 1 && parser.name == "svg" && !rootClosed)
+                rootClosed = true
+            }
+            XmlPullParser.TEXT -> require(parser.text.isBlank())
+            XmlPullParser.DOCDECL, XmlPullParser.ENTITY_REF, XmlPullParser.PROCESSING_INSTRUCTION -> error("Unsupported SVG")
+        }
+        parser.nextToken()
+    }
+    require(elements > 0 && roots == 1 && rootClosed)
+    bytes
+}.getOrNull()

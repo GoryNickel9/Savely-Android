@@ -1,0 +1,59 @@
+Terms of Service
+
+Terms of use of the Savely platform
+
+Access to and use of the Savely platform (the "Service") imply full acceptance of these Terms of Service. We encourage you to read them carefully. By registering an account you declare that you have understood and accepted them.
+
+1. Service Description
+
+Savely is a free web application for managing and tracking personal finances. It lets you record income and expenses, set budgets, track savings goals, monitor an investment portfolio and access optional modules (smoking, TCG collections, library, shared expenses with family members). The Service is provided "as is", for informational and personal productivity purposes.
+
+2. Account and user responsibility
+
+• To use the Service you must be at least 16 years old or have the consent of a parent or legal guardian.
+
+• You are responsible for the accuracy, truthfulness and lawfulness of the data you enter.
+
+• You are responsible for the confidentiality of your login credentials and of all activity carried out from your account.
+
+• You agree not to use the Service for unlawful, abusive or harmful purposes toward third parties.
+
+• One account per person is allowed.
+
+3. Informational purpose — not financial advice
+
+Savely non fornisce consulenza finanziaria, fiscale, legale o d'investimento. I calcoli, gli indicatori (es. FIRE, asset allocation) e le statistiche mostrate hanno scopo unicamente informativo e didattico. Non costituiscono raccomandazione personalizzata.
+
+Financial decisions are your sole responsibility. Consult qualified professionals before making significant decisions.
+
+4. Intellectual property
+
+Il codice sorgente del Servizio è pubblicato come software open source su GitHub: l'utilizzo del codice è disciplinato dalla licenza riportata nel repository, mentre l'utilizzo del Servizio ospitato resta regolato dai presenti Termini.
+
+I dati che inserisci rimangono di tua proprietà. Marchi, identità visiva e contenuti del sito restano del Titolare, che non ne concede alcun uso salvo quanto previsto dalla licenza del codice.
+
+5. Account suspension and termination
+
+You can close your account at any time from the Settings → Danger Zone → Delete account: deletion is irreversible and will erase all your data.
+
+The Data Controller reserves the right to suspend or disable accounts in the event of a violation of these Terms, abusive use of the Service, or for security reasons.
+
+6. Limitation of liability
+
+The Service is provided "as is" and "as available". To the maximum extent permitted by law, the Data Controller is not liable for interruptions, malfunctions, data loss, or direct or indirect damages arising from the use or inability to use the Service. Absolute continuity of service and freedom from errors are not guaranteed.
+
+You are advised to keep backup copies of relevant data using the export feature available in Settings.
+
+7. Changes to the Service and the Terms
+
+The Data Controller may update or modify the Service and these Terms. Changes to the Terms take effect upon publication on this page. Continued use of the Service after the changes constitutes acceptance.
+
+8. Governing law and jurisdiction
+
+These Terms are governed by Italian law and Regulation (EU) 2016/679 (GDPR). Any dispute shall be subject to the exclusive jurisdiction of the court of the Data Controller's domicile, except as otherwise mandatorily provided by law for consumer protection.
+
+9. Contacts
+
+For questions about these Terms, contact the Data Controller at info@savely.cc.
+
+See also the Privacy Policy and the Cookie Policy.

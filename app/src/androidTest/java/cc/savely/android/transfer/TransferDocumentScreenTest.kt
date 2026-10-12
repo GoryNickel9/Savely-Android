@@ -212,7 +212,7 @@ class TransferDocumentScreenTest {
         compose.onNode(button("Importa 0 transazioni selezionate")).performScrollTo().assertIsNotEnabled()
         val readsBeforeRecheck = fixture.reads.get()
         touch(button("Verifica gli esiti incerti"))
-        message("Dati riletti. Se una riga resta incerta, non viene ritentata: verifica prima dal conto.")
+        message("Dati riletti. Nessun retry automatico. Payload diversi o esiti ancora incerti restano bloccati.")
         compose.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
         compose.onNodeWithText("Riga 2: Importata").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Presente nel backend dopo verifica.").assertIsDisplayed()

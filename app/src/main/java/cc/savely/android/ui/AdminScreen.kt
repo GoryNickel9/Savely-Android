@@ -26,6 +26,7 @@ fun AdminScreen(api: SupabaseApi) {
     var selected by remember { mutableStateOf<JSONObject?>(null) }
     var editedPermissions by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var deleteUser by remember { mutableStateOf<JSONObject?>(null) }
+    var resetUser by remember { mutableStateOf<JSONObject?>(null) }
     val scope = rememberCoroutineScope()
     fun clearAdminState() {
         users = JSONArray()
@@ -33,6 +34,7 @@ fun AdminScreen(api: SupabaseApi) {
         myId = ""
         selected = null
         deleteUser = null
+        resetUser = null
         editedPermissions = emptyMap()
         message = null
     }
@@ -89,9 +91,8 @@ fun AdminScreen(api: SupabaseApi) {
                     Text(localized(if (key == "couple_expenses") "Coppia" else key.replaceFirstChar(Char::uppercase)), Modifier.weight(1f))
                     Checkbox(enabled, { checked -> editedPermissions = editedPermissions + (key to checked) }, enabled = !busy)
                 } }
-                TextButton({ run {
-                    api.requestPasswordReset(user.getString("email")); message = "Email di recupero inviata."; selected = null
-                } }, enabled = !busy) { Text(localized("Invia recupero password")) }
+                TextButton({ selected = null; resetUser = user },
+                    enabled = !busy && !user.isNull("email") && user.optString("email").isNotBlank()) { Text(localized("Invia recupero password")) }
                 if (user.getString("user_id") != myId) TextButton({ selected = null; deleteUser = user }, enabled = !busy) { Text(localized("Elimina utente"), color = MaterialTheme.colorScheme.error) }
                 error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
             }
@@ -104,6 +105,16 @@ fun AdminScreen(api: SupabaseApi) {
             api.update("profiles", profiles.getJSONObject(0).getString("id"), JSONObject().put("permissions", permissions), "user_id=eq.$userId")
             selected = null; refresh(); message = "Permessi aggiornati."
         } }, enabled = !busy) { Text(localized("Salva permessi")) } }, dismissButton = { TextButton({ selected = null }, enabled = !busy) { Text(localized("Chiudi")) } }) }
+    resetUser?.let { user -> AlertDialog(onDismissRequest = { if (!busy) resetUser = null },
+        title = { Text(localized("Inviare il recupero password?")) },
+        text = { Column {
+            Text(localized("Verrà inviata un’email di recupero a {{email}}. La password attuale non viene modificata.", "email" to user.getString("email")))
+            error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+        } }, confirmButton = { TextButton({ run {
+            api.requestPasswordReset(user.getString("email"))
+            resetUser = null; message = "Email di recupero inviata."
+        } }, enabled = !busy) { Text(localized("Invia email")) } },
+        dismissButton = { TextButton({ resetUser = null }, enabled = !busy) { Text(localized("Annulla")) } }) }
     deleteUser?.let { user -> AlertDialog(onDismissRequest = { if (!busy) deleteUser = null },
         title = { Text(localized("Eliminare questo utente?")) }, text = { Column {
             Text(localized("{{value0}} e i suoi dati saranno eliminati definitivamente anche dal sito.", "value0" to (user.optString("email"))))

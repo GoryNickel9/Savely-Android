@@ -68,17 +68,19 @@ class TransferCsvTest {
         assertTrue(result.transactions.all { it.exchangeRateEur == null })
     }
 
-    @Test fun bankSplitColumnsExcludeKnownTransfersAndRetainInvestmentError() {
+    @Test fun bankSplitColumnsExcludeKnownTransfersAndRetainInvestmentForIsinPreview() {
         val input = "Data,Tipo,Descrizione,Entrata,Uscita\n" +
             "2026-10-10,Carta,Pagamento,,12.50\n" +
             "2026-10-10,TRASFERIMENTO,Conto,100,\n" +
             "2026-10-10,Carta,SPORT. AUT. prelievo,,20\n" +
             "2026-10-10,Buy Trade DE0000000000,Titolo,,100"
         val result = TransferCsv.parse(input, ImportFormat.BANK)
-        assertEquals(1, result.transactions.size)
+        assertEquals(2, result.transactions.size)
         assertEquals(2, result.skipped)
-        assertEquals(1, result.problems.size)
-        assertTrue(result.problems.single().message.contains("ISIN"))
+        assertEquals(0, result.problems.size)
+        assertEquals("DE0000000000", result.transactions.last().isin)
+        assertEquals("investment", result.transactions.last().type)
+        assertEquals(BigDecimal("100"), result.transactions.last().amount)
     }
 
     @Test fun noDateFallbackNoSilentZeroAndInvalidQuotesAreRejected() {

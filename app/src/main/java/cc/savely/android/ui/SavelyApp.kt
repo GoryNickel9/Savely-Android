@@ -133,7 +133,8 @@ fun SavelyApp(authCallbacks: AuthCallbackInbox? = null) {
                         } }
                         state.session == null -> Scaffold { padding ->
                             Surface(Modifier.padding(padding)) {
-                                AuthScreen(state, model::signIn, model::signUp, model::resetPassword, model::restore) { legalDocument = it }
+                                AuthScreen(state, model::signIn, model::signUp, model::resetPassword, model::restore,
+                                    onLegal = { legalDocument = it }, onCheckRegistrations = model::checkRegistrations)
                             }
                         }
                         else -> key(state.session?.userId) {

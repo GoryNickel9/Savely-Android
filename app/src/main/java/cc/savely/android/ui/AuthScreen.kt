@@ -2,6 +2,7 @@ package cc.savely.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -41,6 +44,7 @@ fun AuthScreen(
     onReset: (String) -> Unit,
     onRetry: () -> Unit,
     onLegal: ((String) -> Unit)? = null,
+    onCheckRegistrations: () -> Unit = {},
 ) {
     var mode by rememberSaveable { mutableStateOf("login") }
     var email by rememberSaveable { mutableStateOf("") }
@@ -49,6 +53,7 @@ fun AuthScreen(
     var password by remember { mutableStateOf("") }
     var passwordConfirmation by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
+    var privacyAccepted by rememberSaveable { mutableStateOf(false) }
     Column(
         Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -84,12 +89,21 @@ fun AuthScreen(
             }
             state.error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
             state.message?.let { Text(localized(it), color = MaterialTheme.colorScheme.primary) }
-            if (mode == "signup") Text(localized("Apri il link di conferma su questo dispositivo per tornare all’app."),
-                style = MaterialTheme.typography.bodyMedium)
+            if (mode == "signup") {
+                Text(localized("Apri il link di conferma su questo dispositivo per tornare all’app."), style = MaterialTheme.typography.bodyMedium)
+                if (state.registrationsEnabled == false) Text(localized("Registrazioni temporaneamente disabilitate."), color = MaterialTheme.colorScheme.error)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(privacyAccepted, { privacyAccepted = it }, enabled = !state.busy,
+                        modifier = Modifier.testTag("signup-legal-consent"))
+                    Text(localized("Ho letto e accetto Privacy, Memorizzazione locale e Termini di servizio."),
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                if (onLegal != null) TextButton({ onLegal("cookies") }) { Text(localized("Memorizzazione locale")) }
+            }
             Button(onClick = {
-                when (mode) { "signup" -> onSignUp(email, password, name); "reset" -> onReset(email); else -> onSignIn(email, password) }
+                when (mode) { "signup" -> if (privacyAccepted && state.registrationsEnabled != false) onSignUp(email, password, name); "reset" -> onReset(email); else -> onSignIn(email, password) }
             }, enabled = !state.busy && email.isNotBlank() && when (mode) {
-                "signup" -> PasswordPolicy.error(password) == null && passwordConfirmation == password
+                "signup" -> privacyAccepted && state.registrationsEnabled != false && PasswordPolicy.error(password) == null && passwordConfirmation == password
                 "reset" -> true
                 else -> password.isNotBlank()
             },
@@ -99,7 +113,7 @@ fun AuthScreen(
             if (state.busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
             if (mode == "login") {
                 TextButton({ mode = "reset" }) { Text(localized("Password dimenticata?")) }
-                TextButton({ mode = "signup" }) { Text(localized("Crea un account")) }
+                TextButton({ mode = "signup"; onCheckRegistrations() }, enabled = !state.busy) { Text(localized("Crea un account")) }
             } else TextButton({ mode = "login"; password = ""; passwordConfirmation = "" }) { Text(localized("Torna all’accesso")) }
             if (state.error != null && mode == "login") TextButton(onRetry, enabled = !state.busy) { Text(localized("Ripristina sessione")) }
             if (onLegal != null) {

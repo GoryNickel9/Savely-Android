@@ -39,6 +39,9 @@ class SettingsSecurityTest {
     private val passwordWrites = AtomicInteger()
     private val passwordBody = AtomicReference("")
     private val signedOut = AtomicBoolean(false)
+    private val otherLogouts = AtomicInteger()
+    private val otherLogoutStatus = AtomicInteger(204)
+    private val accountDeletes = AtomicInteger()
 
     @Before fun setup() {
         val cert = HeldCertificate.Builder().commonName("Savely account fixture")
@@ -91,6 +94,60 @@ class SettingsSecurityTest {
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
     }
 
+    @Test fun otherSessionsNeedConfirmationAndServerFailurePreservesCurrentSessionWithoutRetry() {
+        render()
+        compose.onNodeWithText("Sicurezza", substring = false).performClick()
+        compose.waitUntil(15_000) { compose.onAllNodes(hasTestTag("sign-out-other-sessions") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("sign-out-other-sessions").performScrollTo().performClick()
+        compose.onNodeWithText("Chiudere le altre sessioni?").assertExists()
+        assertEquals(0, otherLogouts.get())
+        compose.onNodeWithText("Annulla", substring = false).performClick()
+        assertEquals(0, otherLogouts.get())
+
+        otherLogoutStatus.set(503)
+        compose.onNodeWithTag("sign-out-other-sessions").performScrollTo().performClick()
+        compose.onNodeWithText("Conferma", substring = false).performClick()
+        compose.waitUntil(15_000) {
+            otherLogouts.get() == 1 && compose.onAllNodes(hasText("Conferma") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Chiudere le altre sessioni?").assertExists()
+        assertEquals(session, store.load())
+        assertFalse(signedOut.get())
+        assertEquals(1, otherLogouts.get())
+
+        otherLogoutStatus.set(204)
+        compose.onNodeWithText("Conferma", substring = false).performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Altre sessioni chiuse.").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(2, otherLogouts.get())
+        assertEquals(session, store.load())
+        assertFalse(signedOut.get())
+        assertEquals("", revokedId.get())
+        compose.onNodeWithText("Chiudere le altre sessioni?").assertDoesNotExist()
+    }
+
+    @Test fun accountDeletionBodyErrorKeepsSessionAndConfirmationForExplicitRetry() {
+        render()
+        compose.waitUntil(15_000) { compose.onAllNodes(hasText("Salva profilo") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Elimina definitivamente l’account").performScrollTo().performClick()
+        compose.onNodeWithText("Elimina account", substring = false).assertIsNotEnabled()
+        assertEquals(0, accountDeletes.get())
+        compose.onNodeWithText("Conferma", substring = false).performTextInput("ELIMINA")
+        compose.onNodeWithText("Elimina account", substring = false).assertIsEnabled().performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Impossibile eliminare l’account. Riprova.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Eliminare l’account?").assertExists()
+        compose.onNodeWithText("Elimina account", substring = false).assertIsEnabled()
+        assertEquals(1, accountDeletes.get())
+        assertEquals(session, store.load())
+        assertFalse(signedOut.get())
+        assertEquals(0, otherLogouts.get())
+        compose.onNodeWithText("Annulla", substring = false).performClick()
+        compose.onNodeWithText("Elimina definitivamente l’account").performScrollTo().performClick()
+        compose.onNodeWithText("Conferma", substring = false)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        compose.onNodeWithText("Elimina account", substring = false).assertIsNotEnabled()
+        assertEquals(1, accountDeletes.get())
+    }
+
     private fun render() = compose.setContent {
         SavelyTheme("light") { SettingsScreen(api, session, "light", {}, { signedOut.set(true) }, {}) }
     }
@@ -106,6 +163,17 @@ class SettingsSecurityTest {
             "/rest/v1/rpc/delete_session" -> {
                 revokedId.set(JSONObject(request.body.readUtf8()).getString("p_session_id")); json("null")
             }
+            "/auth/v1/logout" -> if (request.method == "POST" && request.requestUrl?.queryParameter("scope") == "others" &&
+                request.getHeader("Authorization") == "Bearer ${session.accessToken}" && request.body.readUtf8() == "{}") {
+                otherLogouts.incrementAndGet()
+                val status = otherLogoutStatus.get()
+                json(if (status == 204) "" else "{}", status)
+            } else json("{}", 400)
+            "/functions/v1/delete-account" -> if (request.method == "POST" &&
+                request.getHeader("Authorization") == "Bearer ${session.accessToken}" && request.body.readUtf8() == "{}") {
+                accountDeletes.incrementAndGet()
+                json("""{"error":"fixture private failure"}""")
+            } else json("{}", 400)
             else -> json("{}", 404)
         }
     }

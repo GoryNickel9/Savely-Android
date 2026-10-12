@@ -1,0 +1,30 @@
+[
+  {
+    "href": "https://support.google.com/chrome/answer/95647",
+    "label": "Google Chrome"
+  },
+  {
+    "href": "https://support.mozilla.org/it/kb/Gli%20cookie",
+    "label": "Mozilla Firefox"
+  },
+  {
+    "href": "https://support.apple.com/it-it/guide/safari/sfri11471/mac",
+    "label": "Apple Safari"
+  },
+  {
+    "href": "https://support.microsoft.com/it-it/microsoft-edge/eliminare-i-cookie-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09",
+    "label": "Microsoft Edge"
+  },
+  {
+    "href": "mailto:info@savely.cc?subject=Domanda%20Cookie",
+    "label": "info@savely.cc"
+  },
+  {
+    "href": "/privacy",
+    "label": "Privacy Policy"
+  },
+  {
+    "href": "/terms",
+    "label": "Termini di servizio"
+  }
+]

@@ -1,6 +1,7 @@
 package cc.savely.android.modules
 
 import cc.savely.android.data.SupabaseApi
+import cc.savely.android.data.authSessionId
 import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
@@ -136,23 +137,34 @@ data class MangaVolumeBatch internal constructor(
 
 class MangaVolumeRepository(private val api: SupabaseApi) {
     /** Progress is published before POST, so restored state knows which response may be ambiguous. */
-    suspend fun save(initial: MangaVolumeBatch, progress: (MangaVolumeBatch) -> Unit): MangaVolumeBatch {
+    suspend fun save(initial: MangaVolumeBatch, expectedOwner: String, expectedRevision: Long, expectedAuthSessionId: String? = null, progress: (MangaVolumeBatch) -> Unit): MangaVolumeBatch {
         initial.encode()
         var batch = initial
         suspend fun checkOwner() {
-            require(api.session()?.userId == batch.ownerId) { "Account cambiato: chiudi la serie e controlla la collezione" }
+            val snapshot = api.session()
+            require(batch.ownerId == expectedOwner && snapshot != null && snapshot.userId == expectedOwner &&
+                api.sessionOwnerRevision(snapshot) == expectedRevision &&
+                (expectedAuthSessionId == null || snapshot.authSessionId() == expectedAuthSessionId)) {
+                "Account cambiato: chiudi la serie e controlla la collezione"
+            }
         }
         suspend fun reconcile(body: JSONObject): Boolean {
             checkOwner()
-            val result = api.select("library_items", "id=eq.${body.getString("id")}&user_id=eq.${batch.ownerId}&limit=2")
+            val result = api.select("library_items", "id=eq.${body.getString("id")}&user_id=eq.${expectedOwner}&limit=2")
+            checkOwner()
             require(result.length() <= 1) { "Risposta non valida: controlla la collezione prima di riprovare" }
             if (result.length() == 0) return false
             require(matches(body, result.getJSONObject(0))) { "Il volume esistente non corrisponde alla serie: controlla la collezione" }
             return true
         }
-        fun confirmed() {
-            batch = batch.copy(completed = batch.completed + 1, reconcileCurrent = false)
-            progress(batch)
+        suspend fun confirmed() {
+            checkOwner()
+            api.withCurrentSessionOwner(expectedRevision) {
+                batch = batch.copy(completed = batch.completed + 1, reconcileCurrent = false)
+                progress(batch)
+            }
+            // An owner switch must not silently turn a missed atomic publication into success.
+            checkOwner()
         }
         checkOwner()
         while (!batch.complete) {
@@ -163,7 +175,8 @@ class MangaVolumeRepository(private val api: SupabaseApi) {
             progress(batch)
             try {
                 checkOwner()
-                val inserted = api.insert("library_items", body)
+                val inserted = api.insert("library_items", body, expectedOwner = expectedOwner, expectedRevision = expectedRevision)
+                checkOwner()
                 require(matches(body, inserted)) { "Risposta di salvataggio non verificabile" }
             } catch (failure: CancellationException) { throw failure }
             catch (failure: Exception) {

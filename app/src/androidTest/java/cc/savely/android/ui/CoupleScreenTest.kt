@@ -81,6 +81,10 @@ class CoupleScreenTest {
         connected.set(true)
         compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
         waitFor("Mediana mensile EUR:", substring = true)
+        compose.onNodeWithText("Riepilogo budget EUR").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Budget totale: ${cc.savely.android.finance.formatMoney(java.math.BigDecimal("12"), "EUR")}").assertExists()
+        compose.onNodeWithText("Spesa mediana mensile reale: ${cc.savely.android.finance.formatMoney(java.math.BigDecimal("15"), "EUR")}").assertExists()
+        compose.onNodeWithText("Differenza: ${cc.savely.android.finance.formatMoney(java.math.BigDecimal("3"), "EUR")}").assertExists()
         compose.onNodeWithText("Mediana 15,00", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Scegli transazione").performScrollTo().performClick()
         compose.onNodeWithText("${LocalDate.now()} · 1.01 EUR · Spesa nuova").performClick()
@@ -96,7 +100,7 @@ class CoupleScreenTest {
         // The selection is cleared before the async reload ends; wait for refreshed data and an enabled button.
         compose.waitUntil(15_000) {
             sharePosts.get() == 1 &&
-                compose.onAllNodesWithText("3 condivisioni caricate.", substring = true).fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodesWithText("3 condivisioni caricate, 3 mostrate.", substring = true).fetchSemanticsNodes().isNotEmpty() &&
                 compose.onAllNodes(hasText("Scegli transazione") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
         val body = JSONObject(shareBody.get())
@@ -177,7 +181,7 @@ class CoupleScreenTest {
                     privateReads.incrementAndGet()
                     json(if (url.queryParameter("id") == null) """[{"id":"$BUDGET","couple_category_name":"Casa","amount":12,"currency":"EUR"}]""" else "[]")
                 }
-                "/rest/v1/transactions" -> json("""[{"id":"$TX","amount":1.01,"currency":"EUR","date":"${LocalDate.now()}","description":"Spesa nuova","user_id":"$USER","type":"expense"}]""")
+                "/rest/v1/transactions" -> json(if (url.queryParameter("id")?.startsWith("gt.") == true) "[]" else """[{"id":"$TX","amount":1.01,"currency":"EUR","date":"${LocalDate.now()}","description":"Spesa nuova","user_id":"$USER","type":"expense"}]""")
                 "/rest/v1/shared_expenses" -> if (request.method == "POST") {
                     shareBody.set(request.body.readUtf8()); sharePosts.incrementAndGet(); shared.set(true); json("""[{"id":"$SHARE3"}]""")
                 } else json(if (shared.get()) """[{"id":"$SHARE3"}]""" else "[]")

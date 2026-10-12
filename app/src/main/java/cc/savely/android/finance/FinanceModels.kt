@@ -75,6 +75,9 @@ data class FinanceData(
     val ignoredRecurringSuggestions: Set<String> = emptySet(),
     val tcgCards: List<FinanceTcgCard> = emptyList(),
     val priceHistory: List<FinancePriceHistory> = emptyList(),
+    val userId: String = "",
+    val coupleConnection: FinanceCoupleConnection? = null,
+    val sharedExpenses: List<FinanceSharedExpense> = emptyList(),
 )
 
 data class CurrencyTotals(val currency: String, val income: BigDecimal, val expenses: BigDecimal) {

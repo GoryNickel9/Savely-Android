@@ -1,5 +1,19 @@
 # APK e aggiornamenti
 
+## Candidata 0.1.9-alpha — 12 ottobre 2026
+
+APK immutabile: `artifacts/savely-0.1.9-alpha-release-candidate.apk`, versionCode 10, 2.718.365 byte. SHA-256: `a994ae06b3919753c8b6d9547f05586000e9242a0816b70ab0f628c740c931f1`. Il file destinato alla distribuzione si chiama `savely-0.1.9-alpha.apk`, con gli stessi byte. I due precedenti candidati 0.1.9 rimangono locali e non sono distribuiti.
+
+Firma v2 RSA 3072 verificata, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1`, identico alle versioni precedenti; min SDK 26, target 36. La scansione ZIP non trova i pattern delle chiavi `sb_secret_` o JWT `service_role`: non è un audit universale dei segreti.
+
+503 JVM e due singole suite complete 130/130 su API 31 e 35 passano; lint debug/release senza errori, con 32 avvertenze e 6 suggerimenti ciascuno. L'aggiornamento firmato 0.1.8/code 9→0.1.9/code 10 sul solo SavelyTest/API 35 conserva l'inglese senza disinstallazione. Avvio anonimo e screenshot finale sono verificati dopo aver selezionato Wait nell'avviso osservato di System UI. Non è verificato l'upgrade con sessione autenticata.
+
+Il nuovo smoke QA conferma 41 contratti su 42 e la pulizia completa; Google Books risponde HTTP 429. Il conteggio precedente 42/43 era errato: anche il report sorgente della 0.1.8 contiene 41 PASS su 42. Gli asset pubblicati precedentemente restano immutabili. I gate reali e le condizioni della 1.0 sono in [PARITY_0_1_9.md](PARITY_0_1_9.md). Nessuna CI GitHub, modifica web o release stabile.
+
+La pubblicazione della candidata deve ancora essere verificata anonimamente; il download corrente resta quello della 0.1.8 finché tale controllo non è completato.
+
+## Evidenza storica 0.1.8
+
 La 0.1.8-alpha è una prerelease. Le prove locali e QA sono in TESTING.md e ROADMAP_CLOSURE.md; login reale con password, email/PKCE, MFA positivo, due utenti Coppia e Admin autorizzato non sono certificati. Nessuna release stabile è dichiarata.
 
 ## APK e continuità della firma

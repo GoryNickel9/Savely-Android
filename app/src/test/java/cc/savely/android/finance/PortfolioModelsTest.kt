@@ -32,6 +32,9 @@ class PortfolioModelsTest {
             }
         }
         assertEquals(8, signals.size)
+        assertEquals(listOf(InsightKind.SPENDING_ANOMALY, InsightKind.CATEGORY_TREND, InsightKind.SAVING_MONTH,
+            InsightKind.NET_WORTH_MILESTONE, InsightKind.NEW_RECURRING_DETECTED, InsightKind.RECURRING_PRICE_CHANGE,
+            InsightKind.BUDGET_EXCEEDED, InsightKind.PORTFOLIO_LOSS), signals.map { it.kind })
         signals.forEach { signal ->
             assertEquals(signal.title, render(requireNotNull(signal.titleTemplate), signal.textValues))
             assertEquals(signal.message, render(requireNotNull(signal.messageTemplate), signal.textValues))

@@ -104,6 +104,33 @@ class AppViewModelTest {
         assertEquals("/auth/v1/token", refresh.requestUrl?.encodedPath)
     }
 
+    @Test fun registrationAvailabilityReadAndTransientFailurePreserveExistingAccountState() = runTest {
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        val previous = awaitIdle(model)
+        assertNull(previous.registrationsEnabled)
+        assertEquals(2, server.requestCount) // Restore does not add a public availability request.
+        takeRequest(); takeRequest()
+        server.enqueue(json("false"))
+        model.checkRegistrations()
+        val checked = awaitIdle(model)
+        assertEquals(false, checked.registrationsEnabled)
+        assertEquals(previous.session, checked.session)
+        assertEquals(previous.permissions, checked.permissions)
+        val availability = takeRequest()
+        assertEquals("/rest/v1/rpc/get_registrations_enabled", availability.requestUrl?.encodedPath)
+        assertEquals("Bearer public-test-key", availability.getHeader("Authorization"))
+        server.enqueue(json("{}", 503))
+        model.checkRegistrations()
+        val failed = awaitIdle(model)
+        assertNotNull(failed.error)
+        assertEquals(false, failed.registrationsEnabled)
+        assertEquals(previous.session, failed.session)
+        assertEquals(previous.permissions, failed.permissions)
+        assertEquals(previous.session, store.load())
+        assertEquals(4, server.requestCount)
+    }
+
     @Test fun refreshServerFailurePreservesPreviouslyLoadedAccountState() = runTest {
         enqueueAcceptedAccount()
         val model = createViewModel()
@@ -122,6 +149,41 @@ class AppViewModelTest {
         assertFalse(state.busy)
         assertNotNull(state.error)
         assertFalse(state.error!!.contains("private server diagnostic"))
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test fun successfulLogoutUsesCentralInvalidationToRemoveAccountState() = runTest {
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        val previous = awaitIdle(model)
+        assertTrue(previous.permissions.isNotEmpty())
+        server.enqueue(json("", 204))
+        model.signOut()
+        val state = model.state.first { it.initialized && !it.busy && it.session == null }
+        assertTrue(state.permissions.isEmpty())
+        assertNull(state.mfaFactor)
+        assertNull(state.error)
+        assertNull(store.load())
+        assertTrue(api.isSessionInvalidationCurrent(requireNotNull(api.sessionInvalidation.value)))
+        assertEquals(3, server.requestCount)
+        takeRequest(); takeRequest()
+        val logout = takeRequest()
+        assertEquals("/auth/v1/logout?scope=local", logout.path)
+        assertEquals("Bearer ${previous.session!!.accessToken}", logout.getHeader("Authorization"))
+    }
+
+    @Test fun failedLogoutStillClearsBoundAccountStateAndPreservesTheFailureMessage() = runTest {
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        awaitIdle(model)
+        server.enqueue(json("""{"message":"private logout diagnostic"}""", 503))
+        model.signOut()
+        val state = model.state.first { it.initialized && !it.busy && it.session == null && it.error != null }
+        assertTrue(state.permissions.isEmpty())
+        assertNull(state.mfaFactor)
+        assertFalse(state.error!!.contains("private logout"))
+        assertNull(store.load())
+        assertTrue(api.isSessionInvalidationCurrent(requireNotNull(api.sessionInvalidation.value)))
         assertEquals(3, server.requestCount)
     }
 

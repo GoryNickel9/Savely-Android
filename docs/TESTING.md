@@ -1,5 +1,38 @@
 # Verifica Savely Android
 
+## Risultati 0.1.9 — 12 ottobre 2026
+
+Verifica locale su Windows/JBR, senza CI GitHub. Il sorgente finale comprende la correzione degli INSERT privati con risposta incerta; i candidati precedenti restano immutabili e non vengono distribuiti. Il manifest di 190 file resta invariato durante le build e le suite finali.
+
+| Prova | Esito | Evidenza locale |
+|---|---|---|
+| JVM | 503 casi, zero fallimenti/errori/skip | `artifacts/parity-0.1.9-final-integrated-debug.txt` e XML JVM |
+| Host Python | 6 test superati | `artifacts/host-python-0.1.9-final.txt` |
+| Host PowerShell | 41 controlli puri offline superati | `artifacts/host-powershell-0.1.9-final.txt` |
+| Lint debug/release | Zero errori, 32 avvertenze e 6 suggerimenti per variante | `artifacts/parity-0.1.9-release-candidate-build.txt` e XML lint |
+| Android 15 | 130/130, zero fallimenti/skip, singola suite completa finale: 770,007 s | `artifacts/android15-0.1.9-full-final.txt` |
+| Android 12 | 130/130, zero fallimenti/skip, singola suite completa finale: 623,733 s | `artifacts/android12-0.1.9-full-final.txt` |
+| Cambio pubblico | HTTP 200, USD→EUR positivo, data ISO, nessuna autenticazione inviata | `artifacts/fx-public-contract-0.1.9.json`; lettura host, non form Android |
+| Backend QA | 41 contratti su 42; Google Books HTTP 429; pulizia completa nello stesso run | `artifacts/roadmap-smoke/f49c81d3-b066-4d8e-8f1f-a4565ec908d0/result.json` e `host.json` |
+
+La build debug/JVM finale impiega 17 s; release firmata e lint 5m58s. Sono tempi osservati sul computer, non benchmark del telefono. Le due suite ordinarie escludono esplicitamente le cinque classi opt-in del backend: il runner ADB non eredita automaticamente gli argomenti Gradle. Entrambi gli esiti finali provengono da una singola esecuzione completa, senza sommare i rerun mirati. Le esecuzioni si sono sovrapposte parzialmente fra loro e alla build release; i tempi includono il carico dell’host.
+
+### Fallimenti conservati e correzioni
+
+Le prime suite complete passano 125/130 su API 35 e 126/130 su API 31. La ricreazione del form Manga provocava un accesso alla revisione dell'account ancora nulla: ora il form attende quel dato senza perdere il piano pendente. Il dialogo mapping poteva chiudersi all'apertura a causa del messaggio di un precedente salvataggio: ora consuma il risultato soltanto dopo una nuova richiesta esplicita. Il validatore SVG rifiuta più radici e applica il limite ai byte UTF-8. Queste sono correzioni del codice di produzione.
+
+Le altre correzioni riguardano i test: messaggio Transfer precedente, selettori ambigui delle quote, sottostringhe dei documenti, focus/IME del submit MFA, form Poker ancora in caricamento e scorrimento dei figli Lazy non composti. Gli assert su UUID, payload, proprietario, quantità di scritture, totali e assenza di duplicazioni restano attivi. Collection passa 4/4 in 44,820 s dopo lo scan progressivo e l'attesa di due frame stabili. Un run Legal è stato interrotto durante uno scroll del harness bloccato: non è un run superato.
+
+I log falliti e mirati restano in `artifacts/android15-0.1.9-*` e `artifacts/android12-0.1.9-*`. La revisione finale scopre inoltre il rischio di ripetere un INSERT privato dopo una risposta persa: cinque regressioni JVM verificano risposta malformata, connessione persa, 503, 403 correggibile e interruzione dopo il commit; il form si chiude e resta il blocco fino al refresh completo riuscito.
+
+### Backend e limiti della candidata
+
+Il conteggio backend della 0.1.8 è rettificato da 42/43 a 41/42 contando le voci del report sorgente. Gli asset pubblici precedenti e il bundle originale restano immutabili; il rapporto 0.1.9 riporta la correzione.
+
+Il nuovo run QA verifica letture, export, diniego Admin, CardTrader, 12 INSERT, 8 UPDATE, chiusura CAS di due posizioni e storico. Google Books restituisce ancora HTTP 429: il run complessivo resta fallito e `crud_verified=false`, anche se i singoli contratti di scrittura sono confermati. Non viene ritentata la ricerca per aggirare la quota. `records_removed`, `logout_server`, `cleanup_local`, `input_removed` e `cleanup_complete` sono veri; `cleanup_pending` e `checkpoint_retained` sono falsi. Non servono recovery o modifiche ai dati preesistenti, password, MFA, ruoli, trigger o RLS.
+
+Le fixture verificano il client con dati sintetici, non certificano tutte le policy distribuite. Restano aperti password/email/PKCE/MFA reali, revoca di altre sessioni, Coppia con due account, Admin autorizzato ed eliminazione di un account sintetico. SAF usa registry di risultato e provider locale, senza azionare il selettore di sistema o provider cloud; API 26–28 e nuovi flussi sul telefono fisico non sono verificati. L'utente ha escluso ulteriori prove dettagliate sul proprio dispositivo. La parità globale resta falsa; [PARITY_0_1_9.md](PARITY_0_1_9.md) registra le condizioni della 1.0.
+
 ## Risultati 0.1.8 — 12 ottobre 2026
 
 Verifiche locali, senza CI GitHub. Sorgenti web invariati. JDK di Android Studio su Windows, emulatori x86_64 dedicati: SavelyAndroid12 (Android 12/API 31, Google APIs) e SavelyVerify35 (Android 15/API 35, Google Play).
@@ -24,7 +57,7 @@ La prima prova process death 0.1.8 ripristinava la sessione e l’identità, ma 
 
 ### Backend reale e recupero
 
-Il run `8f56e075-5f3a-49eb-87f1-0edbcebe8fe2` passa 42 contratti su 43: letture finanza/moduli, contesto import, export, diniego Admin per QA, catalogo/prezzo CardTrader, 12 CREATE, 8 UPDATE e chiusura CAS di due posizioni. La ricerca Google Books fallisce; una lettura pubblica separata osserva HTTP 429/RESOURCE_EXHAUSTED. Il limite di quota non viene aggirato né presentato come PASS.
+Il run `8f56e075-5f3a-49eb-87f1-0edbcebe8fe2` passa 41 contratti su 42: letture finanza/moduli, contesto import, export, diniego Admin per QA, catalogo/prezzo CardTrader, 12 CREATE, 8 UPDATE e chiusura CAS di due posizioni. La ricerca Google Books fallisce; una lettura pubblica separata osserva HTTP 429/RESOURCE_EXHAUSTED. Il limite di quota non viene aggirato né presentato come PASS.
 
 La prima pulizia è stata bloccata prima di una DELETE dal confronto Boolean/stringa del solo guard CAS del test. La regressione offline mantiene tipi, owner, payload, snapshot e prenotazione prima del trasporto. Recovery esatta in nuovo processo: righe rimosse, logout server, clear locale, bootstrap e checkpoint eliminati; `cleanup_complete=true`, `cleanup_pending=false`. Il report originale e `recovery-result.json` restano distinti in `artifacts/roadmap-smoke/8f56e075-5f3a-49eb-87f1-0edbcebe8fe2/`. Non sono modificati dati precedenti, password, MFA, trigger, RLS o stato delle registrazioni.
 
@@ -153,3 +186,5 @@ L’11 ottobre 2026 l’utente ha riferito, dopo la consegna della 0.1.5-alpha, 
 3. Telefono: installazione e uso generale della 0.1.7 confermati dall’utente sul Doogee S100, Android 12; persistenza nell’uso della 0.1.5 già riferita. Documentare i flussi della 0.1.7, la procedura di aggiornamento e la conservazione della sessione senza nuovo accesso.
 
 MFA, Coppia con due account, Admin e servizi esterni richiedono verifiche dedicate prima della parità completa. Il test locale del contratto non prova che schema, RLS e funzioni distribuite siano uguali al mock.
+
+La candidata finale `savely-0.1.9-alpha-release-candidate.apk` è installata sopra la 0.1.8/code 9 sul solo SavelyTest/API 35, senza disinstallazione. VersionCode 10, stessa firma, cold start anonimo e preferenza inglese conservati; screenshot finale ispezionato. Un avviso «System UI isn’t responding» copriva il primo dump: selezionato Wait sull’avviso osservato, il nuovo dump mostra l’app. Non è una prova di upgrade con sessione autenticata. Rapporto, XML, screenshot e manifest immutabile sono raccolti in `artifacts/verified-0.1.9/`.

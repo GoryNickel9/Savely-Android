@@ -1,6 +1,6 @@
 # Roadmap Savely Android
 
-Data: 12 ottobre 2026. Stato: 0.1.8-alpha implementata e APK firmato; cinque blocchi lavorati con verifiche locali e backend isolate. Distribuzione stabile e parità globale restano subordinate ai gate reali registrati in docs/ROADMAP_CLOSURE.md.
+Data: 12 ottobre 2026. Stato: codice della candidata 0.1.9-alpha completato per le lacune individuate nell’audit; 503 test JVM superati, APK firmato e due suite Android complete da 130 casi superate (API 31 e 35). La qualifica 1.0.0 stabile richiede i gate reali in [PARITY_0_1_9.md](docs/PARITY_0_1_9.md). I cinque blocchi precedenti mantengono l’evidenza storica in docs/ROADMAP_CLOSURE.md.
 
 ## 1. Risultato richiesto e vincoli
 

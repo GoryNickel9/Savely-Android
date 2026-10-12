@@ -1,4 +1,6 @@
-# Verifica dei cinque blocchi — 0.1.8-alpha
+# Verifica dei cinque blocchi
+
+La candidata 0.1.9 completa le ulteriori lacune di codice identificate nell’audit; implementazione e condizioni della 1.0 sono in [PARITY_0_1_9.md](PARITY_0_1_9.md), risultati attuali in [TESTING.md](TESTING.md). La tabella e il run seguenti conservano l’evidenza storica della 0.1.8.
 
 Il lavoro richiesto riguarda Savely Android. I cinque blocchi sono implementati; la qualifica di release stabile e la parità globale restano separate dalle prove locali. L’utente non effettuerà una nuova verifica dettagliata sul dispositivo: le prove aggiuntive usano emulatori e contratti controllati, con i limiti riportati qui.
 
@@ -6,7 +8,7 @@ Il lavoro richiesto riguarda Savely Android. I cinque blocchi sono implementati;
 |---|---|---|
 | Funzioni mancanti | Callback nativi PKCE per conferma email e recupero password; archivio dei collegamenti Coppia revocati; donut categorie e navigazione Dashboard. | Test di parsing, API, Keystore e UI. L’archivio espone i metadati consentiti dalle RLS: non recupera spese private dopo la revoca. Il recapito email e il completamento PKCE sul servizio reale non sono verificati. |
 | Identità e navigazione | Icona originale, Inter/Space Grotesk locali, palette chiara/scura e cinque destinazioni come nel sito. | Screenshot delle fixture ispezionati; tap, contrasto, aree di tocco e font al 200% su 320 dp verificati. Nessuna certificazione di tutte le pagine con TalkBack o del launcher Doogee. |
-| Backend | Letture finanza/moduli, import/export, catalogo e prezzo CardTrader; 12 inserimenti isolati, 8 modifiche e chiusura di due posizioni con CAS. | 42 contratti su 43 superati. Google Books risponde HTTP 429 per quota esaurita. Pulizia della stessa esecuzione completata dopo una correzione del solo test; nessun dato precedente modificato. |
+| Backend | Letture finanza/moduli, import/export, catalogo e prezzo CardTrader; 12 inserimenti isolati, 8 modifiche e chiusura di due posizioni con CAS. | 41 contratti su 42 superati. Google Books risponde HTTP 429 per quota esaurita. Pulizia della stessa esecuzione completata dopo una correzione del solo test; nessun dato precedente modificato. |
 | Lifecycle e documenti | Prove di ricreazione, background, input da tastiera, errori rete e file import/export. | Le fixture SAF forniscono risultati del contratto ActivityResult; non azionano il selettore di file del sistema. Export su MediaStore con lettura dei byte e metadati. 108/108 nella singola suite finale Android 15; 108 casi Android 12 con esito finale positivo dopo riesecuzioni mirate. Risultati e correzioni del harness registrati in TESTING.md. |
 | Distribuzione e riferimento web | APK firmato; sorgenti private e repository pubblico separato per APK; aggiornamenti alpha pubblici; backup portabile cifrato della firma. | Revisione web distribuita associata al deployment e bundle pubblico confrontato. Backup decifrato e corruzione rifiutata; la copia protetta su un altro dispositivo non è verificata. APK, checksum e release sono descritti in RELEASE.md. |
 

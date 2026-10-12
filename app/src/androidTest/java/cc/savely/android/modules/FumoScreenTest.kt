@@ -183,6 +183,56 @@ class FumoScreenTest {
         assertScope()
     }
 
+    @Test fun legacyLiquidPreservesSavedTwentyDaysAndUsesQuantityAliasesWithoutAnyMutation() {
+        val legacyId = "34000000-0000-4000-8000-000000000005"
+        // The dates span ten days, but the web preserves an already saved twenty-day duration.
+        rows[OWN_ROW] = openLiquid(OWN_ROW, OWNER).put("costo", 20).put("data_finito", finish)
+            .put("giorni_durata", 20).put("quantita", 40).put("grammi", 999).put("millilitri", 9999)
+            .put("millilitri_al_giorno", 2).put("euro_al_giorno", 1).put("costo_mensile", 30)
+        // A finished row with missing duration uses grammi; a millilitri-only fallback would be wrong.
+        rows[legacyId] = openLiquid(legacyId, OWNER).put("costo", 10).put("data_finito", finish)
+            .put("grammi", 20).put("millilitri", 8888)
+            .put("created_at", "${arrival}T01:00:00Z")
+        val before = rows.mapValues { it.value.toString() }
+        mountLiquid()
+        refresh()
+        list().performScrollToIndex(1)
+        compose.onNode(hasText(" · 60,00 ml · 2,00 ml/giorno", substring = true)).assertIsDisplayed()
+            .assertTextContains("Costo ${euro("30")} · mensile ${euro("2.5")}", substring = true)
+        val savedDetail = "20 giorni · 2,00/giorno · ${euro("1")}/giorno · ${euro("30")}/mese"
+        val fallbackDetail = "10 giorni · -/giorno · ${euro("1")}/giorno · ${euro("30")}/mese"
+        list().performScrollToNode(hasText(savedDetail))
+        compose.onNodeWithText(savedDetail).assertIsDisplayed()
+        val savedRecord = hasAnyAncestor(hasAnyDescendant(hasText(savedDetail)) and !hasAnyDescendant(hasText(fallbackDetail)))
+        compose.onNode(hasText("$ARRIVAL: $arrival") and savedRecord).assertIsDisplayed()
+        compose.onNode(hasText("Data fine (AAAA-MM-GG): $finish") and savedRecord).assertIsDisplayed()
+        list().performScrollToNode(hasText(fallbackDetail))
+        compose.onNodeWithText(fallbackDetail).assertIsDisplayed()
+        assertEquals(before, rows.mapValues { it.value.toString() })
+        assertEquals(0, posts.size); assertEquals(0, patches.size); assertTrue(patchedIds.isEmpty())
+        assertScope()
+    }
+
+    @Test fun legacyLiquidShowsSavedDailyValuesWhenDurationIsNullWithoutAnyMutation() {
+        rows[OWN_ROW] = openLiquid(OWN_ROW, OWNER)
+            .put("millilitri_al_giorno", BigDecimal("2.5"))
+            .put("euro_al_giorno", BigDecimal("1.25"))
+            .put("costo_mensile", BigDecimal("37.5"))
+        val before = rows.mapValues { it.value.toString() }
+        mountLiquid()
+        refresh()
+        val detail = "- giorni · 2,50/giorno · ${euro("1.25")}/giorno · ${euro("37.50")}/mese"
+        list().performScrollToNode(hasText(detail))
+        compose.onNodeWithText(detail).assertIsDisplayed()
+        compose.onNodeWithText("$ARRIVAL: $arrival").assertIsDisplayed()
+        assertSame(JSONObject.NULL, rows[OWN_ROW]!!.get("giorni_durata"))
+        assertNumber(rows[OWN_ROW]!!, "millilitri", "25")
+        assertNumber(rows[OWN_ROW]!!, "costo", "12.5")
+        assertEquals(before, rows.mapValues { it.value.toString() })
+        assertEquals(0, posts.size); assertEquals(0, patches.size); assertTrue(patchedIds.isEmpty())
+        assertScope()
+    }
+
     private fun mountLiquid() {
         compose.setContent {
             val localFocus = LocalFocusManager.current

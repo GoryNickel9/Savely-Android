@@ -6,6 +6,14 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.core.app.ApplicationProvider
+import android.content.Context
+import coil.ImageLoader
+import coil.decode.SvgDecoder
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import kotlinx.coroutines.runBlocking
 import cc.savely.android.data.*
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
@@ -29,6 +37,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** Synthetic MFA removal over guarded localhost TLS; no real factor, credential or backend is used. */
 @RunWith(AndroidJUnit4::class)
@@ -56,6 +65,7 @@ class SettingsMfaTest {
     private val nonLocalRequests = AtomicInteger()
     private val signedOut = AtomicBoolean(false)
     private val requests = CopyOnWriteArrayList<RecordedRequest>()
+    private val enrollmentQr = AtomicReference(VALID_QR)
 
     @Before fun setup() {
         val certificate = HeldCertificate.Builder().commonName("Savely MFA removal fixture")
@@ -146,6 +156,7 @@ class SettingsMfaTest {
         compose.waitUntil(15_000) { compose.onAllNodes(hasText("Configura autenticatore") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Configura autenticatore").performClick()
         compose.waitUntil(15_000) { compose.onAllNodesWithText(PENDING_SECRET).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("totp-enrollment-qr").performScrollTo().assertIsDisplayed()
         assertEquals(1, enrollments.get())
         assertEquals(0, pendingDeletionAttempts.get())
         // Another authenticator already exists by the next server read; removing our pending factor must leave it intact.
@@ -180,6 +191,58 @@ class SettingsMfaTest {
         assertEquals(listOf("/auth/v1/factors/$PENDING"), requests.filter { it.method == "DELETE" }.map { it.requestUrl?.encodedPath })
         assertEquals(0, challenges.get())
         assertEquals(0, verifications.get())
+        assertEquals(0, deletions.get())
+        assertEquals(session, store.load())
+        assertNoLogoutOrForeignRequests()
+    }
+
+    @Test fun qrGuardAllowsOnlyBoundedLocalGeometryAndRejectsExternalResources() {
+        assertArrayEquals(VALID_QR.toByteArray(), boundedTotpSvg(VALID_QR))
+        for ((index, unsafe) in listOf(
+            "<!DOCTYPE svg [<!ENTITY payload SYSTEM 'https://invalid.example/secret'>]><svg>&payload;</svg>",
+            """<svg xmlns="http://www.w3.org/2000/svg"><image href="https://invalid.example/secret"/></svg>""",
+            """<svg xmlns="http://www.w3.org/2000/svg"><path href="https://invalid.example/secret" d="M0 0h1v1z"/></svg>""",
+            "<svg><script>unsafe()</script></svg>",
+            "<svg><rect width='1' height='1' fill='url(https://invalid.example/secret)'/></svg>",
+            "<svg><foreignObject/></svg>", "https://invalid.example/qr.svg", "<svg>" + " ".repeat(262_144) + "</svg>",
+            "<svg>" + "\u2003".repeat(90_000) + "</svg>",
+            "<svg><g>".repeat(9) + "</g></svg>".repeat(9), "<svg><path d='M0 0'/></svg><svg/>",
+            "<svg/><svg/>", "<svg/><rect width='1' height='1'/>"
+        ).withIndex()) assertNull("Unsafe SVG fixture #$index", boundedTotpSvg(unsafe))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun qrDecodesFromLocalBytesAtBoundedSizeWithoutAnyHttp() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val loader = ImageLoader.Builder(context).okHttpClient(client).components { add(SvgDecoder.Factory()) }.build()
+        try {
+            val hugeIntrinsic = VALID_QR.replace("width=\"256\"", "width=\"99999999\"").replace("height=\"256\"", "height=\"99999999\"")
+            val bytes = requireNotNull(boundedTotpSvg(hugeIntrinsic))
+            val result = loader.execute(ImageRequest.Builder(context).data(bytes).size(256)
+                .memoryCachePolicy(CachePolicy.DISABLED).diskCachePolicy(CachePolicy.DISABLED).build())
+            assertTrue(result is SuccessResult)
+            val drawable = (result as SuccessResult).drawable
+            assertTrue(drawable.intrinsicWidth in 1..256)
+            assertTrue(drawable.intrinsicHeight in 1..256)
+            assertEquals(0, server.requestCount)
+            assertEquals(0, nonLocalRequests.get())
+        } finally { loader.shutdown() }
+    }
+
+    @Test fun rejectedQrKeepsManualKeyAndDoesNotVerifyOrDeleteAutomatically() {
+        factorPresent.set(false)
+        enrollmentQr.set("<svg><script>unsafe()</script></svg>")
+        openSecurity()
+        compose.waitUntil(15_000) { compose.onAllNodes(hasText("Configura autenticatore") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Configura autenticatore").performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(PENDING_SECRET).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(PENDING_SECRET).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("totp-enrollment-qr").assertDoesNotExist()
+        compose.onNodeWithText("Apri autenticatore").assertExists()
+        assertEquals(1, enrollments.get())
+        assertEquals(0, challenges.get())
+        assertEquals(0, verifications.get())
+        assertEquals(0, pendingDeletionAttempts.get())
         assertEquals(0, deletions.get())
         assertEquals(session, store.load())
         assertNoLogoutOrForeignRequests()
@@ -287,7 +350,8 @@ class SettingsMfaTest {
                     enrollments.incrementAndGet()
                     pendingPresent.set(true)
                     json(JSONObject().put("id", PENDING).put("type", "totp")
-                        .put("totp", JSONObject().put("secret", PENDING_SECRET).put("uri", "otpauth://totp/Synthetic?secret=$PENDING_SECRET")).toString())
+                        .put("totp", JSONObject().put("secret", PENDING_SECRET).put("uri", "otpauth://totp/Synthetic?secret=$PENDING_SECRET")
+                            .put("qr_code", enrollmentQr.get())).toString())
                 }
                 "/rest/v1/rpc/get_active_sessions" -> if (request.method == "POST" && request.body.readUtf8() == "{}") json("[]") else unexpected()
                 "/auth/v1/factors/$FACTOR/challenge" -> if (request.method == "POST" && request.body.readUtf8() == "{}") {
@@ -339,5 +403,6 @@ class SettingsMfaTest {
         const val PHONE = "30000000-0000-4000-8000-000000000074"
         const val PENDING_SECRET = "SYNTHETICMFASECRET"
         const val EMAIL = "mfa-removal@example.test"
+        const val VALID_QR = """<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#fff"/><path stroke="#000" stroke-width="8" d="M8 8h64v64h-64z"/></svg>"""
     }
 }

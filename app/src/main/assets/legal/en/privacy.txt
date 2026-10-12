@@ -1,0 +1,107 @@
+Privacy Policy
+
+Notice under Article 13 of Regulation (EU) 2016/679 (GDPR)
+
+This notice describes how Luca Baldino (hereinafter, the "Data Controller") processes the personal data of the users of the Savely platform (the "Service"). Please read it carefully before registering or using the app.
+
+1. Data Controller
+
+• Name: Luca Baldino
+
+• Email: privacy@savely.cc
+
+• Tax ID: BLDLCU95H20I452X
+
+• Headquarters: Via Ettore Sacchi 102, 07046 Porto Torres (SS), Italy
+
+For any request regarding your personal data (including exercising the rights set out in section 7) you can write to the Data Controller at the email address above.
+
+2. Types of data processed
+
+The Service processes the following categories of personal data:
+
+• Registration and account data: name, email address, password (encrypted), authentication data.
+
+• Financial data entered by the user: transactions, income/expenses, budgets, savings, savings goals.
+
+• Portfolio data: financial assets, quantities, prices, ISIN, transactions entered manually or imported from CSV files.
+
+• Profiling and category data: custom categories with labels, emoji and colors.
+
+• Optional module data: recurring expenses, smoking data, TCG collections, library, expenses shared with a family member.
+
+• Technical data: IP address, browser type, session data necessary for operation and security.
+
+No payment data is collected or processed: the Service is free and does not handle real financial transactions. The financial data present is only what you enter manually for tracking purposes.
+
+3. Purposes and legal bases of processing
+
+Your data is processed for the following purposes, each with its own legal basis:
+
+• Service provision (art. 6(b) GDPR — contract): account creation and management, authentication, storage and display of financial data.
+
+• Legal obligations (art. 6(1)(c) GDPR): any tax or accounting obligations, retention of security logs.
+
+• Legitimate interest (art. 6(1)(f) GDPR): Service security, prevention of abuse or fraud, technical improvement and troubleshooting.
+
+• Consent (art. 6(a) GDPR): for any optional features that require it. Consent can be withdrawn at any time.
+
+The processing is necessario to provide you with the Service: without account and financial data, Savely cannot work. Refusing to provide them means you cannot sign up or use the app.
+
+4. Data recipients and subprocessors
+
+Your data is processed exclusively by the Data Controller and the following external processors (subprocessors), selected to provide the technical infrastructure of the Service:
+
+• Supabase Inc. — Autenticazione, database (PostgreSQL), storage e funzioni serverless (regione: Unione Europea (Irlanda)). Privacy Notice.
+
+• Vercel Inc. — Hosting dell'applicazione web e funzioni serverless (regione: Unione Europea (Dublino)). Privacy Notice.
+
+Your data is not sold, transferred to third parties for commercial purposes, or used for profiling or advertising.
+
+5. Transfer of data outside the EU
+
+L'infrastruttura del Servizio risiede nell'Unione Europea: il database è ospitato in Irlanda (Supabase) e l'applicazione è distribuita dalla regione di Dublino (Vercel). Non sono previsti trasferimenti intenzionali dei dati fuori dallo Spazio Economico Europeo; qualora in futuro fossero necessari trasferimenti tecnici extra-UE, avverrebbero con le garanzie adeguate previste dal GDPR (es. clausole contrattuali tipo approvate dalla Commissione Europea) e unicamente per le finalità tecniche necessarie.
+
+6. Retention period
+
+Data is retained for the entire lifetime of your account. You can request access, rectification or erasure of your data at any time (sect. 7). Deleting your account involves the permanent deletion of all associated data, including transactions, budgets, goals, portfolio and optional module data.
+
+Technical logs necessary for security may be retained for a limited period even after account deletion, where required by legal or protective obligations.
+
+7. Your rights (art. 15–22 GDPR)
+
+As a data subject, you have the right to:
+
+• Access (art. 15): obtain confirmation of processing and a copy of your data.
+
+• Rectification (art. 16): correct inaccurate or incomplete data.
+
+• Erasure (art. 17 — "right to be forgotten"): request the deletion of your data and your account.
+
+• Restriction (art. 18): restrict processing under certain conditions.
+
+• Portability (art. 20): receive your data in a structured, reusable format (CSV).
+
+• Objection (art. 21): object to processing based on legitimate interest.
+
+• Withdrawal of consent (art. 7): withdraw a previously given consent.
+
+• Complaint to the authority (art. 77): lodge a complaint with the Data Protection Authority (garanteprivacy.it).
+
+8. Data security
+
+The Data Controller adopts appropriate technical and organizational measures to protect personal data, including: encryption in transit (TLS/HTTPS), password authentication, per-user data isolation through Row Level Security at the database level, and restricted access to systems. However, no system is completely invulnerable: no guarantee of absolute security can be provided.
+
+9. Profiling and automated decisions
+
+The Service does not perform profiling nor automated decisions with legal or similarly significant effects on you (art. 22 GDPR).
+
+10. Changes to this notice
+
+The Data Controller reserves the right to update this notice to reflect regulatory or functional changes to the Service. The date of the last update is shown at the bottom of the page. We encourage you to check this page periodically.
+
+11. Contacts
+
+For any question, request or report regarding the processing of personal data, contact the Data Controller at privacy@savely.cc.
+
+See also the Cookie Policy and the Terms of Service.

@@ -106,8 +106,8 @@ def main():
     result = None
     try:
         installed = device("shell", "dumpsys", "package", PACKAGE)
-        if "versionCode=9" not in installed or "DEBUGGABLE" not in installed:
-            raise RuntimeError("Fresh debug code9 installation required; no uninstall performed")
+        if "versionCode=10" not in installed or "DEBUGGABLE" not in installed:
+            raise RuntimeError("Fresh debug code10 installation required; no uninstall performed")
         if not args.recover:
             preflight = device("shell", "am", "instrument", "-w", "-r", "-e", "class",
                                TEST_CLASS + "#preflightEmptyLocalStateWithoutCredentials", "-e", "roadmapPreflight", "true",

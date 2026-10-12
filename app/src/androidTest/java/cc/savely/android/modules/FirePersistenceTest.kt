@@ -183,8 +183,9 @@ class FirePersistenceTest {
         replace("Spese annue (€)", "24000")
         assertMetric(STANDARD_RESULT_INDEX, "Obiettivo FIRE", "600000")
         replace("Risparmi attuali (€)", "120000")
-        header(STANDARD_RESULT_INDEX + 7, "${LocalDate.now().year} · 30 anni")
-        compose.onNodeWithText("${euro("120000")} · valore reale ${euro("120000")}").assertIsDisplayed()
+        header(STANDARD_RESULT_INDEX + 8, "${LocalDate.now().year} · 30 anni")
+        compose.onNode(hasText("${euro("120000")} · valore reale ${euro("120000")}", substring = true) and
+            hasAnySibling(hasText("${LocalDate.now().year} · 30 anni"))).assertIsDisplayed()
         val expected = FireParameters(inputs = FireCalculations.Inputs(
             currentSavings = 120000.0, annualExpenses = 24000.0))
         waitForSaved(user, expected)
@@ -232,6 +233,19 @@ class FirePersistenceTest {
         waitForSaved(user, FireParameters())
         assertMetric(BARISTA_RESULT_INDEX, "Obiettivo Barista", "700000")
         assertMetric(BARISTA_RESULT_INDEX + 1, "Obiettivo FIRE completo", "1200000")
+    }
+
+    @Test fun monthlyContributionPersistsAnnualAmountAndSwitchingCalculatorPreservesTheAnnualValue() {
+        val user = account()
+        mount(user)
+        header(FIRST_FIELD_INDEX + 3, "Contributo annuo (€)")
+        compose.onNodeWithTag("fire-contribution-unit").assertIsDisplayed().performClick()
+        header(FIRST_FIELD_INDEX + 3, "Contributo mensile (€)").performTextReplacement("1250")
+        val expected = FireParameters(inputs = FireCalculations.Inputs(annualContribution = 15000.0))
+        waitForSaved(user, expected)
+        barista()
+        assertField("Contributo annuo (€)", "15000.0")
+        assertEquals(expected, FireParameters.decode(diskSnapshot(user)))
     }
 
     private fun assertMetric(index: Int, label: String, literalAmount: String) {

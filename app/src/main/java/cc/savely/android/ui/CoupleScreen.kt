@@ -52,6 +52,7 @@ fun CoupleScreen(api: SupabaseApi) {
     var error by remember { mutableStateOf<String?>(null) }
     var confirmation by remember { mutableStateOf<Pair<String, JSONObject>?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var visibleShares by rememberSaveable { mutableStateOf(1000) }
     val scope = rememberCoroutineScope()
     suspend fun refresh() {
         val loaded = repository.load()
@@ -118,6 +119,14 @@ fun CoupleScreen(api: SupabaseApi) {
         if (connection != null) {
             HorizontalDivider()
             Text(localized("Budget comuni"), style = MaterialTheme.typography.titleLarge)
+            coupleBudgetSummaries(budgets, shares).forEach { summary ->
+                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(localized("Riepilogo budget {{currency}}", "currency" to summary.currency), style = MaterialTheme.typography.titleMedium)
+                    Text(localized("Budget totale: {{amount}}", "amount" to formatMoney(summary.planned, summary.currency)))
+                    Text(localized("Spesa mediana mensile reale: {{amount}}", "amount" to formatMoney(summary.median, summary.currency)))
+                    Text(localized("Differenza: {{amount}}", "amount" to formatMoney(summary.difference, summary.currency)))
+                } }
+            }
             Text(localized("Mediana dei mesi con movimenti, sulla quota del partner riportata nelle spese condivise. Le valute sono separate."), style = MaterialTheme.typography.bodySmall)
             medians.forEach { (currency, median) ->
                 Text(localized("Mediana mensile {{value0}}: {{value1}}", "value0" to (currency), "value1" to (formatMoney(median, currency))), style = MaterialTheme.typography.titleMedium)
@@ -164,7 +173,7 @@ fun CoupleScreen(api: SupabaseApi) {
             if (editingBudget != null) TextButton({ editingBudget = null; budgetName = ""; budgetAmount = "" }) { Text(localized("Annulla modifica")) }
             HorizontalDivider()
             Text(localized("Condividi una transazione"), style = MaterialTheme.typography.titleLarge)
-            Text(localized("Scegli tra le tue 500 uscite più recenti."), style = MaterialTheme.typography.bodySmall)
+            Text(localized("Scegli tra tutte le tue uscite caricate."), style = MaterialTheme.typography.bodySmall)
             val sharedTransactionIds = remember(shares) { (0 until shares.length()).map { shares.getJSONObject(it).getString("original_tx_id") }.toSet() }
             var expanded by remember { mutableStateOf(false) }
             Box {
@@ -203,14 +212,16 @@ fun CoupleScreen(api: SupabaseApi) {
             } }, enabled = !busy && selectedTransaction != null) { Text(localized("Condividi spesa")) }
             HorizontalDivider()
             Text(localized("Spese condivise"), style = MaterialTheme.typography.titleLarge)
-            Text(localized("{{value0}} condivisioni caricate. {{value1}}La quota partner è riferita a chi ha creato la spesa. Le spese eliminate restano visibili.", "value0" to (shares.length()), "value1" to (if (shares.length() > 1000) localized("Qui sono mostrate le 1.000 più recenti; le mediane usano tutte le righe. ") else "")), style = MaterialTheme.typography.bodySmall)
-            for (i in 0 until minOf(shares.length(), 1000)) {
+            Text(localized("{{loaded}} condivisioni caricate, {{shown}} mostrate. La quota partner è riferita a chi ha creato la spesa. Le spese eliminate restano visibili.",
+                "loaded" to shares.length(), "shown" to minOf(shares.length(), visibleShares)), style = MaterialTheme.typography.bodySmall)
+            for (i in 0 until minOf(shares.length(), visibleShares)) {
                 val row = shares.getJSONObject(i)
                 val removed = !row.isNull("tx_deleted_at")
                 ListItem(headlineContent = { Text(row.optString("description").takeUnless { it == "null" } ?: localized("Spesa")) },
                     supportingContent = { Text(localized("{{value0}} · Quota partner: {{value1}} {{value2}} {{value3}}", "value0" to (row.optString("date")), "value1" to (row.get("my_share_amount")), "value2" to (row.optString("currency")), "value3" to (if (removed) localized("(eliminata)") else ""))) },
                     trailingContent = { TextButton({ confirmation = "share" to row }, enabled = !busy) { Text(localized("Rimuovi")) } })
             }
+            if (visibleShares < shares.length()) OutlinedButton({ visibleShares += 1000 }, enabled = !busy) { Text(localized("Mostra altre condivisioni")) }
         }
         if (myId.isNotBlank()) {
             HorizontalDivider()

@@ -5,6 +5,208 @@
   "deployedWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
   "verifiedApkVersion": null,
   "globalParityVerified": false,
+  "verificationCandidate": {
+    "version": "0.1.9-alpha",
+    "inventoryUpdatedAt": "2026-10-12",
+    "referenceRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "jvm": {
+      "tests": 503,
+      "status": "passed",
+      "evidence": "artifacts/parity-0.1.9-final-integrated-debug.txt",
+      "scope": "local-unit-and-TLS-contract-fixtures-not-real-backend"
+    },
+    "android": {
+      "expectedCases": 130,
+      "status": "passed",
+      "finalResultAssigned": true,
+      "scope": "final-frozen-source-ordinary-suites-opt-in-live-classes-excluded",
+      "api35": {
+        "tests": 130,
+        "passed": 130,
+        "singleCompleteExecution": true,
+        "durationSeconds": 770.007
+      },
+      "api31": {
+        "tests": 130,
+        "passed": 130,
+        "singleCompleteExecution": true,
+        "durationSeconds": 623.733
+      }
+    },
+    "apkVerified": true,
+    "backendFlowsVerified": false,
+    "historicalEvidencePolicy": "Existing feature verification flags and testedBuilds describe their recorded scopes only; candidate implementation audit does not broaden historical backend or device PASS results.",
+    "implementationAudit": [
+      {
+        "id": "fire-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/hooks/useFireCalculatorParams.ts",
+          "src/hooks/useFireDefaultsFromDB.ts",
+          "src/pages/fire/StandardFIRE.tsx",
+          "src/pages/fire/BaristaFIRE.tsx",
+          "src/components/fire/charts/ProjectionChart.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/modules/ModuleScreen.kt",
+          "app/src/main/java/cc/savely/android/modules/FireDatabaseDefaults.kt",
+          "app/src/main/java/cc/savely/android/modules/FireProjectionChart.kt"
+        ],
+        "scope": [
+          "current-valid-draft-results-and-invalid-draft-output-suppression",
+          "nominal-real-chart-point-selection-and-progress-target",
+          "monthly-annual-input-units",
+          "owner-bound-24-month-database-defaults",
+          "selective-database-reset-preserves-expenses"
+        ],
+        "pending": [
+          "FIRE-real-process-death-disk-failure-and-login-isolation"
+        ]
+      },
+      {
+        "id": "module-records-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/pages/PokerHourlyEarnings.tsx",
+          "src/pages/PokerRakeback.tsx",
+          "src/components/fumo/FumoCrudPage.tsx",
+          "src/lib/fumoCrud.ts",
+          "src/pages/libreria/Manga.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/modules/ModuleScreen.kt",
+          "app/src/main/java/cc/savely/android/modules/ModuleRecordValues.kt",
+          "app/src/main/java/cc/savely/android/modules/MangaVolumes.kt"
+        ],
+        "scope": [
+          "existing-Poker-month-read-only-and-current-year-details",
+          "Fumo-saved-duration-independent-derived-values-and-web-legacy-alias-fallback",
+          "Manga-series-owner-revision-and-restored-auth-session-identity-binding"
+        ],
+        "pending": [
+          "same-month-Poker-two-client-race",
+          "real-legacy-Fumo-records",
+          "Manga-restored-series-after-real-login-change"
+        ]
+      },
+      {
+        "id": "transfer-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/components/settings/RevolutImportDialog.tsx",
+          "src/components/settings/BankImportDialog.tsx",
+          "src/components/settings/ISINMappingsDialog.tsx",
+          "src/components/settings/ImportExportSection.tsx",
+          "src/lib/importFileSecurity.ts",
+          "src/lib/csv.ts",
+          "src/lib/constants.ts"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/transfer/TransferRules.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferRepository.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferViewModel.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferDialogs.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferScreen.kt"
+        ],
+        "scope": [
+          "CSV-only-security-validator-and-explicit-row-preview-selection",
+          "ISIN-to-portfolio-position-creation",
+          "persistent-owner-category-and-ISIN-mapping-management",
+          "staged-new-categories",
+          "source-specific-keyword-description-and-note-rewrites",
+          "effective-description-deduplication-before-commit",
+          "stable-UUID-owner-revision-bound-write-ledger-and-explicit-reconciliation",
+          "mapping-expected-before-CAS",
+          "existing-web-table-CSV-export-and-transaction-CSV-roundtrip",
+          "Bank2CSV-external-browser-link",
+          "structured-IT-EN-validation-notices"
+        ],
+        "pending": [
+          "system-picker-and-cloud-document-provider",
+          "real-QA-import-and-complete-reconciliation",
+          "real-Bank2CSV-output-to-native-import"
+        ],
+        "limits": [
+          "sequential-writes-can-have-confirmed-prefix-and-partial-failure",
+          "ViewModel-ledger-survives-configuration-change-not-process-death",
+          "XLS-XLSX-and-global-account-restore-are-not-web-parity-requirements"
+        ]
+      },
+      {
+        "id": "finance-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/pages/Transactions.tsx",
+          "src/hooks/useSharedExpenses.ts",
+          "src/components/settings/CategoriesSection.tsx",
+          "src/components/settings/CurrencySection.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/finance/FinanceSharedTransactions.kt",
+          "app/src/main/java/cc/savely/android/finance/FinanceExchangeRates.kt",
+          "app/src/main/java/cc/savely/android/finance/FinanceScreen.kt"
+        ],
+        "scope": [
+          "transaction-partner-share-splits-received-rows-and-only-shared-filter",
+          "automatic-public-FX-to-EUR-with-manual-fallback",
+          "web-category-icon-and-color-palette"
+        ],
+        "pending": [
+          "real-two-account-shared-transaction-flow",
+          "real-public-FX-service-and-manual-fallback"
+        ]
+      },
+      {
+        "id": "security-legal-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/components/settings/SecuritySection.tsx",
+          "src/hooks/useActiveSessions.ts",
+          "src/pages/Privacy.tsx",
+          "src/pages/Cookies.tsx",
+          "src/pages/Termini.tsx",
+          "src/components/legal/LegalLayout.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/ui/SettingsScreen.kt",
+          "app/src/main/java/cc/savely/android/data/SupabaseApi.kt",
+          "app/src/main/java/cc/savely/android/ui/LegalScreen.kt",
+          "app/src/main/assets/legal",
+          "app/src/main/assets/legal/en",
+          "tools/export-legal.cjs"
+        ],
+        "scope": [
+          "TOTP-local-QR-rendering-with-external-resource-rejection",
+          "explicit-confirmations-and-sign-out-other-sessions",
+          "session-identity-bound-mutations-no-new-owner-retry",
+          "IT-EN-legal-extraction-and-native-links-with-Android-storage-addendum"
+        ],
+        "pending": [
+          "real-TOTP-enrollment-and-challenge",
+          "real-revoke-session-RPC",
+          "complete-IT-EN-editorial-legal-comparison"
+        ]
+      }
+    ],
+    "openGates": [
+      "physical-phone-large-font-navigation-and-system-picker",
+      "real-email-password-PKCE-and-MFA-flows",
+      "two-account-couple-and-session-revocation",
+      "authorized-admin-and-synthetic-account-deletion",
+      "same-dataset-web-native-calculation-and-visual-comparison",
+      "real-import-external-catalog-and-FX-service-flows"
+    ],
+    "apkVerificationScope": "v2-signature-code10-min26-target36-in-place-code9-upgrade-English-anonymous-AVD-not-global-parity",
+    "realBackendContracts": {
+      "passed": 41,
+      "total": 42,
+      "allPassed": false,
+      "failed": "GoogleBooks-HTTP429",
+      "temporaryDataAndSessionCleanupVerified": true
+    },
+    "hostPublicFxContractVerified": true,
+    "newPhysicalPhoneValidation": "not-performed-user-opted-out-of-further-detailed-device-tests"
+  },
   "features": [
     {
       "id": "fire",
@@ -18,7 +220,10 @@
         "versioned-local-parameter-validation",
         "ten-parameter-standard-barista-share-url",
         "native-share-chooser",
-        "pasted-url-preview-and-explicit-account-save"
+        "pasted-url-preview-and-explicit-account-save",
+        "nominal-real-interactive-projection-chart-and-progress-target",
+        "monthly-annual-inputs",
+        "selective-account-database-reset-preserves-expenses"
       ],
       "verification": {
         "webFixtureExecuted": true,
@@ -38,7 +243,7 @@
         "Corrupt/unknown-version snapshot is preserved until explicit reset"
       ],
       "remaining": [
-        "24-month-boundary-timezone-test",
+        "final-candidate-Android-database-chart-monthly-and-reset-fixtures",
         "real-process-death-storage-failure-and-account-login-tests"
       ]
     },
@@ -50,7 +255,9 @@
         "hourly-crud",
         "net-won-ev",
         "rakeback-crud",
-        "yearly-metrics"
+        "yearly-metrics",
+        "current-year-hourly-rakeback-detail-filter",
+        "existing-record-month-read-only"
       ],
       "verification": {
         "sourceFormulasInspected": true,
@@ -65,6 +272,7 @@
         "deal validated in (0,1]"
       ],
       "remaining": [
+        "final-candidate-Android-Poker-fixtures",
         "backend-duplicate-month-race",
         "730-day-boundary-timezone-test"
       ]
@@ -78,7 +286,9 @@
         "derived-daily-monthly-cost",
         "yearly-summary",
         "cost-per-gram-liquid-daily-summary",
-        "current-year-detail-filter"
+        "current-year-detail-filter",
+        "saved-duration-and-derived-values-with-web-legacy-fallback",
+        "independent-nullable-daily-detail-fields"
       ],
       "verification": {
         "webFixtureExecuted": true,
@@ -90,7 +300,10 @@
       "differences": [
         "Reject finished date before arrival"
       ],
-      "remaining": []
+      "remaining": [
+        "final-candidate-Android-Fumo-fixtures",
+        "real-legacy-record-comparison"
+      ]
     },
     {
       "id": "tcg",
@@ -133,6 +346,7 @@
         "author-publisher-year-filters",
         "manga-volume-ranges",
         "manga-stable-UUID-reconciliation-and-explicit-resume",
+        "manga-series-origin-owner-revision-auth-session-binding",
         "full-owner-paginated-overview-with-explicit-currency"
       ],
       "verification": {
@@ -147,7 +361,8 @@
         ]
       },
       "remaining": [
-        "real-backend-collection-filter-flows"
+        "real-backend-collection-filter-flows",
+        "final-candidate-Android-Manga-origin-session-guards"
       ]
     },
     {
@@ -226,12 +441,16 @@
     },
     {
       "id": "bank",
-      "implemented": [],
+      "implemented": [
+        "Bank2CSV-external-browser-link",
+        "CSV-output-import-through-native-owner-bound-preview-and-mapping"
+      ],
       "verification": {
         "apiContractAvailable": false
       },
       "remaining": [
-        "independent-bank-service-api-inventory"
+        "real-external-conversion-and-native-CSV-import",
+        "final-candidate-Android-link-fixture"
       ]
     }
   ],

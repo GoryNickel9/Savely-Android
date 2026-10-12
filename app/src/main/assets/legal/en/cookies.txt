@@ -1,0 +1,47 @@
+Cookie Policy
+
+Notice on cookies and local storage technologies
+
+This notice describes cookies and equivalent storage technologies (e.g. localStorage) used by Savely, in compliance with European (GDPR, ePrivacy) and Italian (Privacy Code — d.lgs. 196/2003) regulations.
+
+1. What are cookies
+
+Cookies are small text files that a website saves on your device. They are used to keep information between visits. By extension, here we also cover the data saved in the localStorage of the browser, which serve the same technical function.
+
+2. Cookies used by Savely
+
+Savely utilizza exclusively strictly necessary technical cookies to the operation and security of the Service. Does not use profiling cookies, third-party analytics, advertising cookies or marketing tracking.
+
+Detailed list:
+
+• Supabase session token (sb-*, saved in the localStorage): keeps your login credentials after login to keep you authenticated between visits, without having to re-enter your email and password on every page. Duration: session/auto-renewal (max ~7 days). Type: strictly necessary.
+
+• Cookie consent (savely_cookie_consent, localStorage): records that you have viewed and dismissed the cookie notice banner. Duration: 12 months. Type: strictly necessary (functional).
+
+• Preference data (e.g. default currency, saving of modules in progress): stored locally or in your profile to personalize your experience. Type: functional/preference.
+
+3. Third-party cookies
+
+The Service does not integrate social networks, widgets, analytics or third-party advertising banners, therefore does not install third-party cookies. If features requiring them are introduced in the future (e.g. analytics), this notice will be updated and consent will be requested in advance, with the option to refuse.
+
+4. How to manage and disable cookies
+
+You can manage, block or delete cookies through your browser settings. Disabling technical session cookies will prevent you from accessing Savely. Instructions for the main browsers:
+
+• Google Chrome
+
+• Mozilla Firefox
+
+• Apple Safari
+
+• Microsoft Edge
+
+5. Informational banner
+
+On your first visit, an informational banner is shown that links to this Cookie Policy. When you close it, we record in your browser that it has been viewed, so we won't show it to you again for 12 months.
+
+6. Contacts
+
+For cookie-related questions, contact the Data Controller at info@savely.cc.
+
+See also the Privacy Policy and the Terms of Service.

@@ -178,6 +178,28 @@ class CoupleRepositoryTest {
     }
 
     private fun enqueue(body: String) { server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(body)) }
+
+    @Test fun transactionChoicesIncludeOlderExpensesBeyondTheFirstFiveHundred() = runBlocking {
+        enqueue("""[{"permissions":{"couple_expenses":true}}]""")
+        enqueue("""[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER"}]""")
+        enqueue("[]"); enqueue("[]"); enqueue("[]")
+        fun expense(index: Int, date: String) = JSONObject().put("id", "70000000-0000-4000-8000-${index.toString().padStart(12, '0')}")
+            .put("date", date).put("amount", "1.00").put("currency", "EUR")
+        enqueue(JSONArray().apply { repeat(500) { put(expense(it + 1, "2026-10-01")) } }.toString())
+        enqueue(JSONArray().put(expense(501, "2020-01-01")).toString())
+        enqueue("[]"); enqueue("[]")
+        val loaded = repository.load()
+        assertEquals(501, loaded.transactions.length())
+        assertEquals("2020-01-01", loaded.transactions.getJSONObject(500).getString("date"))
+        val requests = (1..9).map { server.takeRequest() }
+        assertEquals("gt.70000000-0000-4000-8000-000000000500", requests[6].requestUrl!!.queryParameter("id"))
+        assertEquals("gt.70000000-0000-4000-8000-000000000501", requests[7].requestUrl!!.queryParameter("id"))
+        requests.subList(5, 8).forEach {
+            assertEquals("eq.$USER", it.requestUrl!!.queryParameter("user_id"))
+            assertEquals("eq.expense", it.requestUrl!!.queryParameter("type"))
+            assertEquals("is.null", it.requestUrl!!.queryParameter("deleted_at"))
+        }
+    }
     private fun archive(id: String, revokedAt: String): JSONObject = JSONObject().put("id", id).put("user_a", USER).put("user_b", PARTNER)
         .put("created_at", "2025-01-01T00:00:00Z").put("revoked_at", revokedAt)
     private suspend fun expectInvalid(block: suspend () -> Unit) {
