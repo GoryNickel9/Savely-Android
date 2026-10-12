@@ -208,7 +208,27 @@ class ReleaseApkBlackBoxTest {
 
     private fun editable(password: Boolean): Boolean = exists { it.isEditable && it.isPassword == password && visible(it) }
     private fun hasText(text: String): Boolean = exists { label(it, setOf(text)) && visible(it) }
-    private fun selected(text: String): Boolean = exists { label(it, setOf(text)) && it.isSelected && visible(it) }
+    private fun selected(text: String): Boolean = exists { label(it, setOf(text)) && visible(it) && selectedControl(it) }
+
+    private fun selectedControl(node: AccessibilityNodeInfo): Boolean {
+        // FilterChip exposes its selected state as checked on the clickable control, not its Text.
+        fun chosen(control: AccessibilityNodeInfo): Boolean = control.packageName?.toString() == TARGET &&
+            control.isEnabled && visible(control) && (control.isSelected || control.isCheckable && control.isChecked)
+        if (node.isClickable) return chosen(node)
+        var parent = node.parent
+        repeat(8) {
+            val current = parent ?: return false
+            if (!current.refresh()) { current.recycle(); return false }
+            val clickable = current.isClickable
+            val selected = clickable && chosen(current)
+            parent = if (clickable) null else current.parent
+            current.recycle()
+            // Stop at the first control; an unrelated selected container cannot satisfy this check.
+            if (clickable) return selected
+        }
+        parent?.recycle()
+        return false
+    }
 
     private fun clickLabel(labels: Set<String>, code: String, scroll: Boolean = false) {
         var node = seekLabel(labels, code, scroll, clickable = true)
