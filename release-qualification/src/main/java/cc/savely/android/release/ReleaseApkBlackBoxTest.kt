@@ -190,7 +190,13 @@ class ReleaseApkBlackBoxTest {
     private fun navigationLabel(node: AccessibilityNodeInfo, labels: Set<String>): Boolean {
         if (!label(node, labels) || !visible(node)) return false
         val bounds = Rect().also(node::getBoundsInScreen)
-        return bounds.top >= instrumentation.context.resources.displayMetrics.heightPixels * 0.70f
+        // The separate harness can have compatibility display metrics different from the target window.
+        val root = automation.rootInActiveWindow ?: return false
+        val window = try {
+            if (root.packageName?.toString() != TARGET) return false
+            Rect().also(root::getBoundsInScreen)
+        } finally { root.recycle() }
+        return !window.isEmpty && bounds.top >= window.top + window.height() * 0.70f
     }
 
     private fun hasDashboardContent(): Boolean = hasText("Your finances") || hasText("La tua finanza")
