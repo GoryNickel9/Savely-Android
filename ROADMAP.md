@@ -1,6 +1,6 @@
 # Roadmap Savely Android
 
-Data: 12 ottobre 2026. Stato: codice della candidata 0.1.9-alpha completato per le lacune individuate nell’audit; 503 test JVM superati, APK firmato e due suite Android complete da 130 casi superate (API 31 e 35). La qualifica 1.0.0 stabile richiede i gate reali in [PARITY_0_1_9.md](docs/PARITY_0_1_9.md). I cinque blocchi precedenti mantengono l’evidenza storica in docs/ROADMAP_CLOSURE.md.
+Data: 12 ottobre 2026. Stato: 0.1.9-alpha pubblicata con APK firmato, 503 JVM e due suite Android complete da 130 casi (API 31 e 35). Il codice successivo corregge timestamp, cambio account Admin e sovrapposizione del recupero MFA; 514 JVM e la suite finale Android 12 da 132 casi passano. Creati tre account QA dopo autorizzazione, con registrazioni ripristinate disabilitate. Accesso nativo con password, TOTP/revoca sessioni, flusso Coppia e lettura/diniego/ripristino permessi Admin hanno prove reali con scope dichiarato in [QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md). Nessuna nuova release pubblica o parità globale deriva automaticamente da questi PASS. La 1.0.0 richiede ancora i gate in [PARITY_0_1_9.md](docs/PARITY_0_1_9.md). I cinque blocchi precedenti conservano l’evidenza storica in docs/ROADMAP_CLOSURE.md.
 
 ## 1. Risultato richiesto e vincoli
 

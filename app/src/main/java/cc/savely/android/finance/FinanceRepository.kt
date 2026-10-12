@@ -6,6 +6,7 @@ import cc.savely.android.data.ApiException
 import cc.savely.android.data.CoupleRepository
 import cc.savely.android.data.couplePartnerAmount
 import cc.savely.android.data.coupleSplit
+import cc.savely.android.data.parseBackendInstant
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -93,7 +94,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         } else emptyList()
         val lastUpdate = if (section == "portfolio") {
             val logs = api.select("manual_price_updates", "select=updated_at&$own&order=updated_at.desc&limit=1")
-            if (logs.length() == 0) null else Instant.parse(logs.getJSONObject(0).getString("updated_at"))
+            if (logs.length() == 0) null else parseBackendInstant(logs.getJSONObject(0).getString("updated_at"))
         } else null
         val ignored = if (section in setOf("recurring", "insights")) withContext(Dispatchers.IO) { dismissals.keys(user) } else emptySet()
         // Portfolio web reads the owner's cards even when the TCG navigation permission is disabled.
@@ -399,7 +400,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val user = identity.id
         val revision = identity.revision
         val logs = api.select("manual_price_updates", "select=updated_at&user_id=eq.$user&order=updated_at.desc&limit=1")
-        if (logs.length() > 0) require(Instant.parse(logs.getJSONObject(0).getString("updated_at")).plusSeconds(86_400) <= Instant.now()) {
+        if (logs.length() > 0) require(parseBackendInstant(logs.getJSONObject(0).getString("updated_at")).plusSeconds(86_400) <= Instant.now()) {
             "L’aggiornamento prezzi è disponibile una volta ogni 24 ore"
         }
         check(userId() == user && api.sessionOwnerRevision() == revision) { "Account cambiato prima dell’aggiornamento prezzi" }

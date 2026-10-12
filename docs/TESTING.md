@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Qualifica successiva alla 0.1.9
+
+[QA_QUALIFICATION.md](QA_QUALIFICATION.md) registra il codice non ancora pubblicato: 514 JVM, 36 test host Python, 132 casi ordinari Android 12, correzioni di timestamp/Admin/MFA e prove native reali con tre account dedicati. I risultati sotto restano quelli degli APK storici; nessun PASS successivo viene attribuito retroattivamente alla 0.1.9 pubblica.
+
 ## Risultati 0.1.9 — 12 ottobre 2026
 
 Verifica locale su Windows/JBR, senza CI GitHub. Il sorgente finale comprende la correzione degli INSERT privati con risposta incerta; i candidati precedenti restano immutabili e non vengono distribuiti. Il manifest di 190 file resta invariato durante le build e le suite finali.
@@ -18,6 +22,12 @@ Verifica locale su Windows/JBR, senza CI GitHub. Il sorgente finale comprende la
 
 La build debug/JVM finale impiega 17 s; release firmata e lint 5m58s. Sono tempi osservati sul computer, non benchmark del telefono. Le due suite ordinarie escludono esplicitamente le cinque classi opt-in del backend: il runner ADB non eredita automaticamente gli argomenti Gradle. Entrambi gli esiti finali provengono da una singola esecuzione completa, senza sommare i rerun mirati. Le esecuzioni si sono sovrapposte parzialmente fra loro e alla build release; i tempi includono il carico dell’host.
 
+### Account dedicati per la qualifica 1.0
+
+Il 12 ottobre 2026 l'utente ha autorizzato l'apertura temporanea delle registrazioni per tre account nuovi. Il run `5ef2838c-ae5b-47d9-ac05-72dc5362b6a9` crea due utenti standard con tutti i moduli e un Admin; accesso con password e lettura autenticata dei permessi passano 3/3 sul servizio reale dal computer. Logout delle sole sessioni appena create verificato 3/3. La sequenza di apertura, creazione e ripristino dura 2,249 secondi; registrazioni finali disabilitate e verificate. Nessuna email inviata o modifica a utenti precedenti, schema, trigger o RLS.
+
+Il rapporto senza segreti è `artifacts/qa-account-provisioning-result.json`. Le credenziali casuali sono conservate fuori dalla repository, cifrate con Windows CurrentUser DPAPI e ACL del solo utente corrente/SYSTEM. I controlli offline verificano roundtrip della cifratura e rifiuto di identità/email/marker inattesi. Gli indirizzi sintetici non hanno mailbox: nessuna prova di consegna email, PKCE, MFA o login nell'APK deriva da questo run. Questi accessi rimuovono il precedente blocco alla preparazione dei test con ruoli distinti.
+
 ### Fallimenti conservati e correzioni
 
 Le prime suite complete passano 125/130 su API 35 e 126/130 su API 31. La ricreazione del form Manga provocava un accesso alla revisione dell'account ancora nulla: ora il form attende quel dato senza perdere il piano pendente. Il dialogo mapping poteva chiudersi all'apertura a causa del messaggio di un precedente salvataggio: ora consuma il risultato soltanto dopo una nuova richiesta esplicita. Il validatore SVG rifiuta più radici e applica il limite ai byte UTF-8. Queste sono correzioni del codice di produzione.
@@ -32,7 +42,7 @@ Il conteggio backend della 0.1.8 è rettificato da 42/43 a 41/42 contando le voc
 
 Il nuovo run QA verifica letture, export, diniego Admin, CardTrader, 12 INSERT, 8 UPDATE, chiusura CAS di due posizioni e storico. Google Books restituisce ancora HTTP 429: il run complessivo resta fallito e `crud_verified=false`, anche se i singoli contratti di scrittura sono confermati. Non viene ritentata la ricerca per aggirare la quota. `records_removed`, `logout_server`, `cleanup_local`, `input_removed` e `cleanup_complete` sono veri; `cleanup_pending` e `checkpoint_retained` sono falsi. Non servono recovery o modifiche ai dati preesistenti, password, MFA, ruoli, trigger o RLS.
 
-Le fixture verificano il client con dati sintetici, non certificano tutte le policy distribuite. Restano aperti password/email/PKCE/MFA reali, revoca di altre sessioni, Coppia con due account, Admin autorizzato ed eliminazione di un account sintetico. SAF usa registry di risultato e provider locale, senza azionare il selettore di sistema o provider cloud; API 26–28 e nuovi flussi sul telefono fisico non sono verificati. L'utente ha escluso ulteriori prove dettagliate sul proprio dispositivo. La parità globale resta falsa; [PARITY_0_1_9.md](PARITY_0_1_9.md) registra le condizioni della 1.0.
+Le fixture della release verificano il client con dati sintetici, non certificano tutte le policy distribuite. Alla pubblicazione restavano aperti password/email/PKCE/MFA reali, revoca delle altre sessioni, Coppia con due account, Admin autorizzato ed eliminazione di un account sintetico. Le nuove prove sono registrate separatamente in [QA_QUALIFICATION.md](QA_QUALIFICATION.md). SAF usa registry di risultato e provider locale, senza azionare il selettore di sistema o provider cloud; API 26–28 e nuovi flussi sul telefono fisico non sono verificati. L'utente ha escluso ulteriori prove dettagliate sul proprio dispositivo. La parità globale resta falsa; [PARITY_0_1_9.md](PARITY_0_1_9.md) registra le condizioni della 1.0.
 
 ## Risultati 0.1.8 — 12 ottobre 2026
 

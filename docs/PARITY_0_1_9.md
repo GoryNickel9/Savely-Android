@@ -27,7 +27,11 @@ La prima versione stabile, senza alpha/beta e con tutte le funzioni, sarà la st
 3. Un ruolo Admin sintetico per le operazioni consentite e un account sacrificabile per l'eliminazione. Nessun cambio ai dati degli utenti reali.
 4. Confronto finale web/Android sui casi obbligatori, aggiornamento firmato e verifica dei servizi esterni; Google Books aveva risposto HTTP 429 nella precedente prova.
 
-Le registrazioni sono attualmente bloccate anche dal trigger `auth.users`: una chiave amministrativa non lo aggira. L'account QA disponibile ha password ignota e stato preesistente da preservare. Non vengono aperte le registrazioni, cambiate password/fattori o assegnati ruoli per forzare il superamento dei gate.
+Il 12 ottobre, dopo autorizzazione esplicita dell'utente, sono stati creati tre nuovi account QA: due utenti standard con tutti i moduli abilitati e un Admin. La sequenza di apertura temporanea, creazione e ripristino delle registrazioni è durata 2,249 secondi; lo stato finale `false` è verificato. Accesso con password e lettura autenticata dei ruoli passano per tutti e tre tramite API dal computer. Le tre sessioni di verifica sono state chiuse. Le password casuali sono cifrate con Windows CurrentUser DPAPI fuori dalla repository e dall'APK.
+
+Il rapporto locale `artifacts/qa-account-provisioning-result.json`, run `5ef2838c-ae5b-47d9-ac05-72dc5362b6a9`, registra UUID e risultati senza segreti. Nessun utente precedente, schema, trigger o RLS è stato modificato. Il ruolo Admin ha i permessi del backend: i test limitano le scritture ai nuovi UUID QA. Gli indirizzi sintetici non hanno una casella email e non verificano consegna o callback PKCE; l'utente non dispone di una mailbox dedicata.
+
+Le prove successive passano per accesso nativo con password, TOTP positivo, revoca delle altre sessioni con refresh effettivamente respinto, invito/quote/budget/revoca Coppia e lettura/diniego/ripristino permessi Admin. Hanno scoperto e corretto il parser dei timestamp su Android 12; queste modifiche non sono ancora nell'APK pubblico. [QA_QUALIFICATION.md](QA_QUALIFICATION.md) descrive esiti, pulizie, scope e percorsi ancora esclusi. Il gate email/PKCE e gli altri casi obbligatori restano aperti.
 
 La stima iniziale per questa integrazione era **12–22 ore operative**, con finestra indicativa **14–15 ottobre 2026**. È una stima condizionata alla disponibilità degli account e all'esito delle prove reali, non una data di pubblicazione garantita. Il superamento dei test locali consente una nuova candidata alpha; non sostituisce i gate della 1.0.
 

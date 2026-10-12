@@ -99,9 +99,21 @@ class SupabaseApi(
     }
 
     /** The existing branded email endpoint redirects to /reset-password on the website. */
-    suspend fun requestPasswordReset(email: String) {
+    suspend fun requestPasswordReset(email: String, expectedOwner: String? = null, expectedRevision: Long? = null) {
         validateEmail(email)
-        webPost("/api/reset-password", JSONObject().put("email", email.trim()), authenticated = false)
+        if ((expectedOwner == null) != (expectedRevision == null)) {
+            throw ApiException(ApiError.VALIDATION, "Identità della sessione incompleta.")
+        }
+        suspend fun send() { webPost("/api/reset-password", JSONObject().put("email", email.trim()), authenticated = false) }
+        if (expectedOwner == null) send() else authMutex.withLock {
+            // Admin's public email endpoint must still belong to the login that confirmed it.
+            val original = load() ?: throw changedOwner()
+            val revision = sessionOwnerRevision(original) ?: throw changedOwner()
+            if (original.userId != expectedOwner || revision != expectedRevision) throw changedOwner()
+            send()
+            val current = load() ?: throw changedOwner()
+            if (!sameAccountSession(original, current) || !isSessionOwnerCurrent(revision)) throw changedOwner()
+        }
     }
 
     /** Native email requests use PKCE. The existing web methods remain available to Admin. */
@@ -417,10 +429,15 @@ class SupabaseApi(
     }
 
     /** Only the configured site's /api endpoints are reachable; no administrative key is used. */
-    suspend fun webPost(path: String, body: JSONObject, authenticated: Boolean = true): JSONObject {
+    suspend fun webPost(path: String, body: JSONObject, authenticated: Boolean = true,
+                        expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject {
         if (!WEB_ENDPOINT.matches(path)) throw ApiException(ApiError.VALIDATION, "Endpoint non valido.")
+        if (!authenticated && (expectedOwner != null || expectedRevision != null)) {
+            throw ApiException(ApiError.VALIDATION, "Identità non disponibile per questo endpoint pubblico.")
+        }
         val url = endpoint(webApi, path.removePrefix("/"))
-        return objectValue(if (authenticated) authorized(url, "POST", body, backend = false)
+        return objectValue(if (authenticated) authorized(url, "POST", body, backend = false,
+            expectedOwner = expectedOwner, expectedRevision = expectedRevision)
         else request(url, "POST", body, token = null, backend = false))
     }
 

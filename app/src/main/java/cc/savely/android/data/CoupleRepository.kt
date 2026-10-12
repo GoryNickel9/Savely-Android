@@ -152,7 +152,7 @@ class CoupleRepository(private val api: SupabaseApi) {
         val archived = (0 until archiveRows.length()).map { index ->
             val row = archiveRows.getJSONObject(index)
             require(uuid(row.getString("user_a")) == user || uuid(row.getString("user_b")) == user) { "Connessione archiviata non appartenente all'account." }
-            CoupleArchivedConnection(uuid(row.getString("id")), Instant.parse(row.getString("created_at")), Instant.parse(row.getString("revoked_at")))
+            CoupleArchivedConnection(uuid(row.getString("id")), parseBackendInstant(row.getString("created_at")), parseBackendInstant(row.getString("revoked_at")))
         }.sortedWith(compareByDescending<CoupleArchivedConnection> { it.revokedAt }.thenBy { it.id })
         if (userId() != user || api.sessionOwnerRevision() != revision) {
             throw ApiException(ApiError.AUTHENTICATION, "Account cambiato durante il caricamento. Accedi nuovamente.")

@@ -597,5 +597,52 @@
     "state": "success",
     "canonicalAndDeploymentAssetSha256": "acc9d0b830e2522cfd551a9b413fafe9d85e19b9685934d1bc51964cbbc9c399",
     "scope": "deployment-metadata-and-identical-public-javascript-asset-not-global-functional-parity"
+  },
+  "unreleasedQaQualification": {
+    "date": "2026-10-12",
+    "sourceState": "after-public-0.1.9-not-released",
+    "report": "docs/QA_QUALIFICATION.md",
+    "provisioningRun": "5ef2838c-ae5b-47d9-ac05-72dc5362b6a9",
+    "registrationsRestoredDisabled": true,
+    "jvm": {
+      "tests": 514,
+      "status": "passed"
+    },
+    "hostPython": {
+      "tests": 36,
+      "status": "passed"
+    },
+    "androidApi31": {
+      "tests": 132,
+      "passed": 132,
+      "durationSeconds": 373.054,
+      "singleCompleteExecution": true
+    },
+    "nativeAuth": {
+      "run": "9cd19c6e-bbdd-4a06-b1db-dbf368297c58",
+      "status": "passed",
+      "scope": "password-api-keystore-totp-other-session-refresh-revocation",
+      "cleanupPending": false
+    },
+    "nativeCouple": {
+      "run": "2eafa3d8-a68d-43dd-9331-1314329eeedd",
+      "status": "passed",
+      "scope": "invitation-acceptance-equal-custom-shares-private-isolation-budget-revocation-archive",
+      "cleanupPending": false
+    },
+    "nativeAdmin": {
+      "run": "77485cf6-305d-4739-8f37-1013de64cea7",
+      "status": "passed",
+      "scope": "standard-denial-admin-read-QA-B-tcg-permission-restoration",
+      "cleanupPending": false
+    },
+    "pending": [
+      "real-email-delivery-confirmation-recovery-PKCE",
+      "account-profile-password-email-change-and-sacrificial-deletion",
+      "uncovered-couple-admin-paths-and-final-web-matrix",
+      "signed-upgrade-with-authenticated-session",
+      "google-books-success",
+      "final-source-api35-and-physical-device-qualification"
+    ]
   }
 }

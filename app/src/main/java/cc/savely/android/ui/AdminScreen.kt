@@ -20,6 +20,7 @@ fun AdminScreen(api: SupabaseApi) {
     var users by remember { mutableStateOf(JSONArray()) }
     var registrations by remember { mutableStateOf<Boolean?>(null) }
     var myId by remember { mutableStateOf("") }
+    var loadedRevision by remember { mutableStateOf<Long?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -32,6 +33,7 @@ fun AdminScreen(api: SupabaseApi) {
         users = JSONArray()
         registrations = null
         myId = ""
+        loadedRevision = null
         selected = null
         deleteUser = null
         resetUser = null
@@ -39,12 +41,26 @@ fun AdminScreen(api: SupabaseApi) {
         message = null
     }
     suspend fun refresh() {
+        val owner = api.session() ?: throw ApiException(ApiError.PERMISSION, "Accedi di nuovo.")
+        val revision = api.sessionOwnerRevision(owner) ?: throw ApiException(ApiError.PERMISSION, "Accedi di nuovo.")
         if (api.permissions()["admin"] != true) {
             throw ApiException(ApiError.PERMISSION, "Sono necessari i permessi di amministratore.")
         }
-        myId = api.session()?.userId ?: throw IllegalArgumentException("Accedi di nuovo.")
-        users = api.webPost("/api/admin", JSONObject().put("action", "get-users")).getJSONArray("users")
-        registrations = api.rpc("get_registrations_enabled") as? Boolean
+        val freshUsers = api.webPost("/api/admin", JSONObject().put("action", "get-users"),
+            expectedOwner = owner.userId, expectedRevision = revision).getJSONArray("users")
+        val freshRegistrations = api.rpc("get_registrations_enabled", expectedOwner = owner.userId, expectedRevision = revision) as? Boolean
+        api.withCurrentSessionOwner(revision) {
+            myId = owner.userId; loadedRevision = revision
+            users = freshUsers; registrations = freshRegistrations
+        }
+    }
+    suspend fun actionOwner(): Pair<String, Long> {
+        val owner = api.session()
+        val revision = loadedRevision
+        if (owner?.userId != myId || revision == null || !api.isSessionOwnerCurrent(revision)) {
+            throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        }
+        return myId to revision
     }
     fun run(block: suspend () -> Unit) {
         if (busy) return
@@ -65,7 +81,11 @@ fun AdminScreen(api: SupabaseApi) {
         registrations?.let { enabled ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(localized("Registrazioni abilitate"), modifier = Modifier.weight(1f))
-                Switch(enabled, { next -> run { api.rpc("set_registrations_enabled", JSONObject().put("p_enabled", next)); refresh() } }, enabled = !busy)
+                Switch(enabled, { next -> run {
+                    val (owner, revision) = actionOwner()
+                    api.rpc("set_registrations_enabled", JSONObject().put("p_enabled", next), expectedOwner = owner, expectedRevision = revision)
+                    refresh()
+                } }, enabled = !busy)
             }
         }
         for (i in 0 until users.length()) {
@@ -97,12 +117,14 @@ fun AdminScreen(api: SupabaseApi) {
                 error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
             }
         }, confirmButton = { TextButton({ run {
+            val (owner, revision) = actionOwner()
             val userId = user.getString("user_id")
             val profiles = api.select("profiles", "select=id,permissions&user_id=eq.$userId")
             require(profiles.length() == 1) { "Profilo utente non disponibile." }
             val permissions = profiles.getJSONObject(0).optJSONObject("permissions") ?: JSONObject()
             editedPermissions.forEach { (key, value) -> permissions.put(key, value) }
-            api.update("profiles", profiles.getJSONObject(0).getString("id"), JSONObject().put("permissions", permissions), "user_id=eq.$userId")
+            api.update("profiles", profiles.getJSONObject(0).getString("id"), JSONObject().put("permissions", permissions), "user_id=eq.$userId",
+                expectedOwner = owner, expectedRevision = revision)
             selected = null; refresh(); message = "Permessi aggiornati."
         } }, enabled = !busy) { Text(localized("Salva permessi")) } }, dismissButton = { TextButton({ selected = null }, enabled = !busy) { Text(localized("Chiudi")) } }) }
     resetUser?.let { user -> AlertDialog(onDismissRequest = { if (!busy) resetUser = null },
@@ -111,7 +133,8 @@ fun AdminScreen(api: SupabaseApi) {
             Text(localized("Verrà inviata un’email di recupero a {{email}}. La password attuale non viene modificata.", "email" to user.getString("email")))
             error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         } }, confirmButton = { TextButton({ run {
-            api.requestPasswordReset(user.getString("email"))
+            val (owner, revision) = actionOwner()
+            api.requestPasswordReset(user.getString("email"), expectedOwner = owner, expectedRevision = revision)
             resetUser = null; message = "Email di recupero inviata."
         } }, enabled = !busy) { Text(localized("Invia email")) } },
         dismissButton = { TextButton({ resetUser = null }, enabled = !busy) { Text(localized("Annulla")) } }) }
@@ -120,7 +143,9 @@ fun AdminScreen(api: SupabaseApi) {
             Text(localized("{{value0}} e i suoi dati saranno eliminati definitivamente anche dal sito.", "value0" to (user.optString("email"))))
             error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         } }, confirmButton = { TextButton({ run {
-            api.webPost("/api/admin", JSONObject().put("action", "delete-user").put("userId", user.getString("user_id")))
+            val (owner, revision) = actionOwner()
+            api.webPost("/api/admin", JSONObject().put("action", "delete-user").put("userId", user.getString("user_id")),
+                expectedOwner = owner, expectedRevision = revision)
             deleteUser = null; refresh(); message = "Utente eliminato."
         } }, enabled = !busy) { Text(localized("Elimina definitivamente")) } }, dismissButton = { TextButton({ deleteUser = null }, enabled = !busy) { Text(localized("Annulla")) } }) }
 }

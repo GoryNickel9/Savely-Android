@@ -44,7 +44,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
 
     fun restore() = runAction {
         val session = api.session()
-        if (session == null) mutable.value = AppState(initialized = true)
+        if (session == null) mutable.value = AppState(initialized = true, busy = mutable.value.busy)
         else acceptSession(session)
     }
 
@@ -82,7 +82,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
     }
 
     fun cancelPasswordRecovery() = runAction {
-        if (api.cancelPasswordRecovery()) mutable.value = AppState(initialized = true)
+        if (api.cancelPasswordRecovery()) mutable.value = AppState(initialized = true, busy = mutable.value.busy)
     }
 
     fun verifyMfa(code: String) = runAction {
@@ -108,7 +108,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
         if (!api.isSessionOwnerCurrent(owner)) return
         if (factors.length() > 0 && assuranceLevel(session) != "aal2") {
             api.withCurrentSessionOwner(owner) {
-                mutable.value = AppState(initialized = true, session = session, recovery = recovery,
+                mutable.value = AppState(initialized = true, busy = mutable.value.busy, session = session, recovery = recovery,
                     mfaFactor = factors.getJSONObject(0).getString("id"))
             }
             return
@@ -116,7 +116,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
         val permissions = if (recovery) emptyMap() else api.permissions()
         // A pane may invalidate the session while this restore is awaiting HTTP.
         api.withCurrentSessionOwner(owner) {
-            mutable.value = AppState(initialized = true, session = session, permissions = permissions, recovery = recovery)
+            mutable.value = AppState(initialized = true, busy = mutable.value.busy, session = session, permissions = permissions, recovery = recovery)
         }
     }
 
@@ -128,7 +128,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
             catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 mutable.value = if (error is ApiException && error.kind in setOf(ApiError.AUTHENTICATION, ApiError.STORAGE)) {
-                    AppState(initialized = true, error = userMessage(error))
+                    AppState(initialized = true, busy = mutable.value.busy, error = userMessage(error))
                 } else mutable.value.copy(initialized = true, error = userMessage(error))
             } finally { mutable.value = mutable.value.copy(busy = false) }
         }

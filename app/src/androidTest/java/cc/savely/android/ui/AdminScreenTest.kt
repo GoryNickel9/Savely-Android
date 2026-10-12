@@ -27,11 +27,13 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.test.StandardTestDispatcher
 
 /** Synthetic Admin UI against a guarded local TLS server; never contacts production or deletes an account. */
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class)
 class AdminScreenTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createComposeRule(StandardTestDispatcher())
     private lateinit var server: MockWebServer
     private lateinit var client: OkHttpClient
     private lateinit var api: SupabaseApi
@@ -46,6 +48,8 @@ class AdminScreenTest {
     private val unexpectedRequests = AtomicInteger()
     private val nonLocalRequests = AtomicInteger()
     private val resetRequests = AtomicInteger()
+    private val changeOwnerOnTargetRead = AtomicBoolean(false)
+    private val permissionWrites = AtomicInteger()
     private val requests = CopyOnWriteArrayList<RecordedRequest>()
 
     @Before fun setup() {
@@ -155,6 +159,21 @@ class AdminScreenTest {
         assertEquals(0, nonLocalRequests.get())
     }
 
+    @Test fun accountChangeWhileReadingTargetProfilePreventsPermissionWrite() {
+        renderAndAwaitLoaded()
+        compose.onNodeWithText("Gestisci").performScrollTo().performClick()
+        changeOwnerOnTargetRead.set(true)
+        compose.onNodeWithText("Salva permessi").performClick()
+        awaitError("La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        assertNoAdminDataOrDialogs()
+        assertEquals(0, permissionWrites.get())
+        assertEquals(4, server.requestCount)
+        assertEquals(OTHER_ID, store.load()?.userId)
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(0, unexpectedRequests.get())
+        assertEquals(0, nonLocalRequests.get())
+    }
+
     private fun awaitError(message: String) {
         compose.waitUntil(15_000) { compose.onAllNodesWithText(message).fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
@@ -190,6 +209,13 @@ class AdminScreenTest {
                 "/rest/v1/profiles" -> if (request.method == "GET" && request.requestUrl?.queryParameter("user_id") == "eq.$USER_ID") {
                     profileReads.incrementAndGet()
                     json("""[{"user_id":"$USER_ID","permissions":{"admin":${adminAllowed.get()}}}]""")
+                } else if (request.method == "GET" && request.requestUrl?.queryParameter("user_id") == "eq.$OTHER_ID" &&
+                    changeOwnerOnTargetRead.get()) {
+                    store.save(session.copy(userId = OTHER_ID, email = OTHER_EMAIL,
+                        accessToken = "synthetic-replacement-token", refreshToken = "synthetic-replacement-refresh"))
+                    json("""[{"id":"$OTHER_ID","user_id":"$OTHER_ID","permissions":{"poker":true}}]""")
+                } else if (request.method == "PATCH") {
+                    permissionWrites.incrementAndGet(); unexpected()
                 } else unexpected()
                 "/rest/v1/rpc/get_registrations_enabled" -> if (request.method == "POST" && request.body.readUtf8() == "{}") {
                     registrationReads.incrementAndGet()
