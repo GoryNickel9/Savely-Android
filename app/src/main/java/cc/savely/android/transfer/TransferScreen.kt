@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -53,8 +54,9 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
     })
     val state by model.state.collectAsStateWithLifecycle()
     val context = LocalContext.current.applicationContext
-    var format by remember { mutableStateOf(ImportFormat.REVOLUT) }
-    var bankCurrency by remember { mutableStateOf("EUR") }
+    var formatName by rememberSaveable(owner) { mutableStateOf(ImportFormat.REVOLUT.name) }
+    val format = ImportFormat.valueOf(formatName)
+    var bankCurrency by rememberSaveable(owner) { mutableStateOf("EUR") }
     var confirm by remember { mutableStateOf(false) }
     var categoryRow by remember { mutableStateOf<PreviewTransaction?>(null) }
     var editingMapping by remember { mutableStateOf<TransferIsinMapping?>(null) }
@@ -90,8 +92,8 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
             Text(localized("Formato importazione"), style = MaterialTheme.typography.titleMedium)
             ImportFormat.entries.forEach { choice ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    RadioButton(selected = choice == format, onClick = { format = choice }, enabled = !state.busy)
-                    TextButton(onClick = { format = choice }, enabled = !state.busy) { Text(localized(choice.label)) }
+                    RadioButton(selected = choice == format, onClick = { formatName = choice.name }, enabled = !state.busy)
+                    TextButton(onClick = { formatName = choice.name }, enabled = !state.busy) { Text(localized(choice.label)) }
                 }
             }
             if (format == ImportFormat.BANK) CategoryChoice("Valuta del conto se assente nel file", bankCurrency,

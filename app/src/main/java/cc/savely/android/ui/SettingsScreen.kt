@@ -55,6 +55,7 @@ private fun SettingsContent(api: SupabaseApi, session: Session, theme: String, o
     var error by remember { mutableStateOf<String?>(null) }
     var fullName by rememberSaveable { mutableStateOf("") }
     var currency by rememberSaveable { mutableStateOf("EUR") }
+    var profileDraftInitialized by rememberSaveable { mutableStateOf(false) }
     var email by rememberSaveable { mutableStateOf(session.email) }
     var password by remember { mutableStateOf("") }
     var passwordConfirmation by remember { mutableStateOf("") }
@@ -83,8 +84,12 @@ private fun SettingsContent(api: SupabaseApi, session: Session, theme: String, o
             requireSettingsOwner(api, revision)
             api.withCurrentSessionOwner(requireNotNull(revision)) {
                 profile = fresh
-                fullName = fresh?.optString("full_name")?.takeUnless { it == "null" } ?: ""
-                currency = fresh?.optString("default_currency", "EUR") ?: "EUR"
+                // Reloading after Activity recreation must not replace the restored draft.
+                if (!profileDraftInitialized && fresh != null) {
+                    fullName = fresh.optString("full_name").takeUnless { it == "null" } ?: ""
+                    currency = fresh.optString("default_currency", "EUR")
+                    profileDraftInitialized = true
+                }
             }
         }
     }
@@ -101,13 +106,13 @@ private fun SettingsContent(api: SupabaseApi, session: Session, theme: String, o
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(session.email, style = MaterialTheme.typography.titleLarge)
                 Text(localized("Profilo"), style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(fullName, { fullName = it }, label = { Text(localized("Nome completo")) }, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+                OutlinedTextField(fullName, { fullName = it }, label = { Text(localized("Nome completo")) }, modifier = Modifier.fillMaxWidth(), enabled = !busy && profile != null)
                 Text(localized("Valuta predefinita"))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("EUR", "USD", "GBP", "CHF").forEach { code -> FilterChip(currency == code, { currency = code }, label = { Text(code) }) }
+                    listOf("EUR", "USD", "GBP", "CHF").forEach { code -> FilterChip(currency == code, { currency = code }, label = { Text(code) }, enabled = !busy && profile != null) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("JPY", "CNY", "IDR").forEach { code -> FilterChip(currency == code, { currency = code }, label = { Text(code) }) }
+                    listOf("JPY", "CNY", "IDR").forEach { code -> FilterChip(currency == code, { currency = code }, label = { Text(code) }, enabled = !busy && profile != null) }
                 }
                 Button({ run {
                     api.updateProfile(JSONObject().put("full_name", fullName.trim()).put("default_currency", currency),
