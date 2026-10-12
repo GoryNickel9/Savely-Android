@@ -91,7 +91,7 @@ class CoupleScreenTest {
         assertEquals(1, lookups.get())
         compose.onNodeWithText("Codice del partner").performTextInput("ABCD2345")
         compose.onNodeWithText("Invita partner").assertIsNotEnabled()
-        assertEquals(1, mutations.get())
+        assertEquals(2, mutations.get()) // One read-only lookup RPC and one request INSERT.
     }
 
     @Test fun incomingInvitationRejectUsesReceiverAndPendingCasThenDisappearsAfterRefresh() {
