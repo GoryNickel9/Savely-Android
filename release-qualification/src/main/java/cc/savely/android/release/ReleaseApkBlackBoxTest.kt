@@ -67,7 +67,7 @@ class ReleaseApkBlackBoxTest {
             throw AssertionError(safeFailure(failure))
         } finally {
             if (!prepared) {
-                val loggedOut = identityConfirmed && logoutQa()
+                val loggedOut = identityConfirmed && logoutQa(report)
                 report.put("logout_confirmed", loggedOut)
                     .put("cleanup_pending", report.optBoolean("login_form_submitted") && !loggedOut)
             }
@@ -110,7 +110,7 @@ class ReleaseApkBlackBoxTest {
             report.put("failure_code", safeFailure(failure))
             throw AssertionError(safeFailure(failure))
         } finally {
-            val loggedOut = identityConfirmed && logoutQa()
+            val loggedOut = identityConfirmed && logoutQa(report)
             report.put("logout_confirmed", loggedOut).put("cleanup_pending", !loggedOut)
                 .put("stage", if (verified && loggedOut) "passed" else "upgrade_failed")
             writeReport(run, "phase2", report)
@@ -228,13 +228,17 @@ class ReleaseApkBlackBoxTest {
         exists { label(it, setOf("Salva profilo", "Save profile")) && it.isEnabled && visible(it) }
     }
 
-    private fun logoutQa(): Boolean = runCatching {
+    private fun logoutQa(report: JSONObject): Boolean = runCatching {
         openSettings()
         requireQaEmail(scroll = true)
         clickLabel(setOf("Sign out of your account", "Esci dall’account"), "QA_LOGOUT_CONTROL_MISSING", scroll = true)
         await("QA_LOGOUT_NOT_CONFIRMED") { editable(password = false) && editable(password = true) && !hasText("Dashboard") }
         true
-    }.getOrDefault(false)
+    }.getOrElse { failure ->
+        report.put("logout_failure_code", safeFailure(failure))
+        recordUiFlags(report)
+        false
+    }
 
     private fun setField(password: Boolean, value: String) {
         val node = find { it.isEditable && it.isPassword == password && visible(it) }
@@ -296,7 +300,8 @@ class ReleaseApkBlackBoxTest {
                 SystemClock.sleep(250)
             } else {
                 val offscreen = find { label(it, labels) }
-                val targetBounds = offscreen?.let { Rect().also(it::getBoundsInScreen) }
+                // Compose can retain an offscreen label with empty bounds; it gives no scroll direction.
+                val targetBounds = offscreen?.let { Rect().also(it::getBoundsInScreen) }?.takeUnless { it.isEmpty }
                 offscreen?.recycle()
                 val container = find {
                     val bounds = Rect().also(it::getBoundsInScreen)
@@ -305,10 +310,11 @@ class ReleaseApkBlackBoxTest {
                 val containerBounds = container?.let { Rect().also(it::getBoundsInScreen) }
                 val backwards = targetBounds != null && containerBounds != null &&
                     targetBounds.top < containerBounds.top
-                if (container != null) {
+                val moved = if (container != null) {
                     try { container.performAction(if (backwards) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
                         else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) } finally { container.recycle() }
-                } else swipe(backwards)
+                } else false
+                if (!moved) swipe(backwards)
                 SystemClock.sleep(250)
             }
         }
