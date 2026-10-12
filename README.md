@@ -1,5 +1,7 @@
 # Savely Android
 
+Ultima revisione statica: [matrice delle verifiche mancanti](docs/STABLE_VERIFICATION_MATRIX.md), 33 verifiche aperte e collegamento ai 50 casi del dataset. Il sorgente `de53ac7` conserva opzioni import e bozza profilo dopo ricreazione; queste due patch non sono state compilate o provate. Nessun nuovo APK, test, build, CI, emulatore o accesso backend in questa attività.
+
 App Android nativa di Savely in Kotlin e Jetpack Compose, con account e dati condivisi con il sito.
 
 Stato al 12 ottobre 2026: 0.1.9-alpha pubblicata con APK firmato, 503 test JVM e due suite complete da 130 casi su Android 12 e 15. Il codice successivo corregge il parser dei timestamp su Android 12, le operazioni Admin durante un cambio account e lo stato occupato del recupero MFA. Passano 514 test JVM e 132 test ordinari su Android 12; i nuovi account QA verificano accesso nativo con password, TOTP, revoca delle altre sessioni, un flusso Coppia con due utenti e lettura/diniego/ripristino dei permessi Admin. Queste modifiche non sono ancora in un nuovo APK pubblico. [QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md) riporta prove e limiti; [TESTING.md](docs/TESTING.md) conserva i risultati delle release. Email/PKCE reali e gli altri gate della [1.0 stabile](docs/PARITY_0_1_9.md) restano aperti.
@@ -21,6 +23,7 @@ Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copi
 | [docs/STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md) | Confronto dei sorgenti, correzioni e verifiche rinviate |
 | [docs/STATIC_AUDIT_VERIFICATION.md](docs/STATIC_AUDIT_VERIFICATION.md) | Esiti locali finali e fallimenti conservati dell'audit |
 | [docs/STABLE_NON_CODE_GATES.md](docs/STABLE_NON_CODE_GATES.md) | Checklist delle prove e revisioni residue per la 1.0 |
+| [docs/STABLE_VERIFICATION_MATRIX.md](docs/STABLE_VERIFICATION_MATRIX.md) | Verifiche aperte, sorgenti, dipendenze e patch statiche ancora da provare |
 | [docs/COMMON_DATASET_PARITY_REVIEW.md](docs/COMMON_DATASET_PARITY_REVIEW.md) | Dataset sintetico comune, attese dai sorgenti e regressioni locali rieseguite con tre subagent |
 | [docs/COMMON_VISUAL_PARITY_REVIEW.md](docs/COMMON_VISUAL_PARITY_REVIEW.md) | Confronto osservato, correzioni UI e risultati locali sul dataset comune |
 | [docs/DEVELOPMENT_AND_TESTING.md](docs/DEVELOPMENT_AND_TESTING.md) | Processi di sviluppo, test e informazioni documentate su PokerStars |

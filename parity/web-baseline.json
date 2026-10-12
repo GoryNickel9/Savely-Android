@@ -750,5 +750,24 @@
     "physicalDeviceTested": false,
     "apkPublished": false,
     "evidence": "artifacts/visual-parity/native-final-summary.json"
+  },
+  "staticMissingVerificationReview": {
+    "date": "2026-10-12",
+    "report": "docs/STABLE_VERIFICATION_MATRIX.md",
+    "documentationBaseRevision": "5b79e75",
+    "sourceCommit": "de53ac70d46ab567766f57298501dbdf5d7fdf55",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "status": "static-review-with-unverified-code-fixes",
+    "openVerificationRows": 33,
+    "mappedDatasetCases": 50,
+    "fixesAwaitingVerification": ["SC01", "SC02"],
+    "datasetCasesExecuted": false,
+    "testsExecuted": false,
+    "buildExecuted": false,
+    "lintExecuted": false,
+    "ciExecuted": false,
+    "emulatorStarted": false,
+    "backendAccessed": false,
+    "apkPublished": false
   }
 }

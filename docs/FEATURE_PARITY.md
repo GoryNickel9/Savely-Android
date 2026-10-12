@@ -10,6 +10,8 @@ Il [confronto osservato Android/web](COMMON_VISUAL_PARITY_REVIEW.md) sul dataset
 
 ## Inventario iniziale
 
+La [matrice delle verifiche mancanti](STABLE_VERIFICATION_MATRIX.md) collega codice, fixture, dipendenze e criteri di chiusura a 33 righe aperte e ai 50 casi comuni. Le patch SC01/SC02 del sorgente `de53ac7` riguardano ricreazione di Dati e bozza profilo: non sono compilate o provate. Il campione precedente resta circoscritto a `16c7011`; nessuna baseline globale viene promossa da questa lettura.
+
 I package `ui`, `data`, `finance`, `transfer` e `modules` contengono le schermate e i contratti nativi. Per ogni area, i documenti `API_CONTRACTS_*` e `IMPORT_EXPORT.md` registrano API, calcoli e lacune rispetto al web.
 
 | ID | Area e percorsi web | Comportamenti da verificare | Destinazione Android | Stato |

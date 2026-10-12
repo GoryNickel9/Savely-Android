@@ -2,6 +2,8 @@
 
 ## In sviluppo dopo la 0.1.9 — 12 ottobre 2026
 
+Revisione statica successiva, sorgente `de53ac7`: opzioni import conservate con stato salvabile e bozza profilo non sovrascritta dal GET dopo ricreazione. Aggiunta la [matrice delle verifiche mancanti](docs/STABLE_VERIFICATION_MATRIX.md), con 33 verifiche aperte, fonti e mapping dei 50 casi comuni. Le patch non sono compilate o provate; nessun test, build, CI, emulatore, accesso backend o nuova release in questa attività.
+
 Il [confronto osservato Android/web](docs/COMMON_VISUAL_PARITY_REVIEW.md) sul dataset comune registra una nuova esecuzione di 530 test JVM e un run completo di 28/28 test mirati su Android 12/API 31, con 81 PNG nativi e 114 PNG web appaiati. Corretti layout Sicurezza/storico e accesso a Dati con testo grande, tastiera dei grafici e percentuali/scala FIRE; aggiunta la distribuzione TCG per quantità. Lint debug senza errori; risultati circoscritti a fixture locali, senza CI, backend reale o nuova release. Il confronto di tutti i flussi e i gate della stabile restano aperti.
 
 Fissato un dataset sintetico comune di 50 casi di base con attese e fonti per finanza, account e moduli. Tre subagent hanno rieseguito 528 JVM e 36 test host, tutti superati; gli output web FIRE/Fumo coincidono byte per byte con il golden. Il confronto dei chiamanti attivi distingue gli helper isolati dai form Coppia/Fumo; nessun nuovo difetto di produzione richiede una correzione. Roadmap e gate aggiornati: confronto visivo osservato e prove reali ancora aperti. [Rapporto](docs/COMMON_DATASET_PARITY_REVIEW.md), senza CI o nuova release.

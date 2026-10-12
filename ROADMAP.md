@@ -10,6 +10,8 @@ Il [confronto osservato Android/web](docs/COMMON_VISUAL_PARITY_REVIEW.md) sul da
 
 ## 1. Risultato richiesto e vincoli
 
+Revisione successiva senza esecuzioni: [STABLE_VERIFICATION_MATRIX.md](docs/STABLE_VERIFICATION_MATRIX.md) collega 33 verifiche aperte al codice, alle fixture e ai 50 casi comuni. Corrette staticamente la perdita delle opzioni import e la sovrascrittura della bozza profilo dopo ricreazione, sorgente `de53ac7`. Le patch SC01/SC02 sono non compilate e non provate; i PASS del confronto precedente restano associati a `16c7011`. Nessun test, build, CI, emulatore o modifica backend/web durante questa revisione.
+
 Realizzare un'app Android nativa con tutte le funzioni attualmente disponibili in Savely, account e dati condivisi, APK firmato distribuibile direttamente e schermate utilizzabili senza caricare il sito.
 
 | Vincolo | Decisione |
@@ -243,5 +245,5 @@ L’utente conferma installazione e uso generale della 0.1.7 sul Doogee S100 And
 1. **Completato — audit statico:** confronto del riferimento web `1cfcf629`, correzioni delle lacune dimostrate e regressioni inizialmente scritte senza eseguirle.
 2. **Completato — verifica locale:** 528 JVM, 36 host Python, suite finali Android 12/15 da 132 casi ciascuna e lint senza errori. Due problemi di attesa/scroll delle fixture corretti senza rimuovere gli assert. Revisione testuale dei documenti e riproduzione 12/12 asset completate; nessuna prova reale aggiunta ai PASS QA storici.
 3. **Completato — campione visuale locale:** 530 JVM, 28/28 mirati API 31, 81 PNG nativi e 114 PNG web appaiati; [confronto e differenze](docs/COMMON_VISUAL_PARITY_REVIEW.md). Ogni form/stato, servizi e API 35 sul nuovo sorgente restano fuori da questo run.
-4. **Dopo — parità reale:** completare matrice web/Android, percorsi account/Coppia/Admin esclusi, import e servizi esterni. Risolvere il gate mailbox prima delle prove email/PKCE.
+4. **Dopo — verifiche residue:** la [matrice operativa](docs/STABLE_VERIFICATION_MATRIX.md) è preparata. Prima qualificare SC01/SC02 e rieseguire le suite sul nuovo sorgente; poi completare form/stati web/Android, percorsi account/Coppia/Admin esclusi, import e servizi esterni. Risolvere il gate mailbox prima delle prove email/PKCE.
 5. **Dopo — distribuzione:** verificare release ottimizzata, firma, aggiornamento con sessione autenticata e dispositivo fisico; pubblicare 1.0.0 soltanto a gate superati. La data della stabile dipende dalla chiusura dei gate reali.

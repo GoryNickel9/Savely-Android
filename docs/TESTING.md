@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Revisione statica successiva — 12 ottobre 2026
+
+[STABLE_VERIFICATION_MATRIX.md](STABLE_VERIFICATION_MATRIX.md): 33 verifiche aperte, mapping dei 50 casi e regressioni ancora da preparare per SC01/SC02. Il sorgente `de53ac7` modifica lo stato salvabile delle opzioni import e l'inizializzazione della bozza profilo. Nessun test, build, lint, CI, emulatore o backend eseguito; le due patch restano non verificate. I risultati riportati sotto qualificano i loro sorgenti precedenti, non questa revisione.
+
 ## Confronto visuale locale — 12 ottobre 2026
 
 [COMMON_VISUAL_PARITY_REVIEW.md](COMMON_VISUAL_PARITY_REVIEW.md): 530 JVM, zero fallimenti/errori/skip; 28/28 test mirati in un solo run API 31, 103,01 s; 81 PNG nativi con bounds interamente nel display. Lint debug: zero errori, 32 avvertenze e 6 suggerimenti. APK debug/test sul sorgente `16c70112f5d2240abb61478074fcf4e19c779d21`; 24 casi visuali più quattro regressioni ordinarie Sicurezza, senza suite Android completa, API 35, backend reale, CI o release. I tentativi falliti e la cattura invalida da tastiera restano separati. Gli strumenti web hanno superato `node --check`; i 36 host Python sotto sono risultati precedenti.

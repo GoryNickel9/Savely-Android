@@ -1,5 +1,7 @@
 # Gate non di codice per la 1.0
 
+La [matrice operativa successiva](STABLE_VERIFICATION_MATRIX.md) associa ogni area aperta al codice e alla prova necessaria. Registra anche SC01/SC02, correzioni statiche in `de53ac7` da qualificare prima di usare i risultati precedenti per una nuova candidata. Questa attività non chiude checkbox e non esegue test, build, CI o emulatore.
+
 Checklist al 12 ottobre 2026, riferita alla richiesta di verifica del sorgente `75d30ed`. Non introduce funzionalità: distingue le prove ancora necessarie dagli ostacoli esterni. Le verifiche integrate sono gestite dal responsabile dell'integrazione; questo documento non ne anticipa gli esiti.
 
 Fonti: [QA_QUALIFICATION.md](QA_QUALIFICATION.md), [FEATURE_PARITY.md](FEATURE_PARITY.md) e [ROADMAP.md](../ROADMAP.md). I risultati della 0.1.9-alpha e di `0714f39` restano associati a quei sorgenti e ai rispettivi APK. Non qualificano automaticamente la candidata finale. Nessuna data di rilascio è assegnata qui.
