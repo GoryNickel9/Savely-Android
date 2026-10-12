@@ -574,8 +574,15 @@ class ReleaseApkBlackBoxTest {
         await("DASHBOARD_MISSING") { hasDashboardContent() && !editable(password = true) }
     }
 
-    private fun awaitProfileRead() = await("PROFILE_READ_NOT_CONFIRMED") {
-        exists { label(it, setOf("Salva profilo", "Save profile")) && it.isEnabled && visible(it) }
+    private fun awaitProfileRead() {
+        val until = SystemClock.uptimeMillis() + 30_000
+        while (SystemClock.uptimeMillis() < until) {
+            scrollAccountToTop()
+            val node = runCatching { seekLabel(setOf("Salva profilo", "Save profile"), "PROFILE_READ_NOT_CONFIRMED", scroll = true) }.getOrNull()
+            if (node != null) { node.recycle(); return }
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("PROFILE_READ_NOT_CONFIRMED")
     }
 
     private fun logoutQa(report: JSONObject, email: String = QA_EMAIL): Boolean = runCatching {

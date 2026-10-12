@@ -1,5 +1,6 @@
 package cc.savely.android.ui
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
@@ -43,6 +44,8 @@ import java.util.concurrent.atomic.AtomicReference
 @RunWith(AndroidJUnit4::class)
 class SettingsMfaTest {
     @get:Rule val compose = createComposeRule()
+    private val visible = mutableStateOf(true)
+    private var mounted = false
     private lateinit var server: MockWebServer
     private lateinit var client: OkHttpClient
     private lateinit var api: SupabaseApi
@@ -95,10 +98,18 @@ class SettingsMfaTest {
 
     @After fun teardown() {
         releaseVerification.countDown()
-        api.close()
-        server.shutdown()
-        client.dispatcher.executorService.shutdown()
-        client.connectionPool.evictAll()
+        try {
+            if (mounted) {
+                // Dispose screen effects before closing their fixture transport or destroying the Activity.
+                compose.runOnIdle { visible.value = false }
+                compose.waitForIdle()
+            }
+        } finally {
+            api.close()
+            server.shutdown()
+            client.dispatcher.executorService.shutdown()
+            client.connectionPool.evictAll()
+        }
     }
 
     @Test fun wrongCodeDoesNotDeleteFactorOrInvalidateSessionAndClearsTheCode() {
@@ -393,9 +404,15 @@ class SettingsMfaTest {
     private fun activate() = compose.onNode(hasText("Attiva verifica", substring = false) and hasClickAction())
 
     private fun openSecurity() {
-        compose.setContent { SavelyTheme("light") { SettingsScreen(api, session, "light", {}, { signedOut.set(true) }, {}) } }
+        mounted = true
+        compose.setContent {
+            if (visible.value) {
+                SavelyTheme("light") { SettingsScreen(api, session, "light", {}, { signedOut.set(true) }, {}) }
+            }
+        }
         compose.waitUntil(15_000) { compose.onAllNodes(hasText("Salva profilo") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Sicurezza", substring = false).performClick()
+        compose.waitForIdle()
     }
 
     private fun awaitPendingFactor() {
