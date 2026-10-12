@@ -24,6 +24,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Currency
+import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -58,6 +65,21 @@ class CoupleScreenTest {
     private val newOwnerMutations = AtomicInteger()
     private val holdInvitationPatch = AtomicBoolean(false)
     private val releaseInvitationPatch = CountDownLatch(1)
+    private val transactionCurrency = AtomicReference("EUR")
+    private val distinctShareOwners = AtomicBoolean(false)
+    private val removedShares = ConcurrentHashMap.newKeySet<String>()
+    private val shareDeletes = AtomicInteger()
+    private val partnerRemovalRpcs = AtomicInteger()
+    private val budgetPresent = AtomicBoolean(true)
+    private val budgetAmount = AtomicReference("12")
+    private val budgetId = AtomicReference(BUDGET)
+    private val budgetPatches = AtomicInteger()
+    private val budgetDeletes = AtomicInteger()
+    private val budgetPosts = AtomicInteger()
+    private val budgetPatchBody = AtomicReference("")
+    private val budgetPostBody = AtomicReference("")
+    private val connectionPatches = AtomicInteger()
+    private val revokedAt = AtomicReference("")
 
     @Before fun setup() {
         val certificate = HeldCertificate.Builder().commonName("Savely Couple fixture")
@@ -210,6 +232,138 @@ class CoupleScreenTest {
         compose.onNodeWithText("${LocalDate.now()} · 1.01 EUR · Spesa nuova").assertIsNotEnabled()
     }
 
+    @Test fun equalUsdSplitPreservesCurrencyAndShowsBothRoundedOddCentShares() {
+        connected.set(true)
+        transactionCurrency.set("USD")
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        waitFor("Connessione attiva")
+        compose.onNodeWithText("Scegli transazione").performScrollTo().performClick()
+        compose.onNodeWithText("${LocalDate.now()} · 1.01 USD · Spesa nuova").performClick()
+        val symbol = Currency.getInstance("USD").getSymbol(Locale.ITALY)
+        compose.onNode(literalText("La tua quota: 0,51 $symbol · Quota partner: 0,51 $symbol")).performScrollTo().assertIsDisplayed()
+        compose.onNode(literalText("Le quote uguali superano il totale di 0,01 $symbol per l’arrotondamento. Usa una quota personalizzata per mantenere il totale."))
+            .performScrollTo().assertIsDisplayed()
+        assertEquals(0, mutations.get())
+        compose.onNodeWithText("Condividi spesa").performScrollTo().performClick()
+        waitFor("3 condivisioni caricate, 3 mostrate.", substring = true)
+        compose.waitUntil(15_000) { compose.onAllNodes(hasText("Scegli transazione") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        val body = JSONObject(shareBody.get())
+        assertEquals(setOf("id", "connection_id", "original_tx_id", "created_by", "couple_category_name", "split_mode", "partner_amount"), body.keys().asSequence().toSet())
+        UUID.fromString(body.getString("id"))
+        assertEquals(CONNECTION, body.getString("connection_id"))
+        assertEquals(TX, body.getString("original_tx_id"))
+        assertEquals(USER, body.getString("created_by"))
+        assertEquals("equal", body.getString("split_mode"))
+        assertTrue(body.isNull("partner_amount")); assertTrue(body.isNull("couple_category_name"))
+        compose.onNodeWithText("Quota partner: 0.51 USD", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNode(literalText("Mediana mensile USD: 0,51 $symbol")).performScrollTo().assertIsDisplayed()
+        assertEquals(1, sharePosts.get()); assertEquals(1, mutations.get())
+        assertEquals(0, budgetPosts.get()); assertEquals(0, budgetPatches.get()); assertEquals(0, budgetDeletes.get())
+    }
+
+    @Test fun budgetEditRejectsZeroThenUpdatesAndDeleteRequiresConfirmationBeforeCreatingAgain() {
+        connected.set(true)
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        waitFor("Connessione attiva")
+        compose.onNodeWithText("Modifica").performScrollTo().performClick()
+        compose.onNodeWithText("Limite mensile EUR").performScrollTo().performTextClearance()
+        compose.onNodeWithText("Limite mensile EUR").performTextInput("0")
+        compose.onNodeWithText("Salva budget").performScrollTo().performClick()
+        waitFor("Inserisci un importo positivo", substring = true)
+        assertEquals(0, mutations.get())
+        compose.onNodeWithText("Limite mensile EUR").performScrollTo().performTextClearance()
+        compose.onNodeWithText("Limite mensile EUR").performTextInput("12,34")
+        compose.onNodeWithText("Salva budget").performScrollTo().performClick()
+        waitFor("12.34 EUR")
+        waitForIdleRefresh()
+        assertEquals("{\"amount\":12.34}", budgetPatchBody.get())
+        compose.onNode(literalText("Budget totale: 12,34 €")).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Elimina").performScrollTo().performClick()
+        compose.onNodeWithText("Eliminare il budget?").assertIsDisplayed()
+        compose.onNodeWithText("Annulla").performClick()
+        assertEquals(0, budgetDeletes.get()); assertEquals(1, mutations.get())
+        compose.onNodeWithText("Elimina").performScrollTo().performClick()
+        compose.onNodeWithText("Conferma").performClick()
+        compose.waitUntil(15_000) { budgetDeletes.get() == 1 && compose.onAllNodesWithText("12.34 EUR").fetchSemanticsNodes().isEmpty() }
+        waitForIdleRefresh()
+        compose.onNodeWithText("Modifica").assertDoesNotExist()
+        compose.onNodeWithText("Scegli categoria comune").performScrollTo().performClick()
+        compose.onNode(hasText("Casa") and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Limite mensile EUR").performScrollTo().performTextInput("9,50")
+        compose.onNodeWithText("Salva budget").performScrollTo().performClick()
+        waitFor("9.50 EUR")
+        waitForIdleRefresh()
+        val body = JSONObject(budgetPostBody.get())
+        assertEquals(setOf("id", "connection_id", "couple_category_name", "amount", "currency", "month", "year", "created_by"), body.keys().asSequence().toSet())
+        UUID.fromString(body.getString("id"))
+        assertEquals(CONNECTION, body.getString("connection_id")); assertEquals(USER, body.getString("created_by"))
+        assertEquals("Casa", body.getString("couple_category_name")); assertEquals("9.50", body.getString("amount"))
+        assertEquals("EUR", body.getString("currency")); assertEquals(1, body.getInt("month")); assertEquals(2000, body.getInt("year"))
+        assertEquals(1, budgetPatches.get()); assertEquals(1, budgetDeletes.get()); assertEquals(1, budgetPosts.get())
+        assertEquals(3, mutations.get()); assertEquals(0, sharePosts.get()); assertEquals(0, connectionPatches.get())
+    }
+
+    @Test fun creatorRemovalUsesOwnedDeleteAndPartnerRemovalUsesOnlyRpcPreservingOriginalTransaction() {
+        connected.set(true)
+        distinctShareOwners.set(true)
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        waitFor("Connessione attiva")
+        fun removalFor(description: String): SemanticsMatcher {
+            val other = if (description == "Spesa del creatore") "Spesa del partner" else "Spesa del creatore"
+            val rowTitle = hasText(description) or hasAnyDescendant(hasText(description))
+            val otherRowTitle = hasText(other) or hasAnyDescendant(hasText(other))
+            return hasText("Rimuovi") and hasAnyAncestor(rowTitle and !otherRowTitle)
+        }
+        compose.onNode(removalFor("Spesa del creatore"), useUnmergedTree = true).performScrollTo().performClick()
+        compose.onNodeWithText("Rimuovere la condivisione?").assertIsDisplayed()
+        compose.onNodeWithText("La transazione originale rimane nel conto di chi l’ha creata.").assertExists()
+        compose.onNodeWithText("Annulla").performClick()
+        assertEquals(0, mutations.get())
+        compose.onNode(removalFor("Spesa del creatore"), useUnmergedTree = true).performScrollTo().performClick()
+        compose.onNodeWithText("Conferma").performClick()
+        waitFor("1 condivisioni caricate, 1 mostrate.", substring = true)
+        waitForIdleRefresh()
+        compose.onNodeWithText("Spesa del creatore").assertDoesNotExist()
+        assertEquals(1, shareDeletes.get()); assertEquals(0, partnerRemovalRpcs.get())
+        compose.onNode(removalFor("Spesa del partner"), useUnmergedTree = true).performScrollTo().performClick()
+        compose.onNodeWithText("Conferma").performClick()
+        waitFor("0 condivisioni caricate, 0 mostrate.", substring = true)
+        waitForIdleRefresh()
+        compose.onNodeWithText("Spesa del partner").assertDoesNotExist()
+        compose.onNodeWithText("Scegli transazione").performScrollTo().performClick()
+        compose.onNodeWithText("2026-01-01 · 10.00 EUR · Spesa del creatore").assertIsEnabled().assertIsDisplayed()
+        assertEquals(1, shareDeletes.get()); assertEquals(1, partnerRemovalRpcs.get()); assertEquals(2, mutations.get())
+        assertEquals(0, sharePosts.get()); assertEquals(0, budgetPatches.get()); assertEquals(0, budgetDeletes.get()); assertEquals(0, connectionPatches.get())
+    }
+
+    @Test fun revocationRequiresConfirmationThenShowsMetadataWithoutReadingFormerPrivateDataAgain() {
+        connected.set(true)
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        waitFor("Connessione attiva")
+        waitForIdleRefresh()
+        val readsBeforeRevoke = privateReads.get()
+        compose.onNodeWithText("Revoca connessione").performScrollTo().performClick()
+        compose.onNodeWithText("Revocare la connessione?").assertIsDisplayed()
+        compose.onNodeWithText("Annulla").performClick()
+        assertEquals(0, mutations.get())
+        compose.onNodeWithText("Revoca connessione").performScrollTo().performClick()
+        compose.onNodeWithText("Conferma").performClick()
+        waitFor("Connessione revocata il ", substring = true)
+        waitForIdleRefresh()
+        val dateFormat = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm", Locale.ITALIAN).withZone(ZoneId.systemDefault())
+        compose.onNodeWithText("Connessione revocata il ${dateFormat.format(Instant.parse(revokedAt.get()))}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Creata il ${dateFormat.format(Instant.parse("2025-01-02T12:00:00Z"))}").assertExists()
+        compose.onNodeWithText("Sola lettura").assertExists()
+        compose.onNodeWithText("Connessione attiva").assertDoesNotExist()
+        compose.onNodeWithText("Revoca connessione").assertDoesNotExist()
+        compose.onNodeWithText("Condividi spesa").assertDoesNotExist()
+        compose.onNodeWithText("Salva budget").assertDoesNotExist()
+        compose.onNodeWithText("Spesa precedente").assertDoesNotExist()
+        assertEquals(readsBeforeRevoke, privateReads.get())
+        assertEquals(1, connectionPatches.get()); assertEquals(1, mutations.get())
+        assertEquals(0, shareDeletes.get()); assertEquals(0, partnerRemovalRpcs.get()); assertEquals(0, budgetDeletes.get())
+    }
+
     @Test fun archiveShowsRevokedMetadataReadOnlyAndNeverLoadsFormerPartnerExpensesOrBudgets() {
         showArchive.set(true)
         compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
@@ -243,6 +397,15 @@ class CoupleScreenTest {
         compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
     }
 
+    private fun waitForIdleRefresh() = compose.waitUntil(15_000) {
+        compose.onAllNodes(hasText("Aggiorna") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    private fun literalText(expected: String) = SemanticsMatcher("Literal normalized text: $expected") { node ->
+        val key = androidx.compose.ui.semantics.SemanticsProperties.Text
+        node.config.contains(key) && node.config[key].any { it.text.replace('\u00a0', ' ').replace('\u202f', ' ') == expected }
+    }
+
     private fun fixture() = object : Dispatcher() {
         override fun dispatch(request: RecordedRequest): MockResponse {
             if (request.method != "GET") mutations.incrementAndGet()
@@ -254,12 +417,21 @@ class CoupleScreenTest {
             return when (url.encodedPath) {
                 "/rest/v1/profiles" -> if (url.queryParameter("user_id") != "eq.$reader") json("{}", 403)
                 else json("""[{"couple_code":"${if (newOwner) "WXYZ2345" else "ABCD2345"}","permissions":{"couple_expenses":true}}]""")
-                "/rest/v1/couple_connections" -> if (url.queryParameter("or") != "(user_a.eq.$reader,user_b.eq.$reader)") json("{}", 403)
+                "/rest/v1/couple_connections" -> if (request.method == "PATCH") {
+                    val body = JSONObject(request.body.readUtf8())
+                    val filters = url.queryParameterNames.associateWith { url.queryParameter(it) }
+                    if (newOwner || body.keys().asSequence().toSet() != setOf("revoked_at") ||
+                        filters != mapOf("id" to "eq.$CONNECTION", "or" to "(user_a.eq.$USER,user_b.eq.$USER)", "revoked_at" to "is.null")) return json("{}", 403)
+                    Instant.parse(body.getString("revoked_at"))
+                    revokedAt.set(body.getString("revoked_at")); connectionPatches.incrementAndGet()
+                    connected.set(false); showArchive.set(true)
+                    json("""[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER","revoked_at":"${revokedAt.get()}"}]""")
+                } else if (url.queryParameter("or") != "(user_a.eq.$reader,user_b.eq.$reader)") json("{}", 403)
                 else if (url.queryParameter("revoked_at") == "not.is.null") {
                     archiveReads.incrementAndGet()
                     if (failArchive.get()) json("{}", 503)
                     else json(if (showArchive.get() && url.queryParameter("id") == null)
-                        """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER","created_at":"2025-01-02T12:00:00Z","revoked_at":"2026-02-03T12:00:00Z"}]""" else "[]")
+                        """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER","created_at":"2025-01-02T12:00:00Z","revoked_at":"${revokedAt.get().ifBlank { "2026-02-03T12:00:00Z" }}"}]""" else "[]")
                 } else json(if (connected.get()) """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER"}]""" else "[]")
                 "/rest/v1/couple_connection_requests" -> when (request.method) {
                     "POST" -> { invited.set(true); json("""[{"id":"$REQUEST","sender_id":"$USER","receiver_id":"$PARTNER","status":"pending"}]""") }
@@ -300,21 +472,84 @@ class CoupleScreenTest {
                 }
                 "/rest/v1/shared_expenses_view" -> {
                     privateReads.incrementAndGet()
+                    if (request.method != "GET" || url.queryParameter("connection_id") != "eq.$CONNECTION") return json("{}", 403)
                     if (url.queryParameter("id") != null) json("[]") else {
-                        val rows = JSONArray().put(expense(SHARE1, OLD_TX, "2026-01-01", "10.00", "Casa"))
-                            .put(expense(SHARE2, OLD_TX2, "2026-02-01", "20.00", "Casa"))
-                        if (shared.get()) rows.put(expense(SHARE3, TX, LocalDate.now().toString(), "0.50", null))
+                        val rows = JSONArray()
+                        if (SHARE1 !in removedShares) rows.put(expense(SHARE1, OLD_TX, "2026-01-01", "10.00", "Casa").apply {
+                            if (distinctShareOwners.get()) put("description", "Spesa del creatore")
+                        })
+                        if (SHARE2 !in removedShares) rows.put(expense(SHARE2, OLD_TX2, "2026-02-01", "20.00", "Casa").apply {
+                            if (distinctShareOwners.get()) put("description", "Spesa del partner").put("created_by", PARTNER).put("currency", "USD")
+                        })
+                        if (shared.get()) rows.put(expense(SHARE3, TX, LocalDate.now().toString(), if (transactionCurrency.get() == "USD") "0.51" else "0.50", null)
+                            .put("currency", transactionCurrency.get()))
                         json(rows.toString())
                     }
                 }
-                "/rest/v1/couple_budgets" -> {
-                    privateReads.incrementAndGet()
-                    json(if (url.queryParameter("id") == null) """[{"id":"$BUDGET","couple_category_name":"Casa","amount":12,"currency":"EUR"}]""" else "[]")
+                "/rest/v1/couple_budgets" -> when (request.method) {
+                    "GET" -> {
+                        privateReads.incrementAndGet()
+                        if (url.queryParameter("connection_id") != "eq.$CONNECTION") json("{}", 403)
+                        else json(if (budgetPresent.get() && url.queryParameter("id") == null)
+                            """[{"id":"${budgetId.get()}","couple_category_name":"Casa","amount":"${budgetAmount.get()}","currency":"EUR"}]""" else "[]")
+                    }
+                    "PATCH", "DELETE" -> {
+                        val filters = url.queryParameterNames.associateWith { url.queryParameter(it) }
+                        if (newOwner || filters != mapOf("id" to "eq.$BUDGET", "connection_id" to "eq.$CONNECTION")) return json("{}", 403)
+                        if (request.method == "PATCH") {
+                            budgetPatchBody.set(request.body.readUtf8())
+                            if (budgetPatchBody.get() != "{\"amount\":12.34}") return json("{}", 400)
+                            budgetAmount.set("12.34"); budgetPatches.incrementAndGet()
+                        } else { budgetPresent.set(false); budgetDeletes.incrementAndGet() }
+                        json("""[{"id":"$BUDGET"}]""")
+                    }
+                    "POST" -> {
+                        val body = JSONObject(request.body.readUtf8())
+                        budgetPostBody.set(body.toString())
+                        val id = UUID.fromString(body.getString("id")).toString()
+                        if (newOwner || body.keys().asSequence().toSet() != setOf("id", "connection_id", "couple_category_name", "amount", "currency", "month", "year", "created_by") ||
+                            body.optString("connection_id") != CONNECTION || body.optString("created_by") != USER || body.optString("couple_category_name") != "Casa" ||
+                            body.optString("amount") != "9.50" || body.optString("currency") != "EUR" || body.optInt("month") != 1 || body.optInt("year") != 2000) return json("{}", 403)
+                        budgetId.set(id); budgetAmount.set("9.50"); budgetPresent.set(true); budgetPosts.incrementAndGet()
+                        json(JSONArray().put(body).toString())
+                    }
+                    else -> json("{}", 405)
                 }
-                "/rest/v1/transactions" -> json(if (url.queryParameter("id")?.startsWith("gt.") == true) "[]" else """[{"id":"$TX","amount":1.01,"currency":"EUR","date":"${LocalDate.now()}","description":"Spesa nuova","user_id":"$USER","type":"expense"}]""")
+                "/rest/v1/transactions" -> {
+                    if (request.method != "GET" || url.queryParameter("user_id") != "eq.$USER" || url.queryParameter("type") != "eq.expense" || url.queryParameter("deleted_at") != "is.null") return json("{}", 403)
+                    if (url.queryParameter("id")?.startsWith("gt.") == true) json("[]")
+                    else {
+                        val rows = JSONArray()
+                        if (distinctShareOwners.get()) rows.put(JSONObject().put("id", OLD_TX).put("amount", "10.00").put("currency", "EUR")
+                            .put("date", "2026-01-01").put("description", "Spesa del creatore").put("user_id", USER).put("type", "expense"))
+                        rows.put(JSONObject().put("id", TX).put("amount", java.math.BigDecimal("1.01")).put("currency", transactionCurrency.get())
+                            .put("date", LocalDate.now().toString()).put("description", "Spesa nuova").put("user_id", USER).put("type", "expense"))
+                        val selectedId = url.queryParameter("id")
+                        if (selectedId == null) json(rows.toString())
+                        else json(JSONArray().apply {
+                            for (index in 0 until rows.length()) {
+                                val row = rows.getJSONObject(index)
+                                if (selectedId == "eq.${row.getString("id")}") put(row)
+                            }
+                        }.toString())
+                    }
+                }
                 "/rest/v1/shared_expenses" -> if (request.method == "POST") {
-                    shareBody.set(request.body.readUtf8()); sharePosts.incrementAndGet(); shared.set(true); json("""[{"id":"$SHARE3"}]""")
+                    shareBody.set(request.body.readUtf8())
+                    val body = JSONObject(shareBody.get())
+                    UUID.fromString(body.getString("id"))
+                    if (newOwner || body.keys().asSequence().toSet() != setOf("id", "connection_id", "original_tx_id", "created_by", "couple_category_name", "split_mode", "partner_amount") ||
+                        body.optString("connection_id") != CONNECTION || body.optString("original_tx_id") != TX || body.optString("created_by") != USER || !body.isNull("couple_category_name") ||
+                        !(body.optString("split_mode") == "equal" && body.isNull("partner_amount") || body.optString("split_mode") == "custom" && body.optString("partner_amount") == "0.50")) return json("{}", 403)
+                    sharePosts.incrementAndGet(); shared.set(true); json("""[{"id":"$SHARE3"}]""")
+                } else if (request.method == "DELETE") {
+                    if (newOwner || url.queryParameterNames.associateWith { url.queryParameter(it) } != mapOf("id" to "eq.$SHARE1", "created_by" to "eq.$USER")) return json("{}", 403)
+                    shareDeletes.incrementAndGet(); removedShares.add(SHARE1); json("""[{"id":"$SHARE1"}]""")
                 } else json(if (shared.get()) """[{"id":"$SHARE3"}]""" else "[]")
+                "/rest/v1/rpc/delete_shared_expense_by_partner" -> {
+                    if (newOwner || request.method != "POST" || url.query != null || request.body.readUtf8() != "{\"p_id\":\"$SHARE2\"}") return json("{}", 403)
+                    partnerRemovalRpcs.incrementAndGet(); removedShares.add(SHARE2); json("null")
+                }
                 else -> json("{}", 404)
             }
         }

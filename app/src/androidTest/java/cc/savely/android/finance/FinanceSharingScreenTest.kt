@@ -44,6 +44,7 @@ class FinanceSharingScreenTest {
     private val deletes = AtomicInteger()
     private val rejected = AtomicInteger()
     private val partnerRemoved = AtomicBoolean(false)
+    private val ownerRemoved = AtomicBoolean(false)
     private val failSharing = AtomicBoolean(false)
     private val inserted = AtomicReference<JSONObject?>(null)
     private fun json(body: String, status: Int = 200) = MockResponse().setResponseCode(status).setHeader("Content-Type", "application/json").setBody(body)
@@ -88,8 +89,9 @@ class FinanceSharingScreenTest {
                         "/rest/v1/shared_expenses_view" -> {
                             if (request.method != "GET" || url.queryParameter("connection_id") != "eq.$connection") return reject()
                             if (url.queryParameter("id") == "eq.$sharedTheirs") return json(JSONArray().put(partnerShare()).toString())
+                            if (url.queryParameter("id") == "eq.$sharedMine") return json(if (ownerRemoved.get()) "[]" else JSONArray().put(ownShare()).toString())
                             if ((url.queryParameter("offset")?.toIntOrNull() ?: 0) > 0) return json("[]")
-                            return json(JSONArray().put(ownShare()).apply { if (!partnerRemoved.get()) put(partnerShare()) }.toString())
+                            return json(JSONArray().apply { if (!ownerRemoved.get()) put(ownShare()); if (!partnerRemoved.get()) put(partnerShare()) }.toString())
                         }
                         "/rest/v1/shared_expenses" -> {
                             if (request.method == "GET" && url.queryParameter("original_tx_id") == "eq.${inserted.get()?.getString("id")}" && url.queryParameter("connection_id") == "eq.$connection") return json("[]")
@@ -98,7 +100,12 @@ class FinanceSharingScreenTest {
                                 if (body.getString("original_tx_id") != inserted.get()?.getString("id") || body.getString("created_by") != owner || body.getString("connection_id") != connection) return reject()
                                 posts.incrementAndGet(); return json("{}", 403)
                             }
-                            if (request.method == "DELETE") deletes.incrementAndGet()
+                            if (request.method == "DELETE") {
+                                deletes.incrementAndGet()
+                                if (url.queryParameterNames.associateWith { url.queryParameter(it) } != mapOf("id" to "eq.$sharedMine", "created_by" to "eq.$owner", "connection_id" to "eq.$connection")) return reject()
+                                ownerRemoved.set(true)
+                                return json("""[{"id":"$sharedMine"}]""")
+                            }
                             return reject()
                         }
                         "/rest/v1/rpc/delete_shared_expense_by_partner" -> {
@@ -154,6 +161,36 @@ class FinanceSharingScreenTest {
         compose.waitUntil(15_000) { rpcs.get() == 1 && compose.onAllNodesWithText("Rimuovere la condivisione?").fetchSemanticsNodes().isEmpty() }
         list().performScrollToIndex(2); waitText("0 transazioni")
         assertEquals(0, posts.get()); assertEquals(0, deletes.get()); assertEquals(0, rejected.get())
+    }
+
+    @Test fun creatorShareRemovalRequiresConfirmationAndKeepsFullOriginalAmountWithoutDeletingTransaction() {
+        compose.setContent { SavelyTheme("light") { FinanceScreen(api, "transactions", Modifier.fillMaxSize(), accountKey = owner) } }
+        waitText("Solo condivise")
+        list().performScrollToIndex(2); waitText("3 transazioni")
+        list().performScrollToNode(hasContentDescription("Rimuovi condivisione Cena condivisa"))
+        compose.onNodeWithContentDescription("Rimuovi condivisione Cena condivisa").performClick()
+        compose.onNodeWithText("Rimuovere la condivisione?").assertIsDisplayed()
+        compose.onNodeWithText("Annulla").performClick()
+        assertEquals(0, deletes.get()); assertEquals(0, rpcs.get()); assertEquals(0, posts.get())
+        compose.onNodeWithContentDescription("Rimuovi condivisione Cena condivisa").performClick()
+        compose.onNode(hasText("Rimuovi condivisione") and hasAnyAncestor(isDialog()), useUnmergedTree = true).performClick()
+        compose.waitUntil(15_000) {
+            deletes.get() == 1 && compose.onAllNodesWithText("Rimuovere la condivisione?").fetchSemanticsNodes().isEmpty()
+        }
+        list().performScrollToIndex(0)
+        compose.waitUntil(15_000) {
+            compose.onAllNodes(hasText("Nuova transazione") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
+        list().performScrollToIndex(2); waitText("3 transazioni")
+        val original = exactExpense("10,01", "EUR")
+        list().performScrollToNode(original); compose.onNode(original).assertIsDisplayed()
+        compose.onNodeWithText("Cena condivisa").assertExists()
+        compose.onNodeWithContentDescription("Modifica Cena condivisa").assertExists()
+        compose.onNodeWithContentDescription("Elimina Cena condivisa").assertExists()
+        compose.onNodeWithContentDescription("Rimuovi condivisione Cena condivisa").assertDoesNotExist()
+        val partnerAmount = exactExpense("2,01", "USD")
+        list().performScrollToNode(partnerAmount); compose.onNode(partnerAmount).assertIsDisplayed()
+        assertEquals(1, deletes.get()); assertEquals(0, rpcs.get()); assertEquals(0, posts.get()); assertEquals(0, rejected.get())
     }
     @Test fun sharedCreateFailureClosesEditorAndBlocksWritesUntilRefreshWithoutDuplicatePersonalInsert() {
         failSharing.set(true)
