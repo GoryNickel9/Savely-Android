@@ -201,11 +201,12 @@ class ReleaseApkBlackBoxTest {
 
     private fun mfaStartEnrollment(): String {
         mfaTopClick("Set up authenticator")
-        seekLabel(setOf("Add this key manually to your authenticator app:"), "MFA_MANUAL_KEY_MISSING", scroll = true).recycle()
+        mfaAwaitMessage("Add this key manually to your authenticator app:")
         val node = find { !it.isEditable && Regex("[A-Z2-7]{16,256}").matches(it.text?.toString().orEmpty()) }
             ?: throw IllegalStateException("MFA_MANUAL_KEY_INVALID")
         val secret = try { node.text.toString() } finally { node.recycle() }
-        requireCode(hasText("QR code to set up your authenticator"), "MFA_QR_ACCESSIBILITY_MISSING")
+        scrollAccountToTop()
+        seekLabel(setOf("QR code to set up your authenticator"), "MFA_QR_ACCESSIBILITY_MISSING", scroll = true).recycle()
         return secret
     }
 
