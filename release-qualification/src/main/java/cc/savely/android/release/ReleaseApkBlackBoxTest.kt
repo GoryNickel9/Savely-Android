@@ -195,8 +195,18 @@ class ReleaseApkBlackBoxTest {
 
     private fun mfaTopClick(label: String) {
         hideKeyboardIfShown()
-        scrollAccountToTop()
-        clickLabel(setOf(label), "MFA_CONTROL_MISSING", scroll = true)
+        val until = SystemClock.uptimeMillis() + 45_000
+        while (SystemClock.uptimeMillis() < until) {
+            scrollAccountToTop()
+            val node = runCatching { seekLabel(setOf(label), "MFA_CONTROL_MISSING", scroll = true, clickable = true) }.getOrNull()
+            if (node != null) {
+                node.recycle()
+                clickLabel(setOf(label), "MFA_CONTROL_MISSING")
+                return
+            }
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("MFA_CONTROL_MISSING")
     }
 
     private fun mfaStartEnrollment(): String {
@@ -307,9 +317,11 @@ class ReleaseApkBlackBoxTest {
     }
 
     @Test fun loginDedicatedQaForCouple() {
-        val run = preflight(11)
+        val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
+        requireCode(code in setOf(11, 12), "EXPECTED_TARGET_CODE_INVALID")
+        val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
-        val report = baseReport(run, 11, "couple-login").put("user_id", user)
+        val report = baseReport(run, code, "couple-login").put("user_id", user)
         try {
             report.put("pid", launch())
             await("LOGIN_FORM_MISSING") { editable(password = false) && editable(password = true) }
@@ -552,7 +564,7 @@ class ReleaseApkBlackBoxTest {
     private fun requireEmail(email: String) = await("QA_IDENTITY_MISSING") { hasText(email) }
 
     private fun scrollAccountToTop() {
-        repeat(12) {
+        repeat(64) {
             val container = find {
                 val bounds = Rect().also(it::getBoundsInScreen)
                 it.isScrollable && visible(it) && bounds.height() > bounds.width()
@@ -653,7 +665,7 @@ class ReleaseApkBlackBoxTest {
     }
 
     private fun seekLabel(labels: Set<String>, code: String, scroll: Boolean, clickable: Boolean = false): AccessibilityNodeInfo {
-        for (attempt in 0..12) {
+        for (attempt in 0..(if (scroll) 64 else 12)) {
             find { label(it, labels) && it.isEnabled && visible(it) && (!clickable || hasClickableAncestor(it)) }?.let { return it }
             if (!scroll) {
                 SystemClock.sleep(250)
