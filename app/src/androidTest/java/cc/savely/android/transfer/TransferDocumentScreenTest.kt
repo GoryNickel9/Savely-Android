@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -432,7 +433,7 @@ class TransferDocumentScreenTest {
         val savedCsv = readDocument(output)
         val existing = document("pre-existing-private.csv", "existing content must not be replaced".toByteArray())
         val reads = fixture.reads.get()
-        // Replay a callback after its one-shot request marker has already been consumed.
+        // Restore an older pending registry snapshot after the UI's one-shot marker was consumed.
         compose.runOnIdle { registry.redeliverLast(existing) }
         message("Risultato del selettore file non più valido. Prepara di nuovo l'export. Il documento non è stato rimosso: non è un nuovo file vuoto verificabile. Controllalo prima di riprovare.")
         assertEquals("existing content must not be replaced", readDocument(existing))
@@ -599,8 +600,17 @@ class TransferDocumentScreenTest {
             dispatchResult(requestCode, result.code, result.uri?.let { Intent().setData(it) })
             delivered++
         }
-        fun redeliverLast(uri: Uri) { deliver(checkNotNull(lastDeliveredRequestCode), Result(Activity.RESULT_OK, uri)) }
+        private var lastLaunchState: Pair<Int, Bundle>? = null
+        fun redeliverLast(uri: Uri) {
+            val (requestCode, saved) = checkNotNull(lastLaunchState)
+            check(requestCode == lastDeliveredRequestCode)
+            lastLaunchState = null
+            onRestoreInstanceState(Bundle(saved))
+            deliver(requestCode, Result(Activity.RESULT_OK, uri))
+        }
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+            // A consumed launch key suppresses dispatch; preserve its real pending state for replay.
+            lastLaunchState = requestCode to Bundle().also(::onSaveInstanceState)
             val intent = contract.createIntent(context, input)
             check(intent.action == Intent.ACTION_OPEN_DOCUMENT || intent.action == Intent.ACTION_CREATE_DOCUMENT)
             intents += intent
