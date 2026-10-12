@@ -4,7 +4,9 @@ Data: 12 ottobre 2026. Stato: 0.1.9-alpha pubblicata con APK firmato, 503 JVM e 
 
 Audit statico successivo: [STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md), inizialmente senza test. La [verifica locale autorizzata](docs/STATIC_AUDIT_VERIFICATION.md) passa 528 JVM, 36 host Python e 132/132 su entrambe le API 31/35, in singoli run finali completi. Lint senza errori; sorgente `4d6a376`, hash invariati, nessuna CI o nuova prova backend. I PASS QA reali sopra restano associati a `0714f39`. I [gate non di codice](docs/STABLE_NON_CODE_GATES.md) e la parità globale restano aperti.
 
-Confronto sul [dataset comune](docs/COMMON_DATASET_PARITY_REVIEW.md): fissati 50 casi di base con input, ruoli fittizi e attese dai sorgenti. Dopo l'autorizzazione ai test, tre subagent hanno rieseguito 528 JVM e 36 host Python, tutti superati; output TypeScript FIRE/Fumo identici al golden. Nessuna nuova modifica alla produzione, CI, emulatore, prova backend o release. Completata la preparazione del confronto; osservazioni delle schermate sullo stesso dataset ancora da acquisire.
+Confronto sul [dataset comune](docs/COMMON_DATASET_PARITY_REVIEW.md): fissati 50 casi di base con input, ruoli fittizi e attese dai sorgenti. Dopo l'autorizzazione ai test, tre subagent hanno rieseguito 528 JVM e 36 host Python, tutti superati; output TypeScript FIRE/Fumo identici al golden. Nessuna nuova modifica alla produzione, CI, emulatore, prova backend o release. Completata allora la preparazione del confronto; le acquisizioni successive sono documentate qui sotto.
+
+Il [confronto osservato Android/web](docs/COMMON_VISUAL_PARITY_REVIEW.md) sul dataset comune registra una nuova esecuzione di 530 test JVM e un run completo di 28/28 test mirati su Android 12/API 31, con 81 PNG nativi e 114 PNG web appaiati. Corretti layout Sicurezza/storico e accesso a Dati con testo grande, tastiera dei grafici e percentuali/scala FIRE; aggiunta la distribuzione TCG per quantità. Lint debug senza errori; risultati circoscritti a fixture locali, senza CI, backend reale o nuova release. Il confronto di tutti i flussi e i gate della stabile restano aperti.
 
 ## 1. Risultato richiesto e vincoli
 
@@ -240,5 +242,6 @@ L’utente conferma installazione e uso generale della 0.1.7 sul Doogee S100 And
 
 1. **Completato — audit statico:** confronto del riferimento web `1cfcf629`, correzioni delle lacune dimostrate e regressioni inizialmente scritte senza eseguirle.
 2. **Completato — verifica locale:** 528 JVM, 36 host Python, suite finali Android 12/15 da 132 casi ciascuna e lint senza errori. Due problemi di attesa/scroll delle fixture corretti senza rimuovere gli assert. Revisione testuale dei documenti e riproduzione 12/12 asset completate; nessuna prova reale aggiunta ai PASS QA storici.
-3. **Dopo — parità reale:** completare matrice web/Android, percorsi account/Coppia/Admin esclusi, import e servizi esterni. Risolvere il gate mailbox prima delle prove email/PKCE.
-4. **Dopo — distribuzione:** verificare release ottimizzata, firma, aggiornamento con sessione autenticata e dispositivo fisico; pubblicare 1.0.0 soltanto a gate superati. La data della stabile dipende dalla chiusura dei gate reali.
+3. **Completato — campione visuale locale:** 530 JVM, 28/28 mirati API 31, 81 PNG nativi e 114 PNG web appaiati; [confronto e differenze](docs/COMMON_VISUAL_PARITY_REVIEW.md). Ogni form/stato, servizi e API 35 sul nuovo sorgente restano fuori da questo run.
+4. **Dopo — parità reale:** completare matrice web/Android, percorsi account/Coppia/Admin esclusi, import e servizi esterni. Risolvere il gate mailbox prima delle prove email/PKCE.
+5. **Dopo — distribuzione:** verificare release ottimizzata, firma, aggiornamento con sessione autenticata e dispositivo fisico; pubblicare 1.0.0 soltanto a gate superati. La data della stabile dipende dalla chiusura dei gate reali.

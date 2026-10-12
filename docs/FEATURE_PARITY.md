@@ -6,6 +6,8 @@ Baseline web: [commit 1cfcf6297e85d56bfafe3522362ceecef6f6b281](https://github.c
 
 Il [confronto sul dataset comune](COMMON_DATASET_PARITY_REVIEW.md) fissa 50 casi di base e distingue attesi statici da risultati osservati. Nuove esecuzioni: 528 JVM e 36 host superati; tre gruppi di output FIRE/Fumo originali web identici al golden. Nessun nuovo PASS di schermata, backend o APK deriva da questi risultati. Coppia e Fumo sono confrontati attraverso i chiamanti attivi, oltre agli helper isolati.
 
+Il [confronto osservato Android/web](COMMON_VISUAL_PARITY_REVIEW.md) sul dataset comune registra una nuova esecuzione di 530 test JVM e un run completo di 28/28 test mirati su Android 12/API 31, con 81 PNG nativi e 114 PNG web appaiati. Corretti layout Sicurezza/storico e accesso a Dati con testo grande, tastiera dei grafici e percentuali/scala FIRE; aggiunta la distribuzione TCG per quantità. Lint debug senza errori; risultati circoscritti a fixture locali, senza CI, backend reale o nuova release. Il confronto di tutti i flussi e i gate della stabile restano aperti.
+
 ## Inventario iniziale
 
 I package `ui`, `data`, `finance`, `transfer` e `modules` contengono le schermate e i contratti nativi. Per ogni area, i documenti `API_CONTRACTS_*` e `IMPORT_EXPORT.md` registrano API, calcoli e lacune rispetto al web.

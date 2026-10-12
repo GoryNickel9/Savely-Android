@@ -702,5 +702,53 @@
     "backendAccessed": false,
     "physicalDeviceTested": false,
     "apkPublished": false
+  },
+  "commonVisualReview": {
+    "date": "2026-10-12",
+    "report": "docs/COMMON_VISUAL_PARITY_REVIEW.md",
+    "sourceCommit": "16c70112f5d2240abb61478074fcf4e19c779d21",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "datasetSha256": "40a18e403c3020910a8762bad716ec3f76490b3db2ed90a1c25a221221048774",
+    "status": "local-observed-subset-not-global-parity",
+    "datasetCasesExecuted": false,
+    "jvm": {
+      "tests": 530,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "androidApi31": {
+      "started": 28,
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0,
+      "singleCompleteRun": true,
+      "durationSeconds": 103.01,
+      "interruptedByRoot": false,
+      "logSha256": "934c4316ac66784d873bb40e815c99abc53531964363d90c91085d3c83d69905"
+    },
+    "lintDebug": {
+      "Warning": 32,
+      "Hint": 6
+    },
+    "nativePng": 81,
+    "pairedWebPng": 114,
+    "sourcesUnchanged": true,
+    "apks": [
+      {
+        "path": "app\\build\\outputs\\apk\\debug\\app-debug.apk",
+        "sha256": "826ef9085b82fb38b789287510e67a248220f2a31129ee73a2bee3d08ccceba4"
+      },
+      {
+        "path": "app\\build\\outputs\\apk\\androidTest\\debug\\app-debug-androidTest.apk",
+        "sha256": "ab8855a43b9a549b6203fac47e3a0b5d3fa7faabc049b2ffff2b57b14c0ec445"
+      }
+    ],
+    "backendAccessed": false,
+    "ciExecuted": false,
+    "api35Executed": false,
+    "physicalDeviceTested": false,
+    "apkPublished": false,
+    "evidence": "artifacts/visual-parity/native-final-summary.json"
   }
 }

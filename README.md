@@ -8,6 +8,8 @@ Sono presenti accesso e sessione cifrata, dashboard, transazioni, categorie, bud
 
 L'[audit statico Android/web](docs/STATIC_PARITY_AUDIT_2026_10_12.md) è stato seguito dalla [verifica locale](docs/STATIC_AUDIT_VERIFICATION.md) autorizzata: 528 JVM, 36 host Python e due suite complete da 132 casi su Android 12/15 passano. Lint debug/release senza errori; documenti IT/EN riproducibili. Corrette due attese delle fixture, le chiavi del generatore e le note FIRE/Libreria. Sorgente finale `4d6a376`, nessuna CI o nuova release pubblica. I [gate senza nuove funzionalità](docs/STABLE_NON_CODE_GATES.md) distinguono prove reali e ostacoli ancora aperti.
 
+Il [confronto osservato Android/web](docs/COMMON_VISUAL_PARITY_REVIEW.md) sul dataset comune registra una nuova esecuzione di 530 test JVM e un run completo di 28/28 test mirati su Android 12/API 31, con 81 PNG nativi e 114 PNG web appaiati. Corretti layout Sicurezza/storico e accesso a Dati con testo grande, tastiera dei grafici e percentuali/scala FIRE; aggiunta la distribuzione TCG per quantità. Lint debug senza errori; risultati circoscritti a fixture locali, senza CI, backend reale o nuova release. Il confronto di tutti i flussi e i gate della stabile restano aperti.
+
 Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copiare `savely.properties.example` in `savely.properties` e inserire esclusivamente URL e chiave pubblica Supabase. Eseguire `./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`. L'APK viene prodotto in `app/build/outputs/apk/debug/`. I token utente sono cifrati con una chiave Android Keystore; nessuna chiave amministrativa appartiene alla build.
 
 | Documento | Contenuto |
@@ -20,6 +22,7 @@ Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copi
 | [docs/STATIC_AUDIT_VERIFICATION.md](docs/STATIC_AUDIT_VERIFICATION.md) | Esiti locali finali e fallimenti conservati dell'audit |
 | [docs/STABLE_NON_CODE_GATES.md](docs/STABLE_NON_CODE_GATES.md) | Checklist delle prove e revisioni residue per la 1.0 |
 | [docs/COMMON_DATASET_PARITY_REVIEW.md](docs/COMMON_DATASET_PARITY_REVIEW.md) | Dataset sintetico comune, attese dai sorgenti e regressioni locali rieseguite con tre subagent |
+| [docs/COMMON_VISUAL_PARITY_REVIEW.md](docs/COMMON_VISUAL_PARITY_REVIEW.md) | Confronto osservato, correzioni UI e risultati locali sul dataset comune |
 | [docs/DEVELOPMENT_AND_TESTING.md](docs/DEVELOPMENT_AND_TESTING.md) | Processi di sviluppo, test e informazioni documentate su PokerStars |
 | [docs/TESTING.md](docs/TESTING.md) | Comandi, risultati eseguiti e verifiche ancora aperte |
 | [docs/RELEASE.md](docs/RELEASE.md) | Firma, installazione e continuità degli aggiornamenti |

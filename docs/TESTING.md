@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Confronto visuale locale — 12 ottobre 2026
+
+[COMMON_VISUAL_PARITY_REVIEW.md](COMMON_VISUAL_PARITY_REVIEW.md): 530 JVM, zero fallimenti/errori/skip; 28/28 test mirati in un solo run API 31, 103,01 s; 81 PNG nativi con bounds interamente nel display. Lint debug: zero errori, 32 avvertenze e 6 suggerimenti. APK debug/test sul sorgente `16c70112f5d2240abb61478074fcf4e19c779d21`; 24 casi visuali più quattro regressioni ordinarie Sicurezza, senza suite Android completa, API 35, backend reale, CI o release. I tentativi falliti e la cattura invalida da tastiera restano separati. Gli strumenti web hanno superato `node --check`; i 36 host Python sotto sono risultati precedenti.
+
 ## Dataset comune e regressioni rieseguite — 12 ottobre 2026
 
 [COMMON_DATASET_PARITY_REVIEW.md](COMMON_DATASET_PARITY_REVIEW.md) registra il lavoro dei tre subagent sul sorgente `614bdbf`, produzione/JVM `935c7ba`: nuova suite completa di 528 test JVM, zero fallimenti/errori/skip, 27,51 s; 36 host Python superati; output web Standard FIRE, Barista FIRE e Fumo identici byte per byte al golden. Le proiezioni sono elementi del JSON confrontato, non test aggiuntivi. Il primo comando Gradle è fallito prima dei test per l'espansione Windows del filtro wildcard; log e risultati preesistenti sono conservati separatamente. Nessuna nuova CI, prova Android/backend o release. I 50 casi del dataset master restano attesi statici, distinti dalle suite esistenti rieseguite.
