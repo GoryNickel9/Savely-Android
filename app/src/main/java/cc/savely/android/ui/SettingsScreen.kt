@@ -2,6 +2,7 @@ package cc.savely.android.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -88,9 +89,9 @@ private fun SettingsContent(api: SupabaseApi, session: Session, theme: String, o
         }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("account" to "Account", "security" to "Sicurezza", "transfer" to "Dati").forEach { (key, title) ->
-                FilterChip(pane == key, { pane = key }, label = { Text(localized(title)) })
+                FilterChip(pane == key, { pane = key }, modifier = Modifier.testTag("settings-pane-$key"), label = { Text(localized(title)) })
             }
         }
         when (pane) {
@@ -256,15 +257,18 @@ private fun SecurityPane(api: SupabaseApi, owner: String, revision: Long?, modif
             val sessionId = revocableSessionId(row)
             if (sessionId in revokedSessionIds) continue
             val device = row.optString("user_agent").takeUnless { it == "null" || it.isBlank() }
-            ListItem(headlineContent = { Text(device ?: localized("Dispositivo")) },
-                supportingContent = { Column {
-                    Text(row.optString("created_at"))
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(device ?: localized("Dispositivo"), Modifier.fillMaxWidth()
+                        .testTag("session-device-${sessionId ?: "unavailable-$index"}"), style = MaterialTheme.typography.titleMedium)
+                    Text(row.optString("created_at"), Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyMedium)
                     if (sessionId == currentSessionId && sessionId != null) Text(localized("Questo dispositivo"))
                     if (sessionId == null) Text(localized("Sessione non revocabile da questo elenco."))
-                } }, trailingContent = {
                     TextButton({ sessionId?.let { confirmation = "session" to it } }, enabled = !busy && sessionId != null,
-                        modifier = Modifier.testTag("revoke-session-${sessionId ?: "unavailable-$index"}")) { Text(localized("Revoca")) }
-                })
+                        modifier = Modifier.align(androidx.compose.ui.Alignment.End)
+                            .testTag("revoke-session-${sessionId ?: "unavailable-$index"}")) { Text(localized("Revoca")) }
+                }
+            }
         }
         if (sessions.length() == 0 && !busy) Text(localized("Nessuna sessione da mostrare."))
         error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }

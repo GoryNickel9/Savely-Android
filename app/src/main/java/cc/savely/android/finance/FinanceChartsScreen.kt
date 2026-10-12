@@ -28,6 +28,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
@@ -47,6 +49,8 @@ private enum class FinanceChartGraphic(val label: String) { BAR("Barre"), PIE("T
 /** Content for an existing scroll container; this screen does not own networking or create a repository. */
 @Composable
 fun FinanceChartsScreen(data: FinanceData, modifier: Modifier = Modifier, today: LocalDate = LocalDate.now()) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var periodName by rememberSaveable { mutableStateOf(FinanceChartPeriod.YEAR.name) }
     var year by rememberSaveable { mutableStateOf(today.year) }
     var month by rememberSaveable { mutableStateOf(today.monthValue) }
@@ -104,6 +108,8 @@ fun FinanceChartsScreen(data: FinanceData, modifier: Modifier = Modifier, today:
                 financeChartBucketDates(candidate, financeChartCumulativeGranularity(candidate))
                 appliedFrom = candidate.from.toString(); appliedTo = candidate.to.toString()
                 error = null
+                focusManager.clearFocus()
+                keyboardController?.hide()
             } catch (failure: IllegalArgumentException) { error = failure.message }
         }) { Text(localized("Applica intervallo")) }
         error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }

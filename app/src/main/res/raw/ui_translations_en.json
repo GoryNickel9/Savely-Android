@@ -1238,5 +1238,7 @@
   "Riga {{row}}: cambio EUR non valido.": "Row {{row}}: invalid EUR exchange rate.",
   "Riga {{row}}: il cambio EUR deve essere 1.": "Row {{row}}: the EUR exchange rate must be 1.",
   "Salvataggio non confermato. Aggiorna i dati e verifica la riga prima di creare un nuovo elemento.": "Save not confirmed. Refresh the data and check the row before creating a new item.",
-  "Operazione interrotta. Aggiorna i dati e verifica le righe prima di continuare.": "Operation interrupted. Refresh the data and check the rows before continuing."
+  "Operazione interrotta. Aggiorna i dati e verifica le righe prima di continuare.": "Operation interrupted. Refresh the data and check the rows before continuing.",
+  "Distribuzione per Gioco": "Distribution by Game",
+  "Aggiungi carte per vedere la distribuzione": "Add cards to see the distribution"
 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -39,11 +40,10 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
-internal fun PortfolioHistoryPanel(assets: List<FinanceAsset>, history: List<FinancePriceHistory>) {
+internal fun PortfolioHistoryPanel(assets: List<FinanceAsset>, history: List<FinancePriceHistory>, today: LocalDate = LocalDate.now()) {
     var modeName by rememberSaveable { mutableStateOf(PortfolioHistoryMode.RECONSTRUCTED.name) }
     var selectedCurrency by rememberSaveable { mutableStateOf("") }
     val mode = PortfolioHistoryMode.valueOf(modeName)
-    val today = LocalDate.now()
     val calculation = remember(assets, history, mode, today) { runCatching { portfolioHistory(assets, history, mode, today) } }
     val allPoints = calculation.getOrNull().orEmpty()
     val locale = Locale.forLanguageTag(LocalAppLanguage.current.tag)
@@ -52,7 +52,7 @@ internal fun PortfolioHistoryPanel(assets: List<FinanceAsset>, history: List<Fin
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(localized("Andamento investimenti"), style = MaterialTheme.typography.titleLarge)
             Selection("Serie", modeName, PortfolioHistoryMode.entries.map { it.name to localized(it.label) }) { modeName = it }
-            val window = HistoryPeriodControls(allPoints.minOfOrNull { it.date } ?: today)
+            val window = HistoryPeriodControls(allPoints.minOfOrNull { it.date } ?: today, today)
             val points = allPoints.filter { window == null || it.date in window }
             val currencies = points.map { it.currency }.distinct()
             val currency = selectedCurrency.takeIf { it in currencies } ?: currencies.firstOrNull()
@@ -97,7 +97,7 @@ internal fun PortfolioHistoryPanel(assets: List<FinanceAsset>, history: List<Fin
 }
 
 @Composable
-internal fun NetWorthHistoryPanel(snapshots: List<FinanceSnapshot>) {
+internal fun NetWorthHistoryPanel(snapshots: List<FinanceSnapshot>, today: LocalDate = LocalDate.now()) {
     val calculation = remember(snapshots) { runCatching { serverNetWorthHistory(snapshots) } }
     val allHistory = calculation.getOrNull()
     val locale = Locale.forLanguageTag(LocalAppLanguage.current.tag)
@@ -107,7 +107,7 @@ internal fun NetWorthHistoryPanel(snapshots: List<FinanceSnapshot>) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(localized("Andamento del valore registrato dal server"), style = MaterialTheme.typography.titleLarge)
             Text(localized("La serie server non distingue le valute. I valori e i componenti sono mostrati come registrati, senza simbolo monetario e senza confronto con il patrimonio nativo per valuta."), style = MaterialTheme.typography.bodySmall)
-            val window = HistoryPeriodControls(allHistory?.first?.date ?: LocalDate.now())
+            val window = HistoryPeriodControls(allHistory?.first?.date ?: today, today)
             val history = serverNetWorthHistory(allHistory?.snapshots.orEmpty().filter { window == null || it.date in window })
             if (calculation.isFailure) Text(localized("Impossibile calcolare lo storico con i dati salvati."), color = MaterialTheme.colorScheme.error)
             else if (history == null) Text(localized(if (allHistory == null) "Nessuno storico registrato dal server disponibile." else "Nessun punto disponibile nel periodo selezionato."))
@@ -148,8 +148,7 @@ internal fun NetWorthHistoryPanel(snapshots: List<FinanceSnapshot>) {
 }
 
 @Composable
-private fun HistoryPeriodControls(first: LocalDate): DashboardRange? {
-    val today = LocalDate.now()
+private fun HistoryPeriodControls(first: LocalDate, today: LocalDate): DashboardRange? {
     var periodName by rememberSaveable { mutableStateOf(HistoryPeriod.ALL.name) }
     var fromText by rememberSaveable { mutableStateOf(minOf(first, today).toString()) }
     var toText by rememberSaveable { mutableStateOf(today.toString()) }
@@ -211,9 +210,11 @@ private fun HistoryPointPicker(count: Int, selected: Int, date: String, choose: 
         val description = localized("Seleziona un punto dello storico")
         Slider(value = selected.toFloat(), onValueChange = { choose(it.roundToInt().coerceIn(0, count - 1)) },
             valueRange = 0f..(count - 1).toFloat(), modifier = Modifier.semantics { contentDescription = description })
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(enabled = selected > 0, onClick = { choose(selected - 1) }) { Text(localized("Punto precedente")) }
-            TextButton(enabled = selected < count - 1, onClick = { choose(selected + 1) }) { Text(localized("Punto successivo")) }
+        Column(Modifier.fillMaxWidth()) {
+            TextButton(modifier = Modifier.fillMaxWidth().testTag("history-point-previous"),
+                enabled = selected > 0, onClick = { choose(selected - 1) }) { Text(localized("Punto precedente")) }
+            TextButton(modifier = Modifier.fillMaxWidth().testTag("history-point-next"),
+                enabled = selected < count - 1, onClick = { choose(selected + 1) }) { Text(localized("Punto successivo")) }
         }
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cc.savely.android.ui.localized
 import java.text.NumberFormat
@@ -58,8 +59,10 @@ internal fun FireProjectionChart(points: List<FireCalculations.Projection>, savi
                 val secondary = MaterialTheme.colorScheme.secondary
                 val guide = MaterialTheme.colorScheme.outline
                 val chartDescription = localized("Proiezione FIRE. I valori per anno sono disponibili sotto il grafico.")
+                val maximum = maxOf(target, points.maxOf { maxOf(it.portfolio, if (showReal) it.inflationAdjusted else 0.0) }, 1.0)
+                Text(localized("Scala: {{minimum}} – {{maximum}}", "minimum" to money.format(0), "maximum" to money.format(maximum)),
+                    modifier = Modifier.fillMaxWidth().testTag("fire-projection-scale"), style = MaterialTheme.typography.bodySmall)
                 Canvas(Modifier.fillMaxWidth().height(200.dp).semantics { contentDescription = chartDescription }) {
-                    val maximum = maxOf(target, points.maxOf { maxOf(it.portfolio, if (showReal) it.inflationAdjusted else 0.0) }, 1.0)
                     fun y(value: Double) = (size.height * (1 - (value / maximum).coerceIn(0.0, 1.0))).toFloat()
                     listOf(0.25, 0.50, 0.75, 1.0).forEach { milestone ->
                         drawLine(guide, Offset(0f, y(target * milestone)), Offset(size.width, y(target * milestone)),
@@ -77,6 +80,12 @@ internal fun FireProjectionChart(points: List<FireCalculations.Projection>, savi
                     val index = selected.coerceIn(points.indices)
                     drawLine(guide, Offset(size.width * index / (points.size - 1).coerceAtLeast(1), 0f),
                         Offset(size.width * index / (points.size - 1).coerceAtLeast(1), size.height))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(localized("{{year}} · {{age}} anni", "year" to points.first().year, "age" to points.first().age),
+                        modifier = Modifier.weight(1f).testTag("fire-projection-start"), style = MaterialTheme.typography.bodySmall)
+                    Text(localized("{{year}} · {{age}} anni", "year" to points.last().year, "age" to points.last().age),
+                        modifier = Modifier.weight(1f).testTag("fire-projection-end"), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
                 }
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Checkbox(showReal, { showReal = it }, Modifier.testTag("fire-projection-real"))

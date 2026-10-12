@@ -3,8 +3,27 @@ package cc.savely.android.modules
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import java.math.BigDecimal
 
 class FireParametersTest {
+    @Test fun ratePercentageTextHasNoBinaryMultiplicationArtifacts() {
+        assertEquals("7", fireRatePercentText(0.07))
+        assertEquals("3", fireRatePercentText(0.03))
+        assertEquals("4", fireRatePercentText(0.04))
+        assertEquals("5.125", fireRatePercentText(0.05125))
+        assertEquals("-5.125", fireRatePercentText(-0.05125))
+        assertEquals("0", fireRatePercentText(0.0))
+        assertEquals("0", fireRatePercentText(-0.0))
+    }
+
+    @Test fun ratePercentageTextPreservesDecimalPrecisionAndRoundTrips() {
+        assertEquals("5.234567890123456", fireRatePercentText(0.05234567890123456))
+        listOf(0.07, 0.03, 0.04, 0.05125, -0.05125, 0.0, 0.05234567890123456).forEach { rate ->
+            val restored = BigDecimal(fireRatePercentText(rate)).movePointLeft(2).toDouble()
+            assertEquals(rate, restored, 0.0)
+        }
+    }
+
     @Test fun allTenParametersRoundTripWithoutChangingRatesOrMoney() {
         val original = FireParameters(FireCalculations.Inputs(currentAge = 41, retirementAge = 67,
             currentSavings = 98765.43, annualContribution = 12345.67, annualIncome = 65432.10,

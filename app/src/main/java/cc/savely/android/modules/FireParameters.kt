@@ -1,7 +1,11 @@
 package cc.savely.android.modules
 
 import org.json.JSONObject
+import java.math.BigDecimal
 import java.security.MessageDigest
+
+internal fun fireRatePercentText(rate: Double): String =
+    BigDecimal.valueOf(rate).movePointRight(2).stripTrailingZeros().toPlainString()
 
 /** All ten visible FIRE parameters; rates are fractions, exactly as in the web calculation API. */
 data class FireParameters(

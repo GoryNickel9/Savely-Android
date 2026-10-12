@@ -3,26 +3,35 @@ package cc.savely.android.modules
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cc.savely.android.data.SupabaseApi
 import cc.savely.android.data.authSessionId
 import cc.savely.android.BuildConfig
 import cc.savely.android.ui.localized
+import cc.savely.android.ui.LocalAppLanguage
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -157,9 +166,9 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
     var contribution by rememberSaveable { mutableStateOf(initial.inputs.annualContribution.toString()) }
     var income by rememberSaveable { mutableStateOf(initial.inputs.annualIncome.toString()) }
     var expenses by rememberSaveable { mutableStateOf(initial.inputs.annualExpenses.toString()) }
-    var expectedReturn by rememberSaveable { mutableStateOf((initial.inputs.expectedReturn * 100).toString()) }
-    var inflation by rememberSaveable { mutableStateOf((initial.inputs.inflationRate * 100).toString()) }
-    var withdrawal by rememberSaveable { mutableStateOf((initial.inputs.withdrawalRate * 100).toString()) }
+    var expectedReturn by rememberSaveable { mutableStateOf(fireRatePercentText(initial.inputs.expectedReturn)) }
+    var inflation by rememberSaveable { mutableStateOf(fireRatePercentText(initial.inputs.inflationRate)) }
+    var withdrawal by rememberSaveable { mutableStateOf(fireRatePercentText(initial.inputs.withdrawalRate)) }
     var partTime by rememberSaveable { mutableStateOf(initial.partTimeIncome.toString()) }
     var contributionMonthly by rememberSaveable { mutableStateOf(false) }
     var incomeMonthly by rememberSaveable { mutableStateOf(false) }
@@ -288,8 +297,8 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                             contributionMonthly = false; incomeMonthly = false; expensesMonthly = false
                             savings = defaults.inputs.currentSavings.toString(); contribution = defaults.inputs.annualContribution.toString()
                             income = defaults.inputs.annualIncome.toString(); expenses = defaults.inputs.annualExpenses.toString()
-                            expectedReturn = (defaults.inputs.expectedReturn * 100).toString(); inflation = (defaults.inputs.inflationRate * 100).toString()
-                            withdrawal = (defaults.inputs.withdrawalRate * 100).toString(); partTime = defaults.partTimeIncome.toString()
+                            expectedReturn = fireRatePercentText(defaults.inputs.expectedReturn); inflation = fireRatePercentText(defaults.inputs.inflationRate)
+                            withdrawal = fireRatePercentText(defaults.inputs.withdrawalRate); partTime = defaults.partTimeIncome.toString()
                             lastSaved = reset; storageWarning = null; storageError = null; error = null
                         } catch (failure: CancellationException) { throw failure }
                         catch (failure: Exception) { storageError = "Ripristino locale non riuscito. Il salvataggio precedente resta disponibile." }
@@ -385,8 +394,8 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                     age = imported.currentAge.toString(); retirement = imported.retirementAge.toString()
                     savings = imported.currentSavings.toString(); contribution = imported.annualContribution.toString()
                     income = imported.annualIncome.toString(); expenses = imported.annualExpenses.toString()
-                    expectedReturn = (imported.expectedReturn * 100).toString(); inflation = (imported.inflationRate * 100).toString()
-                    withdrawal = (imported.withdrawalRate * 100).toString(); partTime = shared.parameters.partTimeIncome.toString()
+                    expectedReturn = fireRatePercentText(imported.expectedReturn); inflation = fireRatePercentText(imported.inflationRate)
+                    withdrawal = fireRatePercentText(imported.withdrawalRate); partTime = shared.parameters.partTimeIncome.toString()
                     tab = if (shared.calculator == FireCalculator.STANDARD) 0 else 1
                     lastSaved = snapshot; storageWarning = null; storageError = null; error = null
                     sharingError = null; sharingOpen = false; applied = true
@@ -555,6 +564,7 @@ private fun CollectionOverviewScreen(api: SupabaseApi, kind: CollectionKind, mod
                     OverviewTotalCard(localized("Complessivo · {{currency}}", "currency" to total.currency), total,
                         "overview-total-${total.currency}")
                 } }
+                if (kind == CollectionKind.TCG) item(key = "tcg-game-distribution") { TcgGameDistribution(data) }
                 data.categories.forEach { category ->
                     item(key = "category-${category.category}") {
                         val label = collectionCategoryLabel(category.category)
@@ -568,6 +578,49 @@ private fun CollectionOverviewScreen(api: SupabaseApi, kind: CollectionKind, mod
                     category.currencies.forEach { total -> item(key = "${category.category}-${total.currency}") {
                         OverviewTotalCard(total.currency, total, "overview-category-${category.category}-${total.currency}")
                     } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TcgGameDistribution(snapshot: CollectionOverview) {
+    val games = snapshot.categories.filter { it.category in CollectionKind.TCG.categories && it.pieces > 0 }
+    val totalPieces = games.sumOf { it.pieces }
+    val colors = mapOf("magic" to Color(0xFF22C55E), "pokemon" to Color(0xFFF59E0B), "yugioh" to Color(0xFF8B5CF6))
+    val locale = Locale.forLanguageTag(LocalAppLanguage.current.tag)
+    val percentFormat = remember(locale) { NumberFormat.getNumberInstance(locale).apply {
+        minimumFractionDigits = 1; maximumFractionDigits = 1; roundingMode = RoundingMode.HALF_UP
+    } }
+    val title = localized("Distribuzione per Gioco")
+    Card(Modifier.fillMaxWidth().testTag("tcg-game-distribution")) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (totalPieces == 0L) {
+                Text(localized("Aggiungi carte per vedere la distribuzione"), modifier = Modifier.fillMaxWidth())
+            } else {
+                Canvas(Modifier.fillMaxWidth().height(220.dp).semantics { contentDescription = title }) {
+                    val diameter = minOf(size.width, size.height, 160.dp.toPx())
+                    val topLeft = Offset((size.width - diameter) / 2, (size.height - diameter) / 2)
+                    var angle = 0f
+                    games.forEach { game ->
+                        val sweep = (game.pieces.toDouble() / totalPieces * 360).toFloat()
+                        drawArc(colors.getValue(game.category), angle, -sweep, useCenter = true,
+                            topLeft = topLeft, size = Size(diameter, diameter))
+                        angle -= sweep
+                    }
+                }
+                games.forEach { game ->
+                    val label = collectionCategoryLabel(game.category)
+                    val pieces = localized("{{count}} pezzi", "count" to game.pieces)
+                    val percent = percentFormat.format(game.pieces.toDouble() / totalPieces * 100) + "%"
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Box(Modifier.size(12.dp).background(colors.getValue(game.category), CircleShape))
+                        Text(localized("{{type}}: {{amount}} · {{percent}}", "type" to label, "amount" to pieces, "percent" to percent),
+                            modifier = Modifier.weight(1f).testTag("tcg-game-distribution-${game.category}"))
+                    }
                 }
             }
         }

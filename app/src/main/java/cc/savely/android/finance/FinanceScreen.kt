@@ -95,7 +95,7 @@ private val financeTitles = mapOf(
 private data class DeleteRequest(val table: String, val id: String, val label: String, val fallbackDate: LocalDate? = null)
 
 @Composable
-fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifier, refreshKey: Int = 0, accountKey: String = "", onNavigate: (String) -> Unit = {}) {
+fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifier, refreshKey: Int = 0, accountKey: String = "", today: LocalDate = LocalDate.now(), onNavigate: (String) -> Unit = {}) {
     if (section !in financeTitles) {
         Column(modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(localized("Funzione in costruzione"), style = MaterialTheme.typography.headlineSmall)
@@ -142,13 +142,13 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
     if (section == "transactions" && data != null) {
         TransactionList(data, !writeBlocked, { edit(it) }, {
             deleteRequest = DeleteRequest("transactions", it.id, it.description, if (it.description.isBlank()) it.date else null)
-        }, { removingShare = it }, modifier) { FinanceHeading(section, state, writable, model::refresh) { edit(null) } }
+        }, { removingShare = it }, modifier, today) { FinanceHeading(section, state, writable, model::refresh) { edit(null) } }
     } else LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { FinanceHeading(section, state, writable, model::refresh) { edit(null) } }
         if (data == null && state.loading) item { CircularProgressIndicator(Modifier.padding(24.dp)) }
         if (data != null) when (section) {
             "dashboard" -> {
-                item { Dashboard(data, onNavigate) }
+                item { Dashboard(data, today, onNavigate) }
             }
             "categories" -> {
                 if (data.categories.isEmpty()) item { EmptyCard("Nessuna categoria") }
@@ -165,14 +165,14 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
             "budget" -> {
                 item { Text(localized("Mediana dei mesi con movimenti negli ultimi 730 giorni. Importi separati per valuta."), style = MaterialTheme.typography.bodyMedium) }
                 if (data.budgets.isNotEmpty()) {
-                    items(budgetCurrencySummaries(data.budgets, data.transactions, LocalDate.now()), key = { "summary-${it.currency}" }) { summary ->
+                    items(budgetCurrencySummaries(data.budgets, data.transactions, today), key = { "summary-${it.currency}" }) { summary ->
                         BudgetSummaryCard(summary)
                     }
                     item { Text(localized("Il riepilogo include tutte le uscite, anche senza categoria o senza un budget dedicato."), style = MaterialTheme.typography.bodySmall) }
                 }
                 if (data.budgets.isEmpty()) item { EmptyCard("Nessun budget impostato") }
                 items(sortedFinanceBudgets(data, financeLocale), key = { it.id }) { budget ->
-                    val median = medianMonthlyExpense(data.transactions, LocalDate.now(), budget.categoryId, budget.currency)
+                    val median = medianMonthlyExpense(data.transactions, today, budget.categoryId, budget.currency)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         FinanceRow(data.categories.find { it.id == budget.categoryId }?.name ?: localized("Categoria rimossa"),
                             localized("Mediana {{amount}}", "amount" to formatMoney(median, budget.currency)), formatMoney(budget.amount, budget.currency), !writeBlocked,
@@ -191,7 +191,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                     Text(localized(if (state.saving) "Operazione in corso…" else "Elabora ora"))
                 } }
                 item { Text(localized("Come sul sito, una transazione con lo stesso nome nel mese della scadenza impedisce una nuova creazione, anche per le ricorrenze settimanali."), style = MaterialTheme.typography.bodySmall) }
-                item { RecurringCalendarPanel(data.recurring) }
+                item { RecurringCalendarPanel(data.recurring, today) }
                 if (suggestions.isNotEmpty()) {
                     item { Text(localized("Suggerimenti dalla cronologia"), style = MaterialTheme.typography.titleLarge) }
                     item { Text(localized("Importi e cadenze simili in almeno tre uscite. Verifica i dettagli prima di salvare. I suggerimenti ignorati restano nascosti su questo dispositivo per questo account."), style = MaterialTheme.typography.bodySmall) }
@@ -227,11 +227,11 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                     }
                 }
             }
-            "charts" -> item { FinanceChartsScreen(data) }
+            "charts" -> item { FinanceChartsScreen(data, today = today) }
             "portfolio" -> {
                 item { TextButton(onClick = { onNavigate("net-worth") }) { Text(localized("Patrimonio")) } }
                 item { PortfolioSummary(data, state.saving, { model.mutate({ updatePrices() }) {} }, writeAllowed = !state.reconciliationRequired) }
-                item { PortfolioHistoryPanel(data.assets, data.priceHistory) }
+                item { PortfolioHistoryPanel(data.assets, data.priceHistory, today) }
                 if (!showClosedAssets) item { PortfolioGroupClosures(data.assets, writeBlocked) { closingGroup = it } }
                 item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !showClosedAssets, onClick = { showClosedAssets = false }, label = { Text(localized("Aperte")) })
@@ -256,12 +256,12 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                 val components = netWorthComponents(data.transactions, data.assets)
                 if (components.isEmpty()) item { EmptyCard("Nessun dato disponibile") }
                 items(components, key = { it.currency }) { NetWorthCard(it) }
-                item { NetWorthHistoryPanel(data.snapshots) }
+                item { NetWorthHistoryPanel(data.snapshots, today) }
             }
             "insights" -> {
                 item { TextButton(onClick = { onNavigate("dashboard") }) { Text(localized("Dashboard")) } }
                 item { Text(localized("Controlli disponibili (8 su 8): anomalie di spesa rispetto agli importi storici, budget superati, posizioni con perdita di almeno 15%, massimi del valore registrato dal server, mesi di risparmio sopra la media, categorie con importi in crescita, possibili spese ricorrenti e variazioni dei loro importi. Gli snapshot server non distinguono le valute e non sono confrontabili con i totali nativi per valuta.")) }
-                val insights = financeInsights(data)
+                val insights = financeInsights(data, today)
                 val filtered = insights.filter { insightFilter == "all" || it.severity.name == insightFilter }
                 item { Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = insightFilter == "all", onClick = { insightFilter = "all" }, label = { Text(localized("Tutti ({{count}})", "count" to insights.size)) })
@@ -424,8 +424,7 @@ private fun EmptyCard(message: String) {
 }
 
 @Composable
-private fun Dashboard(data: FinanceData, onNavigate: (String) -> Unit) {
-    val today = LocalDate.now()
+private fun Dashboard(data: FinanceData, today: LocalDate, onNavigate: (String) -> Unit) {
     var presetName by rememberSaveable { mutableStateOf(DashboardPreset.CURRENT_MONTH.name) }
     var fromText by rememberSaveable { mutableStateOf(today.withDayOfMonth(1).toString()) }
     var toText by rememberSaveable { mutableStateOf(today.toString()) }
@@ -573,8 +572,7 @@ private fun DashboardMetric(label: String, value: BigDecimal, currency: String, 
 }
 
 @Composable
-private fun RecurringCalendarPanel(rows: List<FinanceRecurring>) {
-    val today = LocalDate.now()
+private fun RecurringCalendarPanel(rows: List<FinanceRecurring>, today: LocalDate) {
     var monthText by rememberSaveable { mutableStateOf(YearMonth.from(today).toString()) }
     var selectedText by rememberSaveable { mutableStateOf(today.toString()) }
     val month = YearMonth.parse(monthText)
@@ -659,7 +657,7 @@ private fun TransactionCard(transaction: FinanceTransaction, data: FinanceData, 
 
 @Composable
 private fun TransactionList(data: FinanceData, enabled: Boolean, edit: (String) -> Unit, delete: (FinanceTransaction) -> Unit, removeShare: (FinanceSharedExpense) -> Unit,
-    modifier: Modifier, header: @Composable () -> Unit) {
+    modifier: Modifier, today: LocalDate, header: @Composable () -> Unit) {
     var search by rememberSaveable { mutableStateOf("") }
     var period by rememberSaveable { mutableStateOf("month") }
     var category by rememberSaveable { mutableStateOf("") }
@@ -667,8 +665,7 @@ private fun TransactionList(data: FinanceData, enabled: Boolean, edit: (String) 
     var onlyShared by rememberSaveable { mutableStateOf(false) }
     var fromText by rememberSaveable { mutableStateOf("") }
     var toText by rememberSaveable { mutableStateOf("") }
-    var year by rememberSaveable { mutableStateOf(LocalDate.now().year.toString()) }
-    val today = LocalDate.now()
+    var year by rememberSaveable { mutableStateOf(today.year.toString()) }
     val interval = runCatching {
         transactionDateRange(period, today, year, fromText, toText)
     }
