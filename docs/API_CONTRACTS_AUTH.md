@@ -69,12 +69,14 @@ Il logout Android riguarda la sessione corrente; il default del SDK web revoca g
 
 | Metodo | Endpoint e risultato |
 |---|---|
-| `listMfaFactors(): JSONArray` | `GET /auth/v1/user`; estrae `factors` con `factor_type=totp`, `status=verified` |
-| `enrollTotp(): JSONObject` | `POST /auth/v1/factors`, `{factor_type:"totp",friendly_name:"Savely Android"}`; risposta `{id,totp:{uri,secret,qr_code}}` |
+| `listMfaFactors(includeUnverified = false): JSONArray` | `GET /auth/v1/user`; estrae TOTP verified. Sicurezza usa `includeUnverified=true` per mostrare anche setup incompleti; il gate ammette soltanto verified. |
+| `enrollTotp(): JSONObject` | `POST /auth/v1/factors`, `{factor_type:"totp",friendly_name:"Savely Android"}`; richiede ID con sintassi validata e `totp` con secret/uri testuali non vuoti. QR opzionale. |
 | `verifyTotp(factorId, code): Session` | Crea `POST /auth/v1/factors/<id>/challenge`, poi `POST .../verify`, `{challenge_id,code}`; salva i token elevati restituiti |
 | `unenrollTotp(factorId)` | `DELETE /auth/v1/factors/<id>` con token utente |
 
 La verifica accetta sei cifre, rimuovendo spazi e trattini. Segreti TOTP e URI non vengono registrati nei log. Il gate UI deve impedire la navigazione ai dati durante una verifica richiesta; il backend conserva la responsabilità dell'autorizzazione. I test JVM verificano challenge, corpo della verifica e sostituzione token, senza iscrivere fattori reali.
+
+La candidata locale code 12 limita secret/uri a 4.096/16.384 caratteri e restituisce `ApiError.RESPONSE` per un enrollment malformato, senza pubblicarlo al composable o ripetere il POST. Un QR assente o rifiutato conserva il setup manuale. Il ViewModel vincola il gate a UID, `session_id` e owner revision; un vecchio gate non può verificare il login sostitutivo dello stesso utente. Input OTP e apertura dell'autenticatore sono disabilitati durante l'operazione busy. La [qualifica A04](MFA_FORM_QUALIFICATION.md) distingue fixture locali, campione QA sul release firmato e limiti del QR osservato.
 
 Due nuove regressioni `AppViewModelTest` collegano il gate al client HTTP reale con MockWebServer. Il primo caso conserva sessione `aal1`, fattore e permessi vuoti dopo HTTP 400 `mfa_verification_failed`; un nuovo tentativo crea un altro challenge e legge il profilo soltanto dopo aver ricevuto `aal2` con lo stesso `session_id`. Il secondo conserva gate e store dopo HTTP 503, senza retry automatico, letture del profilo o logout. Questi due test passano nella build integrata 0.1.3-alpha di 226 test JVM; non verificano un autenticatore o account MFA reale.
 

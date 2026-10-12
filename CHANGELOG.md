@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11-alpha candidata locale — 12 ottobre 2026
+
+Il gate MFA verifica UID, identità della sessione e revisione iniziale prima del challenge: un vecchio form non può elevare un login sostitutivo dello stesso utente. Enrollment malformati restituiscono un errore esplicito, con limiti per secret/URI; QR opzionale e setup manuale conservato. Input OTP e apertura dell'autenticatore sono disabilitati durante le operazioni busy.
+
+La [qualifica A04](docs/MFA_FORM_QUALIFICATION.md) passa nel perimetro dei form con chiave manuale sul release firmato code 12: 14 checkpoint server/UI nello stesso run, 540 JVM per variante e 14/14 fixture su ciascuna API 31/35. Lint senza errori. Le fixture coprono anche QR locale, busy, ricreazione, login sostitutivo e codice incompleto. Il QR effettivo del provider non viene visualizzato; scanner esterno non qualificato. Conservati fallimenti iniziali e tentativi del driver; fattori/sessioni QA zero ed emulatori spenti. Cinque righe chiuse nei rispettivi perimetri locali, 28 verifiche aperte. Nessuna CI o pubblicazione; le suite complete precedenti restano legate ai propri sorgenti.
+
 Qualifica C02: quote EUR/USD, budget EUR 3→4, quattro rimozioni da Coppia/Transazioni e revoca con archivio in sola lettura dai form QA sul release firmato invariato. Passano 14/14 fixture API 31/35 e 16+15 guardie host; 220 letture REST, pulizia dei soli 16 record residui e sessioni QA attive zero. Primo crash Compose API 35 conservato: causa non dimostrata, test isolato e ripetizione completa sullo stesso APK superati. Aggiunte cinque regressioni e guardie dei journal; il setter accessibile riguarda soltanto il harness separato. Nessuna modifica alla produzione o nuova release; emulatori spenti. C02 PASS LOCALE, 29 verifiche aperte; [rapporto](docs/COUPLE_FORM_QUALIFICATION.md).
 
 Qualifica successiva C01: rifiuto A→B e cancellazione B→A dai form QA sul release 0.1.10-alpha invariato; verifica degli UUID/stati/audit e quattro riletture REST con entrambi i ruoli, poi pulizia delle sole due richieste e quattro audit. Passano 7/7 fixture Coppia su API 31 e 35 e 18 guardie host offline. Corrette soltanto fixture e scroll del driver, conservando i fallimenti. Nessuna nuova build di produzione, CI o pubblicazione; [rapporto](docs/COUPLE_INVITATION_QUALIFICATION.md).

@@ -1,5 +1,13 @@
 # Verifica Savely Android
 
+## Form MFA — A04, candidata locale 0.1.11-alpha
+
+[Rapporto](MFA_FORM_QUALIFICATION.md), produzione `44274e7`, release firmato SHA-256 `5cdaca53d41d67d42cb05c0d2753f2611d6ba4d2f830067cde094d3355c757cd`. Passano 540 JVM per variante debug/release e lint senza errori (32 warning, sei hint per variante). Il run nativo API 31/EN `3233e55b` passa **un metodo con 14 checkpoint**, 207,03 s: enrollment manuale, pending e annulla, codice errato, attivazione, gate del nuovo login e rimozione. Due fattori e due sessioni distinti adottati dal ledger; controlli finali zero fattori/sessioni QA, registrazioni disabilitate, proiezioni d'identità/profili e attività QA invariate. QR del provider non visualizzato; nessuna qualifica scanner.
+
+Fixture `ced3a93`, app debug `3c0c90d2…8da85f51`, test APK `ce836174035b56e4be036fb311aad74911d0cf169bd07ee5fdc2d273b84e6815`: **14/14 API 31 in 41,232 s e 14/14 API 35 in 96,471 s**, zero failure/skip. Sono 12 `SettingsMfaTest` e due `MfaGateScreenTest`, inclusi QR locale senza HTTP/cache, busy, ricreazione e cinque cifre con pulsante visibile disabilitato e zero challenge/verify. Nessuna nuova suite completa da 184 casi. I primi run API 31 (13/14, isolato 1/1, crash completo) e tutti i tentativi del driver restano dichiarati; fixture dispose/idle rivista senza attribuire una causa definitiva ai crash Compose.
+
+Ledger offline 19/19 in 5,853 s; cinque guard runner e cinque guard recovery separati dai test JVM/Android. Build fixture finale e lint debug conclusi in 1m 40s. Entrambi gli AVD sono spenti; nessuna CI, modifica web/schema/RLS, configurazione globale o pubblicazione. A04 è PASS LOCALE nel perimetro documentato.
+
 ## Quote, budget e revoca Coppia — C02
 
 [Rapporto](COUPLE_FORM_QUALIFICATION.md): sul release firmato invariato `d6c4ccb0…e12f0daa`, API 31 EN, i form QA verificano quote EUR 5,01/5,01 su 10,01 con avviso rounding, custom USD 4,99/2,01 su 7,00, budget EUR 3→4, quattro rimozioni e revoca/archivio per entrambi i partner. Gli originali restano invariati; sette fasi REST host producono 220 letture coincidenti, con logout delle sole sessioni create. Pulizia di 16 record residui, sei tabelle QA vuote, sessioni QA non scadute/fattori zero e registrazioni disabilitate. Le proiezioni identità/profili selezionate coincidono; nessuna prova globale RLS o modifica schema/web.

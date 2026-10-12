@@ -1,6 +1,14 @@
 # Roadmap Savely Android
 
-## Stato corrente — qualifica locale 0.1.10-alpha
+## Stato corrente — qualifica MFA locale 0.1.11-alpha
+
+[A04](docs/MFA_FORM_QUALIFICATION.md) è **PASS LOCALE nel criterio dei form con setup manuale e QR nelle fixture**. Produzione `44274e7`, release code 12/hash `5cdaca53d41d67d42cb05c0d2753f2611d6ba4d2f830067cde094d3355c757cd`: un metodo nativo API 31/EN passa 14 checkpoint in 207,03 s, con due fattori e due sessioni QA distinti. Codice errato, pending riaperto senza segreto, annulla, attivazione AAL2, nuovo login con gate e rimozione sono osservati. Dopo la rimozione il server riporta AAL1; dopo logout fattori/sessioni zero, registrazioni disabilitate e proiezioni QA invariate. Entrambi gli AVD sono spenti.
+
+Passano 540 JVM per variante debug/release; lint zero errori, 32 warning e sei hint. Le 14 fixture mirate `ced3a93` passano su API 31/35 in 41,232/96,471 s: non sono una nuova suite completa da 184 casi. I fallimenti iniziali Compose e i tentativi del driver restano nel rapporto. Il campione reale usa la chiave manuale: QR del provider non visualizzato, decodifica dei pixel e scanner esterno non qualificati. **Cinque righe chiuse nei rispettivi perimetri locali, 28 aperte**; nessuna CI, nuova pubblicazione o parità globale.
+
+Il prossimo blocco è A05: revoca individuale dai form e verifica del refresh della sessione bersaglio con account QA isolati. La qualifica completa della candidata code 12 e i gate esterni della stabile restano distinti.
+
+## Consuntivo precedente — qualifica locale 0.1.10-alpha
 
 La candidata locale 0.1.10-alpha/code 11 usa produzione `459bbac` e APK release immutabile SHA-256 `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`. Passano 536 JVM per variante debug/release; lint di entrambe: zero errori, 32 avvertenze e 6 suggerimenti. La suite debug API 35 passa 170/170 in 562,616 s sul test source `74d7d0d`; API 31 passa 170/170 in 551,778 s, senza failure/skip, in una singola esecuzione completa. Il campione sul release firmato R8 è una prova distinta dalla suite debug.
 
