@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.10-alpha candidata locale — 12 ottobre 2026
+
+Corretto il ritorno da CreateDocument dopo perdita dello snapshot export: messaggio esplicito per preparare nuovamente il CSV, senza nuove letture o salvataggio automatico. Un marker monouso salvabile limita il callback; la rimozione riguarda solo il nuovo URI con nome atteso, dimensione zero e permessi/proprietà verificabili. File preesistenti, parziali o non verificabili sono conservati con messaggio; un CSV già scritto resta intatto anche se cambia login. Aggiunte cinque regressioni JVM e tre Android. La fixture replay ripristina lo stato pubblico del registry per consegnare davvero il callback stale, senza cambi di produzione.
+
+La candidata locale 0.1.10-alpha/code 11 usa produzione `459bbac` e APK release immutabile SHA-256 `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`. Passano 536 JVM per variante debug/release; lint di entrambe: zero errori, 32 avvertenze e 6 suggerimenti. La suite debug API 35 passa 170/170 in 562,616 s sul test source `74d7d0d`; API 31 passa 170/170 in 551,778 s, senza failure/skip, in una singola esecuzione completa. Il campione sul release firmato R8 è una prova distinta dalla suite debug.
+
+Sul campione release R8 passano upgrade autenticato API 35, preferenze/sessione, export locale 11 categorie/1.696 byte, annulla e recovery dopo process death con nuovo documento vuoto rimosso. API 31 passa il nuovo run firmato di login/upgrade/profilo/English/Light/logout. Export/recovery, BANK/USD 12,50 dopo process death e NORMALIZED/EUR 12,50 senza commit import appartengono al precedente run separato, chiuso con logout UI/server zero. Quattro tentativi del driver falliti restano conservati. Form FX nativo: 0,01 USD/cambio EUR 0,894370 persistito e riga eliminata via UI; ricerca Books ancora HTTP 429. [Rapporto](docs/SIGNED_RELEASE_QUALIFICATION.md).
+
+Conservati 81 PNG e 81 JSON per API; raccolta conclusa ed emulatori spenti, come confermato dal responsabile dell’integrazione.
+
+Firma v2/certificato continuo e asset licenze verificati; backup AES recuperato per firmare un APK di test con la stessa chiave, tamper respinto e file temporanei rimossi sullo stesso computer. Recupero fuori computer non qualificato. R01 PASS LOCALE nel suo criterio originale; nessuna CI, pubblicazione o dichiarazione di stabile/parità completa.
+
 ## In sviluppo dopo la 0.1.9 — 12 ottobre 2026
 
 Verifica locale autorizzata delle regressioni CSV/profilo: 530 JVM, 36 host Python, 14/14 mirati finali e due suite complete da 164/164 su API 31/35 passano; lint debug/release senza errori. Il primo run mirato ha sei failure: corretto il montaggio delle sole fixture da uno stesso callsite per conservare le chiavi saveable; failure export non riprodotto nei tre run successivi, causa separata non dimostrata. Nessuna modifica alla produzione. [Rapporto](docs/RECREATION_REGRESSION_VERIFICATION.md), 81 PNG per API, checksum e sorgenti conservati. V01 qualificata localmente, 32 verifiche aperte; emulatori spenti, nessuna CI, prova backend o nuova release pubblica.

@@ -1,5 +1,17 @@
 # Gate non di codice per la 1.0
 
+## Aggiornamento candidata locale 0.1.10-alpha
+
+Il [rapporto firmato](SIGNED_RELEASE_QUALIFICATION.md) e la [matrice](STABLE_VERIFICATION_MATRIX.md) aggiungono campioni sul release R8 code11/hash `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`, produzione `459bbac`. 536 JVM per variante e 170/170 debug API 35 passano; API 31 passa 170/170 in 551,778 s, senza failure/skip. V01 e R01 sono **PASS LOCALE**; le altre 31 righe rimangono aperte. La qualifica storica 164/164 API 31/35 sotto non viene trasferita al nuovo sorgente.
+
+Sono osservati upgrade autenticato API 35 e preferenze/sessione, export locale API 31/35 di 11 categorie/1.696 byte, annulla e recovery esplicito dopo process death con nuovo documento vuoto rimosso. Il nuovo run API 31 passa login, upgrade, profilo, English/Light e logout; sessione server identica prima/dopo e zero finale. Export/BANK/FX restano nel precedente run separato, con logout UI/server zero manuale. Quattro tentativi driver falliti conservati. BANK API 31 conserva preview USD dopo process death, NORMALIZED è EUR, senza commit import. FX dal form nativo salva 0,01 USD/cambio EUR 0,894370 e DELETE UI lascia zero righe QA; Books risponde 429 e il percorso positivo resta aperto.
+
+Conservati 81 PNG e 81 JSON per API; raccolta conclusa ed emulatori spenti, come confermato dal responsabile dell’integrazione.
+
+Backup firma recuperato e usato per firmare un APK di test sullo stesso computer, tamper respinto e temporanei rimossi; recovery fuori computer resta aperta. Licenze runtime/font e asset finali sono inventariati, con normalizzazione NOTICE/MPL dichiarata; non è un parere legale. Le checkbox globali restano aperte quando il campione non copre l’intero criterio. Nessuna CI, pubblicazione o dichiarazione che restino solo ostacoli esterni.
+
+## Evidenza storica precedente: 164 casi per API
+
 La [matrice operativa successiva](STABLE_VERIFICATION_MATRIX.md) associa ogni area al codice e alla prova necessaria. La [verifica locale autorizzata](RECREATION_REGRESSION_VERIFICATION.md) qualifica SC01/SC02 e V01: 530 JVM, 36 host Python e due suite complete da 164/164 su API 31/35; lint senza errori, emulatori spenti. Le altre 32 righe e le checkbox reali di questo documento restano aperte: nessuna CI, nuova prova backend, telefono o APK di distribuzione finale deriva da questo run.
 
 Checklist al 12 ottobre 2026, riferita alla richiesta di verifica del sorgente `75d30ed`. Non introduce funzionalità: distingue le prove ancora necessarie dagli ostacoli esterni. Le verifiche integrate sono gestite dal responsabile dell'integrazione; questo documento non ne anticipa gli esiti.
@@ -32,8 +44,8 @@ Fonti: [QA_QUALIFICATION.md](QA_QUALIFICATION.md), [FEATURE_PARITY.md](FEATURE_P
 
 ## 4. APK finale, firma, aggiornamento e telefono
 
-- [ ] Associare gli esiti integrati al sorgente finale e all'APK release ottimizzato: versione, checksum, certificato di firma e report delle verifiche richieste su Android 12/API 31 e Android 15/API 35. Esiti debug e vecchi APK restano evidenze separate.
-- [ ] Verificare aggiornamento con la stessa firma e una sessione autenticata, conservazione dei dati locali, ripristino della sessione e accesso ai dati dopo l'installazione. La prova precedente 0.1.8→0.1.9 riguarda un AVD anonimo. Il backup cifrato della firma è documentato; il suo recupero su un altro computer resta una verifica distinta.
+- [x] Associare gli esiti al sorgente finale e all’APK release ottimizzato code11/hash `d6c4ccb0…e12f0daa`: versione, certificato/firma e lint verificati; 536 JVM per variante e suite debug 170/170 API 31/35 sullo stesso app `459bbac`/fixture `74d7d0d`. Campione release R8 login/upgrade/export osservato separatamente. R01 PASS LOCALE nel suo criterio originale, senza attribuire i 170 test debug al release minificato o qualificare tutti i suoi flussi.
+- [ ] Verificare aggiornamento con la stessa firma e una sessione autenticata, conservazione dei dati locali, ripristino della sessione e accesso ai dati dopo l'installazione. La prova storica 0.1.8→0.1.9 riguarda un AVD anonimo. La candidata corrente aggiunge upgrade autenticato API 35 e nuovo run completo API 31 con logout e pulizia finali verificati. Il backup è ora recuperato/usato sullo stesso computer; recupero su un altro computer resta distinto.
 - [ ] Registrare separatamente la qualifica su telefono fisico. L'utente ha confermato installazione e uso generale della 0.1.7 sul Doogee S100 Android 12, ma ha escluso ulteriori prove dettagliate dei nuovi flussi sul proprio dispositivo. Quella conferma non qualifica i nuovi flussi né l'APK finale. Durante questa verifica sono disponibili soltanto AVD: il gate fisico resta aperto, senza attribuire al telefono risultati dell'emulatore.
 
 **Chiusura:** evidenza dell'APK finale firmato e dell'aggiornamento autenticato, con stato esplicito della prova fisica. La sola produzione del file APK non basta.

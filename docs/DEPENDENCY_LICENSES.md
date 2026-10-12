@@ -92,7 +92,11 @@ con un limite di 128 KiB. L’URL [della sorgente upstream](https://publicsuffix
 Il conteggio segue le dipendenze risolte e gli artifact locali, non le classi rimaste
 dopo R8. La dichiarazione di un POM non dimostra la copertura di ogni sorgente
 incorporato: questo è un inventario tecnico, non un parere di conformità legale.
-La raccolta non ha eseguito build o test Android. Il controllo che le nuove note
-siano presenti nell’APK finale appartiene alla qualifica della release.
+La raccolta non ha eseguito build o test Android. La successiva
+[qualifica della release](SIGNED_RELEASE_QUALIFICATION.md) verifica i sette asset
+di licenza nell’APK finale byte per byte rispetto alla fonte locale. Per il
+testo upstream NOTICE/MPL il confronto normalizza soltanto CRLF→LF; non dichiara
+identità byte con il download. Il campo di scope iniziale dell'inventario locale
+precede i download dei metadati: URL e hash registrati documentano quelli effettivi.
 Font e copie di licenze esistenti sono stati conservati. Non sono stati modificati
 i sorgenti delle librerie né scaricati nuovi artifact eseguibili.

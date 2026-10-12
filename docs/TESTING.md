@@ -1,5 +1,26 @@
 # Verifica Savely Android
 
+## Candidata locale 0.1.10-alpha — consuntivo locale
+
+| Evidenza | Esito e sorgente | Perimetro |
+|---|---|---|
+| JVM debug / release | 536/536 per variante, 58 suite, zero failure/error/skip; `459bbac` | Fixture locali; [ispezione](../artifacts/release-qualification/apk-static-qualified.json) e `qualified-reports/`. |
+| Lint debug / release | Zero errori, 32 warning e 6 hint per variante | Log `export-fix-qualified-build.log`; report riutilizzati dove aggiornati. |
+| Host offline | 36/36 Python e 9/9 guard backup; zero letture credenziali/scritture backup/ACL | `artifacts/release-qualification/host-final/`; nessun backend o dispositivo. |
+| Debug API 35 finale | 170/170, zero failure/skip, 562,616 s; test `74d7d0d`, produzione `459bbac` | `android35-full-qualified-summary.json` e `.log`; [manifest testAPK](../artifacts/release-qualification/qualified-test-fix-apks/manifest.json). |
+| Debug API 31 finale | 170/170, zero failure/skip, 551,778 s; stesso app `459bbac` e fixture `74d7d0d` | `android31-full-qualified-summary.json` e `.log`; singola esecuzione completa, non somma dei rerun. |
+| Release R8 firmato | Campioni firmati API 35 e nuovo API 31 conclusi: login, profilo, upgrade, English/Light, logout e pulizia | APK SHA `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`; [rapporto](SIGNED_RELEASE_QUALIFICATION.md). Nuovo run API 31 distinto dal precedente export/BANK/FX con logout manuale; quattro tentativi driver falliti conservati. |
+
+Per ciascuna API sono conservati 81 PNG e 81 JSON, con header/footer PNG, parsing JSON e SHA nei manifest `android31-full-qualified-visual-files.json` e `android35-full-qualified-visual-files.json`. Sono acquisizioni dei test debug, senza nuovo confronto di ogni schermata web/R8. Il responsabile dell’integrazione conferma emulatori API 31/35 spenti: API 31 dopo reset di dimensioni/densità/font, elenco ADB vuoto e PID emulator/qemu assenti. Nessun accesso dispositivo è stato eseguito nell’aggiornamento documentale.
+
+Il primo run debug API 35 termina 169/170 in 606,510 s: il replay stale della fixture incrementava il contatore senza consegnare il callback, perché il registry aveva già consumato la chiave. La correzione test-only usa `onSaveInstanceState`/`onRestoreInstanceState` pubblici prima del replay. Conservati log e summary iniziali; il 170/170 finale è una singola esecuzione, senza sommare rerun. Il primo failure release JVM dovuto al cambio diretto dello store fixture resta in `initial-export-session-failure/`; la fixture ora fa osservare la sessione API e verifica la nuova revisione.
+
+Export reale sul nuovo hash API 31/35: 11 righe proprie `categories`, 1.696 byte, lettura di 25 tabelle, annulla normale, process death durante picker e richiesta di preparazione esplicita con nuovo documento vuoto rimosso. Le altre tabelle sono vuote: nessuna qualifica multipagina o provider cloud. BANK API 31: preview 12,50 USD dopo process death e NORMALIZED 12,50 EUR, senza commit import. FX nativo API 31: 0,01 USD/cambio EUR 0,894370 salvato, rilettura backend e successiva eliminazione UI con zero righe QA; Google Books HTTP 429 non supera il percorso positivo.
+
+I 170 test debug e il campione sul release minificato qualificano perimetri diversi. V01 e R01 sono **PASS LOCALE** nel criterio originale; restano 31 righe aperte per gli altri form, stati, servizi e percorsi della matrice. Nessuna CI o nuova release pubblica. Le sezioni successive conservano risultati storici e sorgenti.
+
+Il [consuntivo API 31](../artifacts/release-qualification/android31-signed-final-summary.json) separa l’upgrade `b6e80895-2fb4-4a31-8e9f-fcb28fa74064` (harness `f59fe64`, SHA-256 `4009c7f62b869842c368dc09fd3f346800db2c55b3c7d4c8122970690850603b`) dal precedente export/BANK/FX `abd8d2dd-d137-484a-9d6e-b42690d757e5`: sono sessioni server diverse. Il nuovo run termina con tre identità QA, zero sessioni/transazioni/fattori e registrazioni disabilitate. API 35 mantiene il proprio harness originale, SHA `a0f3c2a41674ff3af1970d4bbefac5205310f63586981be424da02cc5d0e59c9`. Quattro tentativi API 31 falliti restano tali; corretti solo navigazione/bounds e ritorno al profilo visibile prima del logout nel driver, senza cambi di produzione.
+
 ## Qualifica locale CSV/profilo — 12 ottobre 2026
 
 [RECREATION_REGRESSION_VERIFICATION.md](RECREATION_REGRESSION_VERIFICATION.md): compilate le otto nuove regressioni; 530 JVM e 36 host Python passano, lint debug/release zero errori, 32 warning e 6 hint per variante. Il primo run mirato termina 14 casi/sei failure; corretto il montaggio delle fixture, il finale passa 14/14 in 50,804 s. Due suite complete passano 164/164 su API 31 (483,804 s) e API 35 (598,852 s), senza failure/skip, stessi APK debug/test. Ogni suite include 140 ordinari e 24 visuali; 81 PNG per API conservati. Sorgente Android `f60ab38`; JVM eseguiti su `5f058dc`, con produzione/JVM identici al sorgente finale. Nessuna CI, prova backend o release pubblica; emulatori spenti.

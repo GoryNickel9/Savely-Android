@@ -823,5 +823,267 @@
     "emulatorStarted": false,
     "backendAccessed": false,
     "apkPublished": false
+  },
+  "signedReleaseCandidateQualification": {
+    "date": "2026-10-12",
+    "version": "0.1.10-alpha",
+    "versionCode": 11,
+    "status": "local-qualified-scoped-not-global",
+    "report": "docs/SIGNED_RELEASE_QUALIFICATION.md",
+    "verificationMatrixRow": "R01",
+    "matrixStatus": "PASS LOCALE",
+    "productionSourceCommit": "459bbac1a380f05b598f0712ee8e66bda3d4eae1",
+    "androidFixtureSourceCommit": "74d7d0dfbb59bbc22674b301cefb2e9ac075375b",
+    "referenceWebCommit": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "releaseApk": {
+      "path": "artifacts/release-qualification/qualified-apks/savely-0.1.10-alpha-release.apk",
+      "sha256": "d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa",
+      "bytes": 2747518,
+      "v2Verified": true,
+      "certificateSha256": "e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1",
+      "debuggable": false,
+      "r8ReleaseFull": true,
+      "staticInspection": "artifacts/release-qualification/apk-static-qualified.json"
+    },
+    "jvm": {
+      "debug": {
+        "tests": 536,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "release": {
+        "tests": 536,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "scope": "existing-local-unit-TLS-fixtures-not-deployed-backend"
+    },
+    "lintPerVariant": {
+      "errors": 0,
+      "warnings": 32,
+      "hints": 6
+    },
+    "debugAndroid": {
+      "scope": "ordinary-debug-fixtures-distinct-from-minified-signed-release-sample",
+      "api35": {
+        "tests": 170,
+        "passed": 170,
+        "failures": 0,
+        "skipped": 0,
+        "seconds": 562.616,
+        "singleCompleteExecution": true,
+        "summary": "artifacts/release-qualification/android35-full-qualified-summary.json",
+        "log": "artifacts/release-qualification/android35-full-qualified.log",
+        "logSha256": "adfbcb3fafe175c2cf8d5035a59c09a806fbe0b39c3548b18b9df5418e282d4c"
+      },
+      "api31": {
+        "tests": 170,
+        "passed": 170,
+        "failures": 0,
+        "skipped": 0,
+        "seconds": 551.778,
+        "singleCompleteExecution": true,
+        "finalResultAssigned": true,
+        "summary": "artifacts/release-qualification/android31-full-qualified-summary.json",
+        "log": "artifacts/release-qualification/android31-full-qualified.log",
+        "logSha256": "a49479a85a2ff8eaae65bbb3d877491bcaabdaa7023e591871afb3ce5f3ef9e4",
+        "summarySha256": "70b5f9a063955db6ff95ecca103a9b653a4a47897387be21fac052663c05bcb3"
+      },
+      "testApkSha256": "8be8c7eb741c8dde3bddec23ea3dfe312c8f7f8fd50983d793be600c35f95a15",
+      "initialApi35": {
+        "tests": 170,
+        "passed": 169,
+        "failures": 1,
+        "seconds": 606.51,
+        "retained": true,
+        "summary": "artifacts/release-qualification/android35-full-final-summary.json",
+        "cause": "stale-result-fixture-registry-key-already-consumed-callback-not-delivered",
+        "fix": "test-only-public-registry-state-restore-before-replay"
+      },
+      "appApkSha256": "cac39f0af66a2a32d269f5094de6a565306cdc4405aa7731a71b021b02da99e5",
+      "appApkManifest": "artifacts/release-qualification/qualified-apks/manifest.json",
+      "testApkManifest": "artifacts/release-qualification/qualified-test-fix-apks/manifest.json",
+      "releaseR8TestCaseCountClaimed": false
+    },
+    "signedReleaseRuntimeSample": {
+      "scope": "accessibility-black-box-self-instrumented-local-AVDs-and-owned-QA-only-not-all-feature-flows",
+      "api35": {
+        "status": "passed-for-recorded-sample",
+        "authenticatedUpgradeCode10To11": true,
+        "sessionPreferencesPreserved": true,
+        "logoutAndServerZeroVerified": true,
+        "summary": "artifacts/release-qualification/android35-signed-final-summary.json",
+        "harnessLastChangedSourceCommit": "3e1365cd7253ebf3e8aa3dc62f4a2e5af77ac219",
+        "harnessApkSha256": "a0f3c2a41674ff3af1970d4bbefac5205310f63586981be424da02cc5d0e59c9"
+      },
+      "api31": {
+        "status": "passed-for-new-upgrade-sample",
+        "authenticatedUpgradeCode10To11": true,
+        "sessionPreferencesPreserved": true,
+        "loginFormSubmitted": true,
+        "profileRead": true,
+        "sameSingleBackendSessionAcrossUpgrade": true,
+        "logoutAndServerZeroVerified": true,
+        "runId": "b6e80895-2fb4-4a31-8e9f-fcb28fa74064",
+        "summary": "artifacts/release-qualification/android31-signed-final-summary.json",
+        "harnessSourceCommit": "f59fe64fe21acc60bc46adf1c513b9cc81d3aa3e",
+        "harnessApkSha256": "4009c7f62b869842c368dc09fd3f346800db2c55b3c7d4c8122970690850603b",
+        "failedHarnessAttemptsRetained": 4,
+        "failedAttemptsScope": "navigation-accessibility-bounds-and-profile-return-before-logout-not-converted-to-passes",
+        "finalBackendCounts": {
+          "qaIdentities": 3,
+          "qaSessions": 0,
+          "qaTransactions": 0,
+          "factors": 0,
+          "registrationsEnabled": false
+        }
+      }
+    },
+    "localDocuments": {
+      "api31And35": {
+        "normalExportRows": 11,
+        "entity": "categories",
+        "bytes": 1696,
+        "csvSha256": "056d8149ce94ed633d2a444a195eb05694613646024ac6986335bf192d16867a",
+        "tablesRead": 25,
+        "normalCancelObserved": true,
+        "pendingPickerProcessDeathObserved": true,
+        "explicitReprepareMessageObserved": true,
+        "onlyNewVerifiedEmptyDocumentRemoved": true
+      },
+      "api31Bank": {
+        "currency": "USD",
+        "amount": "12.50",
+        "pendingPickerProcessDeathObserved": true,
+        "normalizedCurrency": "EUR",
+        "normalizedAmount": "12.50",
+        "importCommitted": false,
+        "runId": "abd8d2dd-d137-484a-9d6e-b42690d757e5"
+      },
+      "scope": "DocumentsUI-local-Downloads-observed-not-cloud-or-all-URI-authorities",
+      "realMultipageExportVerified": false
+    },
+    "services": {
+      "nativeFxApi31": {
+        "status": "passed-owned-single-record-sample",
+        "amount": "0.01",
+        "currency": "USD",
+        "exchangeRateEur": "0.894370",
+        "persistedBackendReadObserved": true,
+        "uiPhysicalDeleteObserved": true,
+        "remainingQaRows": 0,
+        "evidence": "artifacts/release-qualification/native-fx/53ea707d-d025-4cd7-a04f-c232f8a389b2/",
+        "separateFromNewUpgradeRun": true,
+        "providerQuoteDateObservedFromAndroid": false
+      },
+      "googleBooks": {
+        "httpStatus": 429,
+        "positiveSearchVerified": false,
+        "evidence": "artifacts/release-qualification/services/20261012T144150655292Z-books-dune.json"
+      },
+      "cardTraderNewPositiveFlowVerified": false
+    },
+    "signingBackup": {
+      "sameHostRecoveredKeyUsedForSignature": true,
+      "tamperRejected": true,
+      "privateTemporaryFilesRemoved": true,
+      "offDeviceVerified": false,
+      "evidence": "artifacts/release-qualification/recovered-signing-verification.json"
+    },
+    "licenseInventory": {
+      "runtimeArtifactCoordinates": 80,
+      "pomDeclarations": 110,
+      "licenseAssetsByteMatchSource": true,
+      "upstreamNoticeAndMplTextNormalization": "CRLF-to-LF-only-not-upstream-byte-identity",
+      "legalComplianceClaim": false
+    },
+    "historicalEvidencePreserved": true,
+    "initialReleaseHashWithObservedExportFailure": "ac914bc580091ae435afa7f15a3a6ff4e50be7715e0574b0ba472a4b165ea5bd",
+    "ciExecuted": false,
+    "published": false,
+    "globalParityQualified": false,
+    "physicalDeviceQualified": false,
+    "openVerificationRows": 31,
+    "remainingScope": [
+      "unqualified-local-forms-states-and-QA-paths-in-matrix",
+      "real-multipage-export-and-cloud-providers",
+      "positive-Google-Books-search-and-unqualified-service-paths",
+      "controlled-email-mailbox-and-physical-device",
+      "off-device-signing-backup-recovery-and-release-decision"
+    ],
+    "hostOffline": {
+      "pythonTests": 36,
+      "pythonPassed": 36,
+      "backupGuardTests": 9,
+      "backupGuardPassed": 9,
+      "credentialReads": 0,
+      "backupWrites": 0,
+      "aclChanges": 0,
+      "evidence": "artifacts/release-qualification/host-final/",
+      "scope": "existing-offline-tools-tests-not-Android-or-backend"
+    },
+    "scopedSummaries": {
+      "api31SignedUpgrade": {
+        "runId": "b6e80895-2fb4-4a31-8e9f-fcb28fa74064",
+        "status": "passed",
+        "summary": "artifacts/release-qualification/android31-signed-final-summary.json",
+        "scope": "upgrade-object-only-same-single-session-through-code10-to11-with-final-logout",
+        "summarySha256": "06c24f4bc58171f735efb0099036260c181d9af6f6628e9d5d4b49d8923b3d6f"
+      },
+      "api31EarlierExportBankFx": {
+        "runId": "abd8d2dd-d137-484a-9d6e-b42690d757e5",
+        "summary": "artifacts/release-qualification/android31-signed-final-summary.json",
+        "scope": "export-importPreview-nativeFx-objects-only-separate-server-session-from-new-upgrade",
+        "manualUiLogoutAndServerZeroVerified": true,
+        "mergedWithNewUpgradeSession": false,
+        "summarySha256": "06c24f4bc58171f735efb0099036260c181d9af6f6628e9d5d4b49d8923b3d6f"
+      },
+      "api35SignedSample": {
+        "runId": "fdbfe17c-1bf5-4fe0-9c5f-d95c3ded0a4f",
+        "status": "passed",
+        "summary": "artifacts/release-qualification/android35-signed-final-summary.json",
+        "scope": "its-original-harness-and-session-not-new-api31-harness",
+        "summarySha256": "d204b50409228bfb6681927b5e0d0796c804bd7cc566264f612bcecd1ad9becd"
+      }
+    },
+    "qualifiedVerificationRows": [
+      "V01",
+      "R01"
+    ],
+    "matrixClosureScope": "original-R01-optimized-signed-build-version-hash-cert-lint-debug-suites-both-OS-same-app-source-plus-observed-R8-runtime-sample-not-all-feature-flows",
+    "artifactCollection": {
+      "api31": {
+        "status": "collected-and-format-hash-verified",
+        "pngCount": 81,
+        "metadataCount": 81,
+        "manifest": "artifacts/release-qualification/android31-full-qualified-visual-files.json",
+        "manifestSha256": "863cf1bae5e1421380d7e97fa858357ebab8b24a4c213e1200aa7d07b4eb71aa",
+        "retrieval": "individual-adb-exec-out-cat-bounded-PNG-footer-and-JSON-verified",
+        "scope": "debug-suite-captures-not-new-complete-web-or-R8-visual-comparison"
+      },
+      "api35": {
+        "status": "collected-and-format-hash-verified",
+        "pngCount": 81,
+        "metadataCount": 81,
+        "manifest": "artifacts/release-qualification/android35-full-qualified-visual-files.json",
+        "manifestSha256": "221a1a921d7af70bc94a16052f526aece7c28089b04cb11859c0ebbf7a5fbb4f",
+        "retrieval": "individual-adb-exec-out-cat-bounded-PNG-footer-and-JSON-verified",
+        "scope": "debug-suite-captures-not-new-complete-web-or-R8-visual-comparison"
+      },
+      "emulatorShutdown": {
+        "status": "confirmed-by-root",
+        "api31Stopped": true,
+        "api35Stopped": true,
+        "api31WindowSizeDensityReset": true,
+        "api31FontScaleReset": "1",
+        "adbDevicesEmpty": true,
+        "api31OwnedEmulatorAndQemuPidsAbsent": true,
+        "newDeviceAccessDuringDocumentUpdate": false
+      },
+      "separateFromSuiteResult": true
+    },
+    "historicalScopePolicy": "Earlier localRegressionQualification retains openVerificationRows=32 as its historical result; current qualification closes V01/R01 locally and leaves31."
   }
 }

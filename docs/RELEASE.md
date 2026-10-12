@@ -1,5 +1,19 @@
 # APK e aggiornamenti
 
+## Candidata locale 0.1.10-alpha — 12 ottobre 2026
+
+APK immutabile: `artifacts/release-qualification/qualified-apks/savely-0.1.10-alpha-release.apk`, code 11, 2.747.518 byte, produzione `459bbac1a380f05b598f0712ee8e66bda3d4eae1`. SHA-256 `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`. Non è una nuova release pubblica; il download pubblico resta la 0.1.9-alpha.
+
+Firma v2 verificata, unico signer, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1`, continuo con gli APK precedenti. Manifest non debuggable/non testOnly, min SDK 26, target 36. Marker DEX R8 release/full 8.13.19 coerente con il mapping. Tutti i 19 asset coincidono byte per byte con il sorgente, incluse sette licenze; NOTICE/MPL upstream coincidono solo dopo normalizzazione CRLF→LF dichiarata. [Ispezione statica](../artifacts/release-qualification/apk-static-qualified.json), [licenze](DEPENDENCY_LICENSES.md).
+
+536 JVM per variante passano; lint entrambe zero errori/32 warning/6 hint. Debug API 35 passa 170/170 in 562,616 s con fixture `74d7d0d`; API 31 passa 170/170 in 551,778 s, senza failure/skip. Il campione release R8 verifica upgrade autenticato API 35 code10→11, sessione/preferenze, export locale/annulla e recovery dopo process death. Sul nuovo hash il nuovo run API 31 passa login, upgrade, profilo, English/Light e logout con sessione server conservata e pulizia finale. Export/BANK/FX appartengono al precedente run separato, chiuso con logout manuale UI/server zero; quattro tentativi driver falliti conservati. [Qualifica firmata](SIGNED_RELEASE_QUALIFICATION.md). R01 è **PASS LOCALE** nel criterio originale; il campione R8 non è una suite di 170 casi sul release.
+
+Conservati 81 PNG e 81 JSON per API; raccolta conclusa ed emulatori spenti, come confermato dal responsabile dell’integrazione.
+
+Il backup AES esistente è stato recuperato per firmare un APK di test con certificato conforme e v2 valida, senza DPAPI o password originale. Tamper respinto e file privati temporanei rimossi; stesso computer, recupero fuori dispositivo ancora non qualificato. Il precedente candidato code11/hash `ac914bc580091ae435afa7f15a3a6ff4e50be7715e0574b0ba472a4b165ea5bd` conserva il failure export dimostrato; non è sostituito o dichiarato riuscito dal nuovo hash. Nessuna CI o dichiarazione di parità globale.
+
+Il [consuntivo API 31](../artifacts/release-qualification/android31-signed-final-summary.json) separa l’upgrade `b6e80895-2fb4-4a31-8e9f-fcb28fa74064` (harness `f59fe64`, SHA-256 `4009c7f62b869842c368dc09fd3f346800db2c55b3c7d4c8122970690850603b`) dal precedente export/BANK/FX `abd8d2dd-d137-484a-9d6e-b42690d757e5`: sono sessioni server diverse. Il nuovo run termina con tre identità QA, zero sessioni/transazioni/fattori e registrazioni disabilitate. API 35 mantiene il proprio harness originale, SHA `a0f3c2a41674ff3af1970d4bbefac5205310f63586981be424da02cc5d0e59c9`. Quattro tentativi API 31 falliti restano tali; corretti solo navigazione/bounds e ritorno al profilo visibile prima del logout nel driver, senza cambi di produzione.
+
 ## Candidata 0.1.9-alpha — 12 ottobre 2026
 
 APK immutabile: `artifacts/savely-0.1.9-alpha-release-candidate.apk`, versionCode 10, 2.718.365 byte. SHA-256: `a994ae06b3919753c8b6d9547f05586000e9242a0816b70ab0f628c740c931f1`. Il file destinato alla distribuzione si chiama `savely-0.1.9-alpha.apk`, con gli stessi byte. I due precedenti candidati 0.1.9 rimangono locali e non sono distribuiti.
