@@ -2,7 +2,6 @@ package cc.savely.android.release
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.UiAutomation
-import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.graphics.Rect
 import android.os.Build
@@ -14,14 +13,15 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import android.util.AtomicFile
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.ArrayDeque
-import java.util.Base64
 import java.util.UUID
+import java.io.File
 
 /** Opt-in accessibility-only qualification of the installed, signed, non-debuggable target APK. */
 @Suppress("DEPRECATION") // recycle still releases accessibility nodes on supported API 26-32.
@@ -36,7 +36,7 @@ class ReleaseApkBlackBoxTest {
         var identityConfirmed = false
         var prepared = false
         try {
-            launch()
+            report.put("pid", launch())
             await("LOGIN_FORM_MISSING") { editable(password = false) && editable(password = true) }
             requireCode(!hasText("Dashboard"), "PREEXISTING_AUTHENTICATED_UI")
             val credentials = consumeCredentials(run)
@@ -86,9 +86,10 @@ class ReleaseApkBlackBoxTest {
                 previous.optString("stage") == "prepared" && previous.optBoolean("input_consumed") &&
                 previous.optBoolean("settings_identity") && previous.optBoolean("english_selected") &&
                 previous.optBoolean("light_selected") && previous.optBoolean("session_retained_for_upgrade"), "UPGRADE_CHECKPOINT_INVALID")
-            requireCode(previous.optInt("pid") > 0 && previous.getInt("pid") != Process.myPid(), "PROCESS_NOT_REPLACED")
+            val appPid = launch()
+            report.put("pid", appPid)
+            requireCode(previous.optInt("pid") > 0 && previous.getInt("pid") != appPid, "PROCESS_NOT_REPLACED")
             report.put("previous_pid", previous.getInt("pid")).put("new_process", true)
-            launch()
             awaitDashboard()
             requireCode(!editable(password = true), "LOGIN_FORM_AFTER_UPGRADE")
             report.put("dashboard", true).put("no_login_form", true)
@@ -121,7 +122,7 @@ class ReleaseApkBlackBoxTest {
         val run = args.getString("releaseQualificationRunId") ?: throw IllegalStateException("RUN_REQUIRED")
         requireCode(runCatching { UUID.fromString(run).toString() == run }.getOrDefault(false), "RUN_INVALID")
         requireCode(args.getString("expectedTargetCode") == code.toString(), "EXPECTED_CODE_INVALID")
-        requireCode(instrumentation.targetContext.packageName == TARGET && instrumentation.context.packageName == TEST_PACKAGE,
+        requireCode(instrumentation.targetContext.packageName == TEST_PACKAGE && instrumentation.context.packageName == TEST_PACKAGE,
             "PACKAGE_INVALID")
         val manager = instrumentation.targetContext.packageManager
         val target = manager.getPackageInfo(TARGET, 0)
@@ -133,7 +134,8 @@ class ReleaseApkBlackBoxTest {
         val info = automation.serviceInfo
         info.flags = info.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         automation.serviceInfo = info
-        requireCode(shell("test ! -e files/release-qualification-$run-phase${if (code == 10) 1 else 2}.json", 256).second == 0,
+        val report = privateFile("release-qualification-$run-phase${if (code == 10) 1 else 2}.json")
+        requireCode(!report.exists() && !File(report.path + ".bak").exists() && !File(report.path + ".new").exists(),
             "REPORT_ALREADY_EXISTS")
         return run
     }
@@ -146,14 +148,17 @@ class ReleaseApkBlackBoxTest {
         requireCode(input.get("password") is String, "INPUT_PASSWORD_INVALID")
         val password = input.getString("password")
         requireCode(password.length in 40..256 && password.none { it.isISOControl() }, "INPUT_PASSWORD_INVALID")
-        requireCode(shell("rm -- files/$INPUT", 256).second == 0 &&
-            shell("test ! -e files/$INPUT", 256).second == 0, "INPUT_CONSUMPTION_FAILED")
+        val inputFile = privateFile(INPUT)
+        requireCode(inputFile.delete() && !inputFile.exists(), "INPUT_CONSUMPTION_FAILED")
         return QA_EMAIL to password
     }
 
-    private fun launch() {
-        instrumentation.targetContext.startActivity(Intent().setClassName(TARGET, "$TARGET.MainActivity")
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+    private fun launch(): Int {
+        val started = readShell("am start -W -n $TARGET/.MainActivity", 4_096)
+        requireCode(started.lineSequence().any { it.trim() == "Status: ok" }, "TARGET_LAUNCH_FAILED")
+        val pid = readShell("pidof $TARGET", 128).trim().toIntOrNull()
+        requireCode(pid != null && pid > 0 && pid != Process.myPid(), "TARGET_PID_INVALID")
+        return requireNotNull(pid)
     }
 
     private fun openSettings() = clickLabel(setOf("Impostazioni", "Settings"), "SETTINGS_NAVIGATION_MISSING")
@@ -204,7 +209,7 @@ class ReleaseApkBlackBoxTest {
     private fun selected(text: String): Boolean = exists { label(it, setOf(text)) && it.isSelected && visible(it) }
 
     private fun clickLabel(labels: Set<String>, code: String, scroll: Boolean = false) {
-        var node = seekLabel(labels, code, scroll)
+        var node = seekLabel(labels, code, scroll, clickable = true)
         try {
             for (depth in 0 until 8) {
                 if (node.isClickable && node.isEnabled) {
@@ -219,9 +224,9 @@ class ReleaseApkBlackBoxTest {
         } finally { node.recycle() }
     }
 
-    private fun seekLabel(labels: Set<String>, code: String, scroll: Boolean): AccessibilityNodeInfo {
+    private fun seekLabel(labels: Set<String>, code: String, scroll: Boolean, clickable: Boolean = false): AccessibilityNodeInfo {
         for (attempt in 0..12) {
-            find { label(it, labels) && it.isEnabled && visible(it) }?.let { return it }
+            find { label(it, labels) && it.isEnabled && visible(it) && (!clickable || hasClickableAncestor(it)) }?.let { return it }
             if (!scroll) {
                 SystemClock.sleep(250)
             } else {
@@ -247,6 +252,21 @@ class ReleaseApkBlackBoxTest {
 
     private fun label(node: AccessibilityNodeInfo, labels: Set<String>): Boolean =
         node.text?.toString() in labels || node.contentDescription?.toString() in labels
+
+    // A heading can share a button's label; choose only nodes with a real enabled click action.
+    private fun hasClickableAncestor(node: AccessibilityNodeInfo): Boolean {
+        if (node.isClickable && node.isEnabled) return true
+        var parent = node.parent
+        repeat(8) {
+            val current = parent ?: return false
+            val clickable = current.isClickable && current.isEnabled
+            parent = if (clickable) null else current.parent
+            current.recycle()
+            if (clickable) return true
+        }
+        parent?.recycle()
+        return false
+    }
 
     private fun visible(node: AccessibilityNodeInfo): Boolean {
         val bounds = Rect().also(node::getBoundsInScreen)
@@ -309,41 +329,55 @@ class ReleaseApkBlackBoxTest {
 
     private fun baseReport(run: String, code: Int, phase: String): JSONObject = JSONObject()
         .put("run_id", run).put("user_id", QA_USER).put("target_package", TARGET).put("target_code", code)
-        .put("phase", phase).put("pid", Process.myPid()).put("scope", "signed-release-accessibility-black-box")
+        .put("phase", phase).put("pid", 0).put("instrumentation_pid", Process.myPid())
+        .put("scope", "signed-release-accessibility-black-box-self-instrumented")
         .put("stage", "started")
 
     private fun writeReport(run: String, phase: String, report: JSONObject) {
-        val encoded = Base64.getEncoder().encodeToString(report.toString().toByteArray(Charsets.UTF_8))
-        val name = "release-qualification-$run-$phase.json"
-        requireCode(shell("test ! -e files/$name && test ! -e files/$name.tmp && printf %s $encoded | base64 -d > files/$name.tmp && mv -n files/$name.tmp files/$name && test ! -e files/$name.tmp", 256).second == 0,
-            "REPORT_WRITE_FAILED")
+        val file = privateFile("release-qualification-$run-$phase.json")
+        requireCode(!file.exists() && !File(file.path + ".bak").exists() && !File(file.path + ".new").exists(), "REPORT_ALREADY_EXISTS")
+        val atomic = AtomicFile(file)
+        val output = atomic.startWrite()
+        try {
+            output.write(report.toString().toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(output)
+        } catch (_: Exception) {
+            atomic.failWrite(output)
+            throw IllegalStateException("REPORT_WRITE_FAILED")
+        }
     }
 
     private fun readJson(name: String, limit: Int): JSONObject {
-        requireCode(name.matches(Regex("[a-z0-9.-]+")), "PRIVATE_NAME_INVALID")
-        val result = shell("cat files/$name", limit)
-        requireCode(result.second == 0, "PRIVATE_INPUT_MISSING")
-        return try { JSONObject(result.first) } catch (_: Exception) { throw IllegalStateException("PRIVATE_JSON_INVALID") }
+        val file = privateFile(name)
+        requireCode(file.isFile, "PRIVATE_INPUT_MISSING")
+        val bytes = file.inputStream().use { readBounded(it, limit) }
+        return try { JSONObject(bytes.toString(Charsets.UTF_8)) }
+            catch (_: Exception) { throw IllegalStateException("PRIVATE_JSON_INVALID") }
     }
 
-    private fun shell(command: String, limit: Int): Pair<String, Int> {
-        val descriptor = automation.executeShellCommand("run-as $TEST_PACKAGE sh -c '$command; printf \"\\n__STATUS__%s\" \$?' ")
+    private fun privateFile(name: String): File {
+        requireCode(name.matches(Regex("[a-z0-9.-]+")) && !name.contains(".."), "PRIVATE_NAME_INVALID")
+        return File(instrumentation.context.filesDir, name)
+    }
+
+    private fun readShell(command: String, limit: Int): String {
+        val descriptor = automation.executeShellCommand(command)
         val bytes = android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
-            val output = java.io.ByteArrayOutputStream()
-            val buffer = ByteArray(1_024)
-            while (true) {
-                val count = input.read(buffer)
-                if (count == -1) break
-                requireCode(output.size() + count <= limit + 64, "PRIVATE_INPUT_TOO_LARGE")
-                output.write(buffer, 0, count)
-            }
-            output.toByteArray()
+            readBounded(input, limit)
         }
-        val value = bytes.toString(Charsets.UTF_8)
-        val marker = value.lastIndexOf("\n__STATUS__")
-        requireCode(marker >= 0, "PRIVATE_COMMAND_FAILED")
-        return value.substring(0, marker) to (value.substring(marker + 11).trim().toIntOrNull()
-            ?: throw IllegalStateException("PRIVATE_COMMAND_FAILED"))
+        return bytes.toString(Charsets.UTF_8)
+    }
+
+    private fun readBounded(input: java.io.InputStream, limit: Int): ByteArray {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(1_024)
+        while (true) {
+            val count = input.read(buffer)
+            if (count == -1) break
+            requireCode(output.size() + count <= limit, "PRIVATE_INPUT_TOO_LARGE")
+            output.write(buffer, 0, count)
+        }
+        return output.toByteArray()
     }
 
     private fun requireCode(condition: Boolean, code: String) { if (!condition) throw IllegalStateException(code) }
@@ -351,7 +385,7 @@ class ReleaseApkBlackBoxTest {
 
     companion object {
         private const val TARGET = "cc.savely.android"
-        private const val TEST_PACKAGE = "cc.savely.android.test"
+        private const val TEST_PACKAGE = "cc.savely.android.releaseqa"
         private const val INPUT = "release-qualification-input.json"
         private const val QA_USER = "d46cee52-3d3b-45ae-9bc3-c95931a82339"
         private const val QA_EMAIL = "android-qa-5ef2838c-a@example.invalid"

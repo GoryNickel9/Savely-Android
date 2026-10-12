@@ -7,3 +7,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "SavelyAndroid"
 include(":app")
+include(":release-qualification")
