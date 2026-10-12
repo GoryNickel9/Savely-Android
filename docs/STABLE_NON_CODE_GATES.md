@@ -6,8 +6,8 @@ Fonti: [QA_QUALIFICATION.md](QA_QUALIFICATION.md), [FEATURE_PARITY.md](FEATURE_P
 
 ## 1. Confronto visivo e numerico sullo stesso dataset
 
-- [ ] Fissare un dataset sintetico comune, ruoli, lingua, valuta, data di riferimento e timezone; associare ogni caso al commit web `1cfcf6297e85d56bfafe3522362ceecef6f6b281`, al sorgente Android e all'APK effettivamente osservato. Registrare anche la revisione del sito se si usa il servizio distribuito.
-- [ ] Confrontare schermate, azioni e valori nelle aree della matrice di parità: riepiloghi, filtri, form, grafici, dettagli e navigazione. Includere IT/EN, testo ingrandito, dati vuoti, permessi negati ed errori. Conservare screenshot e una tabella con input, atteso, osservato e scostamento per caso; tre screenshot precedenti non coprono tutte le pagine.
+- [x] Fissare un dataset sintetico comune, ruoli, lingua, valuta, data di riferimento e timezone. [Dataset master](../parity/fixtures/static-common-dataset.json) e [rapporto](COMMON_DATASET_PARITY_REVIEW.md): 50 casi di base con fonti/attesi, web `1cfcf6297e85d56bfafe3522362ceecef6f6b281`, Android `614bdbf`, produzione/JVM `935c7ba`. I profili sono fittizi; nessuna qualifica osservata del dataset o APK associato a questi casi.
+- [ ] Confrontare schermate, azioni e valori nelle aree della matrice di parità: riepiloghi, filtri, form, grafici, dettagli e navigazione. Includere IT/EN, testo ingrandito, dati vuoti, permessi negati ed errori. Conservare screenshot e una tabella con input, atteso, osservato e scostamento per caso; associare l'APK osservato e, per il sito distribuito, la revisione del deploy. Tre screenshot precedenti non coprono tutte le pagine.
 - [ ] Separare le differenze intenzionali dagli errori: importi decimali e valute distinte; storico ricostruito senza feed storico di mercato; copertura parziale dei prezzi registrati; snapshot patrimonio senza valuta. Non confrontare un totale multivaluta con una singola valuta o attribuire una valuta ai valori server.
 
 **Chiusura:** ogni caso richiesto ha un confronto tracciabile o una differenza motivata. Il codice letto e i test di una versione precedente non sostituiscono questo confronto.

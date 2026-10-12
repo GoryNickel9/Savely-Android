@@ -4,6 +4,8 @@ Data: 12 ottobre 2026. Stato: 0.1.9-alpha pubblicata con APK firmato, 503 JVM e 
 
 Audit statico successivo: [STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md), inizialmente senza test. La [verifica locale autorizzata](docs/STATIC_AUDIT_VERIFICATION.md) passa 528 JVM, 36 host Python e 132/132 su entrambe le API 31/35, in singoli run finali completi. Lint senza errori; sorgente `4d6a376`, hash invariati, nessuna CI o nuova prova backend. I PASS QA reali sopra restano associati a `0714f39`. I [gate non di codice](docs/STABLE_NON_CODE_GATES.md) e la parità globale restano aperti.
 
+Confronto sul [dataset comune](docs/COMMON_DATASET_PARITY_REVIEW.md): fissati 50 casi di base con input, ruoli fittizi e attese dai sorgenti. Dopo l'autorizzazione ai test, tre subagent hanno rieseguito 528 JVM e 36 host Python, tutti superati; output TypeScript FIRE/Fumo identici al golden. Nessuna nuova modifica alla produzione, CI, emulatore, prova backend o release. Completata la preparazione del confronto; osservazioni delle schermate sullo stesso dataset ancora da acquisire.
+
 ## 1. Risultato richiesto e vincoli
 
 Realizzare un'app Android nativa con tutte le funzioni attualmente disponibili in Savely, account e dati condivisi, APK firmato distribuibile direttamente e schermate utilizzabili senza caricare il sito.

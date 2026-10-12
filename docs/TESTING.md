@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Dataset comune e regressioni rieseguite — 12 ottobre 2026
+
+[COMMON_DATASET_PARITY_REVIEW.md](COMMON_DATASET_PARITY_REVIEW.md) registra il lavoro dei tre subagent sul sorgente `614bdbf`, produzione/JVM `935c7ba`: nuova suite completa di 528 test JVM, zero fallimenti/errori/skip, 27,51 s; 36 host Python superati; output web Standard FIRE, Barista FIRE e Fumo identici byte per byte al golden. Le proiezioni sono elementi del JSON confrontato, non test aggiuntivi. Il primo comando Gradle è fallito prima dei test per l'espansione Windows del filtro wildcard; log e risultati preesistenti sono conservati separatamente. Nessuna nuova CI, prova Android/backend o release. I 50 casi del dataset master restano attesi statici, distinti dalle suite esistenti rieseguite.
+
 ## Verifica dell'audit statico — 12 ottobre 2026
 
 [STATIC_AUDIT_VERIFICATION.md](STATIC_AUDIT_VERIFICATION.md) registra il sorgente `4d6a376`: produzione/JVM identici a `935c7ba`, con sola correzione successiva dello scroll della fixture FIRE. Passano 528 JVM, 36 host Python e due suite ordinarie complete da 132 casi su API 31/35, senza failure/errori/skip. Lint debug/release zero errori, 32 avvertenze e 6 suggerimenti per variante. Due esiti iniziali falliti sono conservati; le suite finali non aggregano i rerun. Nessuna CI, prova backend o nuovo APK pubblico. I [gate non di codice](STABLE_NON_CODE_GATES.md) restano separati dai test locali.

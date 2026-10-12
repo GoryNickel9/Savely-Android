@@ -4,6 +4,8 @@ Stato al 12 ottobre 2026: 0.1.9-alpha pubblicata con 503 JVM e due suite complet
 
 Baseline web: [commit 1cfcf6297e85d56bfafe3522362ceecef6f6b281](https://github.com/GoryNickel9/Savely/commit/1cfcf6297e85d56bfafe3522362ceecef6f6b281), verificato sul checkout locale e sul ramo remoto `main`. L'inventario in `src/App.tsx` comprende 41 rotte: 6 pubbliche, 13 finanza/account, 21 con permesso specifico e una wildcard. Una rotta non corrisponde necessariamente a una singola funzione.
 
+Il [confronto sul dataset comune](COMMON_DATASET_PARITY_REVIEW.md) fissa 50 casi di base e distingue attesi statici da risultati osservati. Nuove esecuzioni: 528 JVM e 36 host superati; tre gruppi di output FIRE/Fumo originali web identici al golden. Nessun nuovo PASS di schermata, backend o APK deriva da questi risultati. Coppia e Fumo sono confrontati attraverso i chiamanti attivi, oltre agli helper isolati.
+
 ## Inventario iniziale
 
 I package `ui`, `data`, `finance`, `transfer` e `modules` contengono le schermate e i contratti nativi. Per ogni area, i documenti `API_CONTRACTS_*` e `IMPORT_EXPORT.md` registrano API, calcoli e lacune rispetto al web.

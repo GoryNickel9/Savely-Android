@@ -678,5 +678,29 @@
     "physicalDeviceTested": false,
     "apkPublished": false,
     "remainingGates": "docs/STABLE_NON_CODE_GATES.md"
+  },
+  "commonDatasetReview": {
+    "date": "2026-10-12",
+    "report": "docs/COMMON_DATASET_PARITY_REVIEW.md",
+    "dataset": "parity/fixtures/static-common-dataset.json",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "testedAndroidRevision": "614bdbfa358b13726fe54399be502d744ba157d5",
+    "productionAndJvmRevision": "935c7ba5a2817cbc2e67179d710060537fb383de",
+    "staticBaseCases": 50,
+    "datasetCasesExecuted": false,
+    "status": "source-comparison-and-existing-regressions-not-global-parity",
+    "jvm": { "tests": 528, "suites": 58, "failures": 0, "errors": 0, "skipped": 0, "freshCompleteExecution": true },
+    "hostPython": { "tests": 36, "status": "passed" },
+    "webOracle": {
+      "scope": ["calculateStandardFIRE", "calculateBaristaFIRE", "computeDerived-fumo"],
+      "fixedClock": "2026-10-11T12:00:00Z",
+      "goldenByteEqual": true,
+      "sha256": "03167ad4787c282983f64b4c694fed11adc6bab72ea984357395efbdfc26d705"
+    },
+    "ciExecuted": false,
+    "emulatorStarted": false,
+    "backendAccessed": false,
+    "physicalDeviceTested": false,
+    "apkPublished": false
   }
 }

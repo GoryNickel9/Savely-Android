@@ -1,0 +1,990 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Synthetic inputs for source comparison; not a backend import or an executed UI qualification",
+  "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "referenceAndroidRevision": "614bdbfa358b13726fe54399be502d744ba157d5",
+  "referenceAndroidCoreRevision": "935c7ba5a2817cbc2e67179d710060537fb383de",
+  "clock": "2026-06-15T12:00:00+02:00",
+  "timezone": "Europe/Rome",
+  "languages": [
+    "it",
+    "en"
+  ],
+  "defaultCurrency": "EUR",
+  "currencies": [
+    "EUR",
+    "USD"
+  ],
+  "visualProfilesPlannedOnly": [
+    {
+      "widthDp": 360,
+      "heightDp": 800,
+      "fontScale": 1.0
+    },
+    {
+      "widthDp": 320,
+      "heightDp": 800,
+      "fontScale": 2.0
+    }
+  ],
+  "numericEncoding": "Decimal strings are exact inputs; adapters must use the corresponding domain type without implicit conversion or aggregation across currencies",
+  "finance": {
+    "ownerAlias": "A",
+    "report": "docs/STATIC_DATASET_FINANCE_REVIEW.md",
+    "categories": [
+      {
+        "id": "food",
+        "name": "Cibo",
+        "type": "expense",
+        "color": "#22c55e",
+        "icon": ""
+      }
+    ],
+    "budgets": [
+      {
+        "id": "b-food",
+        "category_id": "food",
+        "amount": "60.00",
+        "currency": "EUR"
+      }
+    ],
+    "transactions": [
+      {
+        "id": "t0",
+        "date": "2026-04-01",
+        "type": "income",
+        "amount": "30.00",
+        "currency": "EUR",
+        "category_id": null,
+        "description": "Aprile",
+        "exchange_rate_eur": "1.000000",
+        "deleted_at": null
+      },
+      {
+        "id": "t1",
+        "date": "2026-05-17",
+        "type": "income",
+        "amount": "100.00",
+        "currency": "EUR",
+        "category_id": null,
+        "description": "Maggio",
+        "exchange_rate_eur": "1.000000",
+        "deleted_at": null
+      },
+      {
+        "id": "t2",
+        "date": "2026-05-31",
+        "type": "expense",
+        "amount": "40.00",
+        "currency": "EUR",
+        "category_id": "food",
+        "description": "Spesa maggio",
+        "exchange_rate_eur": "1.000000",
+        "deleted_at": null
+      },
+      {
+        "id": "t3",
+        "date": "2026-06-01",
+        "type": "income",
+        "amount": "120.00",
+        "currency": "EUR",
+        "category_id": null,
+        "description": "Giugno",
+        "exchange_rate_eur": "1.000000",
+        "deleted_at": null
+      },
+      {
+        "id": "t4",
+        "date": "2026-06-15",
+        "type": "expense",
+        "amount": "30.00",
+        "currency": "EUR",
+        "category_id": "food",
+        "description": "Cena",
+        "exchange_rate_eur": "1.000000",
+        "deleted_at": null
+      },
+      {
+        "id": "t5",
+        "date": "2026-06-16",
+        "type": "income",
+        "amount": "60.00",
+        "currency": "EUR",
+        "category_id": null,
+        "description": "Bonus futuro",
+        "exchange_rate_eur": "1.000000",
+        "deleted_at": null
+      },
+      {
+        "id": "t6",
+        "date": "2026-06-30",
+        "type": "expense",
+        "amount": "10.00",
+        "currency": "EUR",
+        "category_id": "food",
+        "description": "Spesa futura",
+        "exchange_rate_eur": "1.000000",
+        "deleted_at": null
+      }
+    ],
+    "assets": [
+      {
+        "id": "a-stock",
+        "name": "Azione EUR",
+        "symbol": "EU",
+        "type": "stock",
+        "quantity": "2",
+        "purchase_price": "100.00",
+        "current_price": "120.00",
+        "currency": "EUR",
+        "purchase_date": "2026-06-01",
+        "sold_at": null,
+        "sold_price": null,
+        "notes": ""
+      },
+      {
+        "id": "a-estate",
+        "name": "Immobile",
+        "symbol": null,
+        "type": "real_estate",
+        "quantity": "1",
+        "purchase_price": "50.00",
+        "current_price": "60.00",
+        "currency": "EUR",
+        "purchase_date": "2026-06-01",
+        "sold_at": null,
+        "sold_price": null,
+        "notes": ""
+      },
+      {
+        "id": "a-usd",
+        "name": "Azione USD",
+        "symbol": "US",
+        "type": "stock",
+        "quantity": "1",
+        "purchase_price": "20.00",
+        "current_price": "25.00",
+        "currency": "USD",
+        "purchase_date": "2026-06-01",
+        "sold_at": null,
+        "sold_price": null,
+        "notes": ""
+      },
+      {
+        "id": "a-closed",
+        "name": "Crypto chiusa",
+        "symbol": "OLD",
+        "type": "crypto",
+        "quantity": "1",
+        "purchase_price": "50.00",
+        "current_price": null,
+        "currency": "EUR",
+        "purchase_date": "2026-05-01",
+        "sold_at": "2026-06-10",
+        "sold_price": "40.00",
+        "notes": ""
+      }
+    ],
+    "priceHistory": [
+      {
+        "id": "h1",
+        "asset_id": "a-stock",
+        "recorded_at": "2026-06-08",
+        "price": "110.00"
+      },
+      {
+        "id": "h2",
+        "asset_id": "a-usd",
+        "recorded_at": "2026-06-08",
+        "price": "24.00"
+      },
+      {
+        "id": "h3",
+        "asset_id": "a-estate",
+        "recorded_at": "2026-06-10",
+        "price": "60.00"
+      }
+    ],
+    "snapshots": [
+      {
+        "id": "s0",
+        "date": "2026-06-01",
+        "net_worth": "-50.00",
+        "components": null
+      },
+      {
+        "id": "s1",
+        "date": "2026-06-14",
+        "net_worth": "-40.00",
+        "components": null
+      },
+      {
+        "id": "s2",
+        "date": "2026-06-15",
+        "net_worth": "-39.00",
+        "components": null
+      }
+    ],
+    "recurring": [
+      {
+        "id": "r-month",
+        "name": "Mensile",
+        "amount": "12.50",
+        "currency": "EUR",
+        "category_id": null,
+        "frequency": "monthly",
+        "week_interval": 1,
+        "next_due_date": "2026-01-31",
+        "is_active": true
+      },
+      {
+        "id": "r-week",
+        "name": "Bisettimanale",
+        "amount": "12.50",
+        "currency": "EUR",
+        "category_id": null,
+        "frequency": "weekly",
+        "week_interval": 2,
+        "next_due_date": "2026-06-01",
+        "is_active": true
+      },
+      {
+        "id": "r-paused",
+        "name": "In pausa",
+        "amount": "12.50",
+        "currency": "EUR",
+        "category_id": null,
+        "frequency": "monthly",
+        "week_interval": 1,
+        "next_due_date": "2026-06-15",
+        "is_active": false
+      },
+      {
+        "id": "r-future",
+        "name": "Futura",
+        "amount": "12.50",
+        "currency": "EUR",
+        "category_id": null,
+        "frequency": "monthly",
+        "week_interval": 1,
+        "next_due_date": "2026-07-20",
+        "is_active": true
+      }
+    ],
+    "sharedExpenses": [],
+    "coupleConnection": null,
+    "tcgCards": [],
+    "ignoredRecurringSuggestions": [],
+    "caseIds": [
+      "FIN-01",
+      "FIN-02",
+      "FIN-03",
+      "FIN-04",
+      "FIN-05",
+      "FIN-06",
+      "FIN-07",
+      "FIN-08",
+      "FIN-09"
+    ]
+  },
+  "modules": {
+    "schemaVersion": 1,
+    "reviewMode": "static-source-comparison",
+    "executed": false,
+    "webRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "nativeRevision": "614bdbf",
+    "nativeCoreRevision": "935c7ba",
+    "currentYear": 2026,
+    "cases": [
+      {
+        "id": "fire-standard-baseline",
+        "input": {
+          "currentAge": 30,
+          "retirementAge": 60,
+          "currentSavings": 100000,
+          "annualContribution": 24000,
+          "annualIncome": 60000,
+          "expectedReturn": 0.07,
+          "inflationRate": 0.03,
+          "withdrawalRate": 0.04,
+          "annualExpenses": 48000
+        }
+      },
+      {
+        "id": "fire-barista-baseline",
+        "input": {
+          "currentAge": 35,
+          "retirementAge": 60,
+          "currentSavings": 50000,
+          "annualContribution": 12000,
+          "annualIncome": 60000,
+          "expectedReturn": 0.06,
+          "inflationRate": 0.02,
+          "withdrawalRate": 0.04,
+          "annualExpenses": 36000,
+          "partTimeIncome": 12000
+        }
+      },
+      {
+        "id": "fire-live-draft",
+        "input": {
+          "currentAge": 30,
+          "retirementAge": 55,
+          "currentSavings": 100000,
+          "annualContribution": 24000,
+          "annualIncome": 72000,
+          "expectedReturn": 0.07,
+          "inflationRate": 0.03,
+          "withdrawalRate": 0.04,
+          "expensesSequence": [
+            "30000",
+            "24000",
+            "abc"
+          ],
+          "partTimeIncome": "12000"
+        }
+      },
+      {
+        "id": "fire-zero-return",
+        "input": {
+          "present": 1000,
+          "contributionSequence": [
+            100,
+            0
+          ],
+          "rate": 0,
+          "target": 1300
+        }
+      },
+      {
+        "id": "poker-hourly-weighted",
+        "input": {
+          "deal": 0.55,
+          "rows": [
+            {
+              "minutes": 120,
+              "netWon": 100,
+              "netWonEv": 80
+            },
+            {
+              "minutes": 60,
+              "netWon": -10,
+              "netWonEv": 40
+            }
+          ]
+        }
+      },
+      {
+        "id": "poker-quarter-tie",
+        "input": {
+          "minutes": 60,
+          "netWon": "0.25",
+          "netWonEv": "-0.25",
+          "deal": 0.5
+        }
+      },
+      {
+        "id": "poker-next-cut",
+        "input": {
+          "rows": [
+            {
+              "monthlySpending": 2000,
+              "deal": 0.5,
+              "profitLoss": 1500
+            },
+            {
+              "monthlySpending": 1000,
+              "deal": 0.5,
+              "profitLoss": 2500
+            }
+          ]
+        }
+      },
+      {
+        "id": "poker-median-spending",
+        "input": {
+          "startDate": "2025-01-01",
+          "rows": [
+            {
+              "date": "2026-01-02",
+              "amount": 100,
+              "type": "expense"
+            },
+            {
+              "date": "2026-01-03",
+              "amount": 50,
+              "type": "expense"
+            },
+            {
+              "date": "2026-03-02",
+              "amount": 250,
+              "type": "expense"
+            },
+            {
+              "date": "2026-03-02",
+              "amount": 9999,
+              "type": "income"
+            },
+            {
+              "date": "2023-01-02",
+              "amount": 9999,
+              "type": "expense"
+            }
+          ]
+        }
+      },
+      {
+        "id": "poker-rakeback-years",
+        "input": {
+          "rows": [
+            {
+              "date": "2026-05-01",
+              "rake_generated": 100,
+              "rakeback_received": 25
+            },
+            {
+              "date": "2025-05-01",
+              "rake_generated": 200,
+              "rakeback_received": 60
+            }
+          ]
+        }
+      },
+      {
+        "id": "fumo-core-baseline",
+        "input": {
+          "arrival": "2026-01-01",
+          "finished": "2026-01-11",
+          "quantity": 20,
+          "cost": 50
+        }
+      },
+      {
+        "id": "fumo-liquid-cycle",
+        "input": {
+          "costo": "12.50",
+          "millilitri": 25,
+          "data_arrivo": "2026-06-01",
+          "finishSequence": [
+            "2026-06-11",
+            null,
+            "2026-05-31"
+          ]
+        }
+      },
+      {
+        "id": "fumo-legacy-liquid",
+        "input": {
+          "costo": "12.50",
+          "millilitri": 25,
+          "data_arrivo": "2026-06-01",
+          "data_finito": "2026-06-11",
+          "giorni_durata": 20,
+          "millilitri_al_giorno": "1.25",
+          "euro_al_giorno": "0.625",
+          "costo_mensile": "18.75"
+        }
+      },
+      {
+        "id": "fumo-legacy-open-quantity",
+        "input": {
+          "rows": [
+            {
+              "millilitri": 25,
+              "giorni_durata": 20,
+              "costo": 10
+            },
+            {
+              "millilitri": 15,
+              "giorni_durata": null,
+              "costo": 10
+            }
+          ]
+        }
+      },
+      {
+        "id": "fumo-zero-monthly-placeholder",
+        "input": {
+          "days": 10,
+          "quantityPerDay": null,
+          "euroPerDay": 0,
+          "monthlyCost": 0,
+          "recordCost": 0
+        }
+      },
+      {
+        "id": "tcg-mixed-currency",
+        "input": {
+          "rows": [
+            {
+              "id": "a",
+              "category": "magic",
+              "quantity": 2,
+              "purchase_price": "10",
+              "current_price": "15",
+              "currency": "EUR"
+            },
+            {
+              "id": "b",
+              "category": "pokemon",
+              "quantity": 3,
+              "purchase_price": "5",
+              "current_price": null,
+              "currency": "EUR"
+            },
+            {
+              "id": "c",
+              "category": "yugioh",
+              "quantity": 4,
+              "purchase_price": "2.50",
+              "current_price": "3",
+              "currency": "USD"
+            }
+          ]
+        }
+      },
+      {
+        "id": "tcg-price-unavailable",
+        "input": {
+          "blueprintId": "42",
+          "quantity": 3,
+          "purchase_price": "12.50",
+          "current_price": null,
+          "condition": "near_mint",
+          "language": "EN",
+          "priceServiceStatus": 503
+        }
+      },
+      {
+        "id": "tcg-manual-usd",
+        "input": {
+          "quantity": 2,
+          "purchase_price": "10",
+          "current_price": "12.5",
+          "currency": " usd "
+        }
+      },
+      {
+        "id": "library-null-prices",
+        "input": {
+          "rows": [
+            {
+              "id": "a",
+              "category": "libri",
+              "quantity": 2,
+              "purchase_price": null,
+              "reselling_value": "6"
+            },
+            {
+              "id": "b",
+              "category": "fumetti",
+              "quantity": 3,
+              "purchase_price": "4.50",
+              "reselling_value": null
+            },
+            {
+              "id": "c",
+              "category": "manga",
+              "quantity": 1,
+              "purchase_price": "10",
+              "reselling_value": "12"
+            }
+          ]
+        }
+      },
+      {
+        "id": "manga-cover-volume",
+        "input": {
+          "title": "Serie copertina",
+          "quantity": 2,
+          "volumes": [
+            1,
+            2
+          ],
+          "cover_image": "http://localhost:8443/cover.png",
+          "api_id": "manga-api-42",
+          "author": null,
+          "publisher": null,
+          "year": null,
+          "notes": null,
+          "purchase_price": null,
+          "reselling_value": null
+        }
+      },
+      {
+        "id": "csv-revolut-original-usd",
+        "input": {
+          "format": "REVOLUT",
+          "csv": "Type,State,Completed Date,Description,Amount,Currency\nCard Payment,COMPLETED,2026-10-10 17:13:00,Pranzo,-12.505,USD\nCard Payment,PENDING,2026-10-10,Pending,-2,EUR\nTransfer,COMPLETED,2026-10-10,Transfer,100,EUR",
+          "explicitRateEur": "0.91"
+        }
+      },
+      {
+        "id": "bank-isin-position",
+        "input": {
+          "format": "BANK",
+          "csv": "Data;Tipo;Nota;Uscita\n12/10/2026;Buy Trade IE00BK5BQT80 Vanguard All-World;Acquisto;123,45",
+          "mapping": {
+            "isin": "IE00BK5BQT80",
+            "symbol": "vwce",
+            "name": "Vanguard All-World",
+            "assetType": "etf"
+          },
+          "existingAssets": []
+        }
+      },
+      {
+        "id": "bank-category-rewrite",
+        "input": {
+          "description": "PAGAMENTO Supermercato Roma",
+          "type": "expense",
+          "keyword": " Supermercato ",
+          "note": " spesa famiglia ",
+          "mappings": [
+            {
+              "description": "supermercato",
+              "category": "Stipendio",
+              "categoryType": "income",
+              "source": "shared"
+            },
+            {
+              "description": "supermercato",
+              "category": "Cibo",
+              "categoryType": "expense",
+              "source": "shared"
+            }
+          ]
+        }
+      },
+      {
+        "id": "csv-duplicate-identity",
+        "input": {
+          "description": "Café",
+          "date": "2026-10-10",
+          "rows": [
+            {
+              "amount": "12.50",
+              "currency": "EUR",
+              "type": "expense"
+            },
+            {
+              "amount": "12.500",
+              "currency": "EUR",
+              "type": "expense"
+            },
+            {
+              "amount": "12.50",
+              "currency": "USD",
+              "type": "expense"
+            },
+            {
+              "amount": "12.50",
+              "currency": "EUR",
+              "type": "income"
+            }
+          ]
+        }
+      },
+      {
+        "id": "csv-roundtrip-transaction",
+        "input": {
+          "rows": [
+            {
+              "entity": "transactions",
+              "date": "2026-10-12",
+              "description": "Shop - Famiglia, €\n\"nota\"",
+              "amount": "12.50",
+              "currency": "EUR",
+              "type": "expense",
+              "category_id": "owned-category",
+              "exchange_rate_eur": "1",
+              "notes": null
+            },
+            {
+              "entity": "categories",
+              "name": "Owned category",
+              "type": "expense"
+            }
+          ]
+        }
+      },
+      {
+        "id": "export-owner-snapshot",
+        "input": {
+          "ownedEntities": [
+            "transactions",
+            "couple_connections",
+            "shared_expenses",
+            "couple_budgets"
+          ],
+          "rowsPerEntity": 1,
+          "connectionId": "38000000-0000-4000-8000-000000000002",
+          "sessionScenario": "same UID, new auth session before save"
+        }
+      },
+      {
+        "id": "bank2csv-external",
+        "input": {
+          "url": "https://bank.savely.cc",
+          "action": "external browser only",
+          "networkExecuted": false
+        }
+      }
+    ],
+    "report": "docs/STATIC_DATASET_MODULE_REVIEW.md",
+    "baselineOracleClock": "2026-10-11T12:00:00Z"
+  },
+  "account": {
+    "schemaVersion": 1,
+    "scope": "account-security-admin-couple",
+    "references": {
+      "web": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+      "androidProduction": "935c7ba",
+      "androidDocumentation": "614bdbf"
+    },
+    "clock": "2026-06-15T12:00:00+02:00",
+    "timezone": "Europe/Rome",
+    "languages": [
+      "it",
+      "en"
+    ],
+    "actors": {
+      "A": {
+        "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "name": "Profilo sintetico A",
+        "coupleCode": "ABCD2345",
+        "permissions": {
+          "admin": false,
+          "poker": true,
+          "fumo": false,
+          "fire": true,
+          "tcg": true,
+          "libreria": false,
+          "couple_expenses": true
+        }
+      },
+      "B": {
+        "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "name": "Profilo sintetico B",
+        "coupleCode": "EFGH6789",
+        "permissions": {
+          "admin": false,
+          "poker": false,
+          "fumo": true,
+          "fire": false,
+          "tcg": true,
+          "libreria": true,
+          "couple_expenses": true
+        }
+      },
+      "Admin": {
+        "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "name": "Profilo sintetico Admin",
+        "permissions": {
+          "admin": true,
+          "poker": false,
+          "fumo": false,
+          "fire": false,
+          "tcg": false,
+          "libreria": false,
+          "couple_expenses": false
+        }
+      }
+    },
+    "sessionMetadata": {
+      "A-original": {
+        "actor": "A",
+        "sessionRef": "SID-A-1",
+        "revision": 20,
+        "aal": "aal1"
+      },
+      "A-rotation": {
+        "actor": "A",
+        "sessionRef": "SID-A-1",
+        "revision": 20,
+        "aal": "aal1"
+      },
+      "A-new-login": {
+        "actor": "A",
+        "sessionRef": "SID-A-2",
+        "revision": 21,
+        "aal": "aal1"
+      },
+      "B-login": {
+        "actor": "B",
+        "sessionRef": "SID-B-1",
+        "revision": 22,
+        "aal": "aal1"
+      }
+    },
+    "resources": {
+      "CONNECTION-A-B": {
+        "userA": "A",
+        "userB": "B",
+        "revokedAt": null
+      },
+      "TX-A-EUR": {
+        "owner": "A",
+        "type": "expense",
+        "amount": "10.01",
+        "currency": "EUR",
+        "date": "2026-06-15",
+        "category": "Casa"
+      },
+      "TX-A-USD": {
+        "owner": "A",
+        "type": "expense",
+        "amount": "7.00",
+        "currency": "USD",
+        "date": "2026-06-15",
+        "category": "Casa"
+      },
+      "SHARE-EQUAL": {
+        "transaction": "TX-A-EUR",
+        "connection": "CONNECTION-A-B",
+        "creator": "A",
+        "mode": "equal"
+      },
+      "SHARE-CUSTOM": {
+        "transaction": "TX-A-USD",
+        "connection": "CONNECTION-A-B",
+        "creator": "A",
+        "mode": "custom",
+        "partnerAmount": "2.01"
+      },
+      "BUDGET-EUR": {
+        "connection": "CONNECTION-A-B",
+        "category": "Casa",
+        "currency": "EUR",
+        "amount": "4.00"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "PERM-BOOL",
+        "variant": "missing-null-string-true",
+        "expectedFromSource": "deny-unless-boolean-true",
+        "observed": null
+      },
+      {
+        "id": "AUTH-REGISTRATION",
+        "variant": "disabled-and-consent-missing",
+        "expectedFromSource": "no-native-signup-submit",
+        "observed": null
+      },
+      {
+        "id": "AUTH-MFA-GATE",
+        "variant": "aal1-verified-factor",
+        "expectedFromSource": "native-profile-not-requested-before-aal2",
+        "observed": null
+      },
+      {
+        "id": "AUTH-MFA-PENDING",
+        "variant": "unverified-factor",
+        "expectedFromSource": "explicit-pending-removal-only",
+        "observed": null
+      },
+      {
+        "id": "AUTH-OWNER",
+        "from": "A-original",
+        "to": "A-new-login",
+        "expectedFromSource": "old-native-actions-rejected",
+        "observed": null
+      },
+      {
+        "id": "AUTH-LATE-FAILURE",
+        "from": "A-original",
+        "to": "B-login",
+        "expectedFromSource": "old-failure-preserves-new-session",
+        "observed": null
+      },
+      {
+        "id": "AUTH-SESSIONS",
+        "variant": "row-id-not-session-id",
+        "expectedFromSource": "revoke-canonical-session-id",
+        "observed": null
+      },
+      {
+        "id": "AUTH-ACCOUNT",
+        "variant": "invalid-password-or-delete-error-body",
+        "expectedFromSource": "no-invalid-write-or-false-local-logout",
+        "observed": null
+      },
+      {
+        "id": "AUTH-CALLBACK",
+        "variant": "state-mismatch-expired-reused-cold-warm",
+        "expectedFromSource": "reject-invalid-link-preserve-unrelated-owner",
+        "observed": null
+      },
+      {
+        "id": "CPL-INVITE",
+        "actor": "A",
+        "receiver": "B",
+        "expectedFromSource": "pending-accept-cancel-reject-owner-filtered",
+        "observed": null
+      },
+      {
+        "id": "CPL-ODD-CENT",
+        "transaction": "TX-A-EUR",
+        "expectedFromSource": {
+          "webPureHelper": [
+            "5.01",
+            "5.00"
+          ],
+          "webEqualNumericPreview": "not-rendered",
+          "sqlViewAndNativeEqual": [
+            "5.01",
+            "5.01"
+          ],
+          "nativeWarningDifference": "0.01",
+          "customPartner5.00": [
+            "5.01",
+            "5.00"
+          ]
+        },
+        "observed": null
+      },
+      {
+        "id": "CPL-MULTICURRENCY",
+        "shares": [
+          "SHARE-EQUAL",
+          "SHARE-CUSTOM"
+        ],
+        "expectedFromSource": {
+          "nativePartnerMedian": {
+            "EUR": "5.01",
+            "USD": "2.01"
+          },
+          "webUnfilteredNumericMedian": "7.02"
+        },
+        "observed": null
+      },
+      {
+        "id": "CPL-REVOKED",
+        "connection": "CONNECTION-A-B",
+        "expectedFromSource": "archive-metadata-visible-shares-budgets-audit-denied",
+        "observed": null
+      },
+      {
+        "id": "ADM-DENY",
+        "actors": [
+          "A",
+          "B"
+        ],
+        "expectedFromSource": "server-403-native-clears-admin-state",
+        "observed": null
+      },
+      {
+        "id": "ADM-MUTATE",
+        "actor": "Admin",
+        "target": "B",
+        "variant": "tcg-false-then-restore",
+        "expectedFromSource": "preserve-other-permissions-owner-bound",
+        "observed": null
+      }
+    ],
+    "policyProof": "not-run-for-this-dataset",
+    "report": "docs/STATIC_DATASET_ACCOUNT_REVIEW.md"
+  },
+  "datasetCasesExecuted": false
+}
