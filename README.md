@@ -1,6 +1,6 @@
 # Savely Android
 
-Ultima revisione statica: [matrice delle verifiche mancanti](docs/STABLE_VERIFICATION_MATRIX.md), 33 verifiche aperte e collegamento ai 50 casi del dataset. Il sorgente `de53ac7` conserva opzioni import e bozza profilo dopo ricreazione; queste due patch non sono state compilate o provate. Nessun nuovo APK, test, build, CI, emulatore o accesso backend in questa attività.
+Ultima revisione statica: [matrice delle verifiche mancanti](docs/STABLE_VERIFICATION_MATRIX.md), 33 verifiche aperte e collegamento ai 50 casi del dataset. Il sorgente `de53ac7` conserva opzioni import e bozza profilo dopo ricreazione; preparati otto nuovi casi Android per verificarlo. Patch e nuove regressioni non sono state compilate o provate. Nessun nuovo APK, esecuzione di test, build, CI, emulatore o accesso backend in questa attività.
 
 App Android nativa di Savely in Kotlin e Jetpack Compose, con account e dati condivisi con il sito.
 

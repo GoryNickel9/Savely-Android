@@ -2,7 +2,9 @@
 
 ## Revisione statica successiva — 12 ottobre 2026
 
-[STABLE_VERIFICATION_MATRIX.md](STABLE_VERIFICATION_MATRIX.md): 33 verifiche aperte, mapping dei 50 casi e regressioni ancora da preparare per SC01/SC02. Il sorgente `de53ac7` modifica lo stato salvabile delle opzioni import e l'inizializzazione della bozza profilo. Nessun test, build, lint, CI, emulatore o backend eseguito; le due patch restano non verificate. I risultati riportati sotto qualificano i loro sorgenti precedenti, non questa revisione.
+[STABLE_VERIFICATION_MATRIX.md](STABLE_VERIFICATION_MATRIX.md): 33 verifiche aperte e mapping dei 50 casi. Il sorgente `de53ac7` modifica lo stato salvabile delle opzioni import e l'inizializzazione della bozza profilo. Preparati successivamente otto nuovi casi Android per SC01/SC02, senza esecuzioni. Nessun test, build, lint, CI, emulatore o backend eseguito; le due patch restano non verificate. I risultati riportati sotto qualificano i loro sorgenti precedenti, non questa revisione.
+
+Alla ripresa compilare ed eseguire prima `cc.savely.android.transfer.TransferDocumentScreenTest` e `cc.savely.android.ui.SettingsProfileRecreationTest`. La prima classe aggiunge tre casi con risultato picker differito e rafforza un assert sulla preview ricreata; la seconda aggiunge cinque casi su bozza, salvataggio esplicito, isolamento dei login e caricamento nullo/fallito. Sono fixture locali con Activity ricreata, non prove di picker reale, process death, email o policy backend. Poi rieseguire le suite complete e lint sullo stesso sorgente, registrando separatamente API 31 e 35. Nessun esito è anticipato.
 
 ## Confronto visuale locale — 12 ottobre 2026
 

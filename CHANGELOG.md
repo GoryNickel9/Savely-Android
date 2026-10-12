@@ -2,6 +2,8 @@
 
 ## In sviluppo dopo la 0.1.9 — 12 ottobre 2026
 
+Preparati otto nuovi casi Android per le patch SC01/SC02: opzioni BANK/USD e NORMALIZED con picker pendente dopo ricreazione, annullamento senza accesso ai dati, bozza profilo e salvataggio esplicito, isolamento fra utenti/login e controlli disabilitati durante caricamento o con profilo nullo/fallito. Rafforzato un caso Transfer esistente. Nessuna nuova modifica alla produzione; casi non compilati e non eseguiti, roadmap e [matrice](docs/STABLE_VERIFICATION_MATRIX.md) aggiornate. Test, build, CI ed emulatore restano rinviati.
+
 Revisione statica successiva, sorgente `de53ac7`: opzioni import conservate con stato salvabile e bozza profilo non sovrascritta dal GET dopo ricreazione. Aggiunta la [matrice delle verifiche mancanti](docs/STABLE_VERIFICATION_MATRIX.md), con 33 verifiche aperte, fonti e mapping dei 50 casi comuni. Le patch non sono compilate o provate; nessun test, build, CI, emulatore, accesso backend o nuova release in questa attività.
 
 Il [confronto osservato Android/web](docs/COMMON_VISUAL_PARITY_REVIEW.md) sul dataset comune registra una nuova esecuzione di 530 test JVM e un run completo di 28/28 test mirati su Android 12/API 31, con 81 PNG nativi e 114 PNG web appaiati. Corretti layout Sicurezza/storico e accesso a Dati con testo grande, tastiera dei grafici e percentuali/scala FIRE; aggiunta la distribuzione TCG per quantità. Lint debug senza errori; risultati circoscritti a fixture locali, senza CI, backend reale o nuova release. Il confronto di tutti i flussi e i gate della stabile restano aperti.

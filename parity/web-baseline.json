@@ -751,6 +751,25 @@
     "apkPublished": false,
     "evidence": "artifacts/visual-parity/native-final-summary.json"
   },
+  "staticRegressionPreparation": {
+    "date": "2026-10-12",
+    "baseRevision": "23f817e",
+    "productionFixSourceCommit": "de53ac70d46ab567766f57298501dbdf5d7fdf55",
+    "status": "prepared-not-compiled-or-executed",
+    "newAndroidTestCases": 8,
+    "existingAndroidCasesStrengthened": 1,
+    "classes": [
+      "cc.savely.android.transfer.TransferDocumentScreenTest",
+      "cc.savely.android.ui.SettingsProfileRecreationTest"
+    ],
+    "testsExecuted": false,
+    "buildExecuted": false,
+    "lintExecuted": false,
+    "ciExecuted": false,
+    "emulatorStarted": false,
+    "backendAccessed": false,
+    "apkPublished": false
+  },
   "staticMissingVerificationReview": {
     "date": "2026-10-12",
     "report": "docs/STABLE_VERIFICATION_MATRIX.md",

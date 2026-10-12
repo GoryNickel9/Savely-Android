@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.app.ActivityOptionsCompat
@@ -59,7 +60,7 @@ import java.util.concurrent.TimeUnit
 /**
  * SAF contracts use a fixture result registry, with actual app-owned MediaStore metadata and streams.
  * No system picker UI, process-death, external backend or API26 storage coverage is claimed.
- * Scoped MediaStore Downloads needs API29+: these six tests intentionally skip only earlier devices.
+ * Scoped MediaStore Downloads needs API29+: these tests intentionally skip only earlier devices.
  */
 @SdkSuppress(minSdkVersion = 29)
 class TransferDocumentScreenTest {
@@ -176,7 +177,10 @@ class TransferDocumentScreenTest {
         compose.activityRule.scenario.recreate()
         scrollRecreatedList(5)
         await("Preview survives real Activity recreation") { compose.onAllNodesWithText("Spesa USD").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(1)
+        assertSelectedFormat(ImportFormat.NORMALIZED)
         compose.onNodeWithText("Conferma importazione").assertDoesNotExist()
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
         compose.onNode(rateField()).performScrollTo().assertTextContains("1.08")
         assertEquals(readsBeforeRecreation, fixture.reads.get())
         assertEquals(0, fixture.posts.get())
@@ -191,6 +195,78 @@ class TransferDocumentScreenTest {
         assertEquals("1.08", row.get("exchange_rate_eur").toString())
         assertEquals(fixture.owner, row.getString("user_id"))
         assertEquals(1, fixture.posts.get())
+    }
+
+    @Test fun bankCurrencyAndFormatSurviveRecreationWhileDocumentResultIsPending() {
+        mount()
+        touch(button(ImportFormat.BANK.label))
+        touch(button("EUR"))
+        touch(button("USD"))
+        val csv = "Data,Descrizione,Importo\n2026-10-11,Spesa banca,-12.50"
+        registry.enqueueDeferred(document("bank.csv", csv.toByteArray(Charsets.UTF_8)))
+        touch(button("Scegli CSV e prepara anteprima"))
+        assertOpenContract(registry.intents.single())
+        assertEquals(0, registry.delivered)
+        assertEquals(0, fixture.reads.get())
+        compose.activityRule.scenario.recreate()
+        scrollRecreatedList(1)
+        assertSelectedFormat(ImportFormat.BANK)
+        compose.onNode(button("USD")).performScrollTo().assertExists()
+        compose.runOnIdle { registry.deliverDeferred() }
+        message("Anteprima pronta. Nessun dato è stato scritto.")
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
+        compose.onNodeWithText("2026-10-11 · 12.50 USD · Uscita").performScrollTo().assertIsDisplayed()
+        compose.onNode(rateField()).performScrollTo().assertExists()
+        assertEquals(1, registry.delivered)
+        assertEquals(0, fixture.posts.get())
+        assertEquals(1, fixture.stored().size)
+
+        compose.activityRule.scenario.recreate()
+        scrollRecreatedList(1)
+        assertSelectedFormat(ImportFormat.BANK)
+        compose.onNode(button("USD")).performScrollTo().assertExists()
+        replaceRate("1.08")
+        openImportConfirmation()
+        touch(button("Annulla"))
+        assertEquals(0, fixture.posts.get())
+        assertEquals(1, fixture.stored().size)
+    }
+
+    @Test fun normalizedFormatSurvivesPendingPickerRecreationWithoutAutomaticImport() {
+        mount()
+        touch(button(ImportFormat.NORMALIZED.label))
+        registry.enqueueDeferred(document("normalized.csv", normalized(
+            "2026-10-11,Spesa picker,12.50,EUR,expense,${fixture.category},1").toByteArray(Charsets.UTF_8)))
+        touch(button("Scegli CSV e prepara anteprima"))
+        compose.activityRule.scenario.recreate()
+        scrollRecreatedList(1)
+        assertSelectedFormat(ImportFormat.NORMALIZED)
+        assertEquals(0, fixture.reads.get())
+        compose.runOnIdle { registry.deliverDeferred() }
+        message("Anteprima pronta. Nessun dato è stato scritto.")
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
+        compose.onNodeWithText("Spesa picker").performScrollTo().assertIsDisplayed()
+        assertEquals(0, fixture.posts.get())
+        assertEquals(1, registry.delivered)
+    }
+
+    @Test fun cancellingPendingPickerAfterRecreationPreservesOptionsWithoutBackendReads() {
+        mount()
+        touch(button(ImportFormat.BANK.label))
+        touch(button("EUR"))
+        touch(button("USD"))
+        registry.enqueueDeferredCancellation()
+        touch(button("Scegli CSV e prepara anteprima"))
+        compose.activityRule.scenario.recreate()
+        scrollRecreatedList(1)
+        compose.runOnIdle { registry.deliverDeferred() }
+        await("Deferred cancellation delivered") { registry.delivered == 1 }
+        assertSelectedFormat(ImportFormat.BANK)
+        compose.onNode(button("USD")).performScrollTo().assertExists()
+        compose.onNodeWithText("Anteprima pronta. Nessun dato è stato scritto.").assertDoesNotExist()
+        assertEquals(0, fixture.reads.get())
+        assertEquals(0, fixture.posts.get())
+        assertEquals(1, fixture.stored().size)
     }
 
     @Test fun commitWith503SurvivesBackgroundAndRecreationThenExplicitReadResolvesWithoutRetry() {
@@ -305,6 +381,10 @@ class TransferDocumentScreenTest {
     }
 
     private fun normalized(vararg rows: String) = "date,description,amount,currency,type,category_id,exchange_rate_eur\n" + rows.joinToString("\n")
+    private fun assertSelectedFormat(format: ImportFormat) {
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)).assertCountEquals(ImportFormat.entries.size)
+            .get(ImportFormat.entries.indexOf(format)).assertIsSelected()
+    }
     private fun button(text: String) = hasText(text, substring = false) and hasClickAction()
     private fun rateField() = hasText("1 USD in EUR", substring = false) and hasSetTextAction()
 
@@ -402,20 +482,36 @@ class TransferDocumentScreenTest {
     }
 
     private class DocumentRegistry(private val context: Context) : ActivityResultRegistry() {
-        data class Result(val code: Int, val uri: Uri?)
+        data class Result(val code: Int, val uri: Uri?, val deferred: Boolean = false)
         val intents = CopyOnWriteArrayList<Intent>()
         private val pending = ConcurrentLinkedQueue<Result>()
+        private var deferredResult: Pair<Int, Result>? = null
         @Volatile var delivered = 0
         fun enqueue(uri: Uri) { pending.add(Result(Activity.RESULT_OK, uri)) }
         fun enqueueCancelled() { pending.add(Result(Activity.RESULT_CANCELED, null)) }
+        fun enqueueDeferred(uri: Uri) { pending.add(Result(Activity.RESULT_OK, uri, deferred = true)) }
+        fun enqueueDeferredCancellation() { pending.add(Result(Activity.RESULT_CANCELED, null, deferred = true)) }
+        fun deliverDeferred() {
+            val (requestCode, result) = checkNotNull(deferredResult) { "No pending document launch" }
+            deferredResult = null
+            deliver(requestCode, result)
+        }
+        private fun deliver(requestCode: Int, result: Result) {
+            dispatchResult(requestCode, result.code, result.uri?.let { Intent().setData(it) })
+            delivered++
+        }
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
             val intent = contract.createIntent(context, input)
             check(intent.action == Intent.ACTION_OPEN_DOCUMENT || intent.action == Intent.ACTION_CREATE_DOCUMENT)
             intents += intent
             val result = checkNotNull(pending.poll()) { "Document result must be explicitly queued by the fixture" }
+            if (result.deferred) {
+                check(deferredResult == null) { "A document launch is already pending" }
+                deferredResult = requestCode to result
+                return
+            }
             Handler(Looper.getMainLooper()).post {
-                dispatchResult(requestCode, result.code, result.uri?.let { Intent().setData(it) })
-                delivered++
+                deliver(requestCode, result)
             }
         }
     }
