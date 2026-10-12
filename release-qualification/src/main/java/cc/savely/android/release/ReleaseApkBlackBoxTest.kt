@@ -30,6 +30,68 @@ class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
+    @Test fun loginDedicatedQaForCouple() {
+        val run = preflight(11)
+        val (user, email) = dedicatedQaAccount()
+        val report = baseReport(run, 11, "couple-login").put("user_id", user)
+        try {
+            report.put("pid", launch())
+            await("LOGIN_FORM_MISSING") { editable(password = false) && editable(password = true) }
+            requireCode(!hasText("Dashboard"), "PREEXISTING_AUTHENTICATED_UI")
+            val credentials = consumeCredentials(run, user, email)
+            report.put("input_consumed", true)
+            setField(password = false, value = credentials.first)
+            setField(password = true, value = credentials.second)
+            hideKeyboardIfShown()
+            clickLabel(setOf("Accedi", "Sign in"), "LOGIN_SUBMIT_MISSING")
+            report.put("login_form_submitted", true)
+            awaitDashboard()
+            report.put("dashboard", true)
+            clickLabel(setOf("Settings", "Impostazioni"), "SETTINGS_NAVIGATION_MISSING")
+            await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
+            requireEmail(email)
+            awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true)
+            clickLabel(setOf("English"), "LANGUAGE_CONTROL_MISSING", scroll = true)
+            await("ENGLISH_NOT_SELECTED") { selected("English") && hasText("Language") }
+            report.put("english_selected", true).put("stage", "passed").put("session_retained_for_couple", true)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+                .put("cleanup_pending", report.optBoolean("login_form_submitted"))
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "couple-login", report) }
+    }
+
+    @Test fun logoutDedicatedQaForCouple() {
+        val run = preflight(11)
+        val (user, email) = dedicatedQaAccount()
+        val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
+        requireCode(previous.optString("run_id") == run && previous.optString("user_id") == user &&
+            previous.optString("stage") == "passed" && previous.optBoolean("settings_identity"), "COUPLE_LOGIN_CHECKPOINT_INVALID")
+        val report = baseReport(run, 11, "couple-logout").put("user_id", user)
+        try {
+            report.put("pid", launch())
+            clickLabel(setOf("Settings", "Impostazioni"), "SETTINGS_NAVIGATION_MISSING")
+            await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
+            requireEmail(email)
+            awaitProfileRead()
+            report.put("settings_identity", true)
+            val loggedOut = logoutQa(report, email)
+            report.put("logout_confirmed", loggedOut).put("cleanup_pending", !loggedOut)
+            requireCode(loggedOut, "QA_LOGOUT_NOT_CONFIRMED")
+            report.put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("cleanup_pending", true)
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "couple-logout", report) }
+    }
+
+    private fun dedicatedQaAccount(): Pair<String, String> = when (InstrumentationRegistry.getArguments().getString("releaseQualificationAccount")) {
+        "a" -> QA_USER to QA_EMAIL
+        "b" -> QA_USER_B to QA_EMAIL_B
+        else -> throw IllegalStateException("QA_ACCOUNT_INVALID")
+    }
+
     @Test fun loginFromFormAndPrepareUpgrade() {
         val run = preflight(10)
         val report = baseReport(run, 10, "phase1")
@@ -142,17 +204,17 @@ class ReleaseApkBlackBoxTest {
         return run
     }
 
-    private fun consumeCredentials(run: String): Pair<String, String> {
+    private fun consumeCredentials(run: String, user: String = QA_USER, email: String = QA_EMAIL): Pair<String, String> {
         val input = readJson(INPUT, 8_192)
         requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "email", "password") &&
-            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("email") == QA_EMAIL,
+            input.optString("run_id") == run && input.optString("user_id") == user && input.optString("email") == email,
             "INPUT_OWNER_INVALID")
         requireCode(input.get("password") is String, "INPUT_PASSWORD_INVALID")
         val password = input.getString("password")
         requireCode(password.length in 40..256 && password.none { it.isISOControl() }, "INPUT_PASSWORD_INVALID")
         val inputFile = privateFile(INPUT)
         requireCode(inputFile.delete() && !inputFile.exists(), "INPUT_CONSUMPTION_FAILED")
-        return QA_EMAIL to password
+        return email to password
     }
 
     private fun launch(): Int {
@@ -204,8 +266,10 @@ class ReleaseApkBlackBoxTest {
 
     private fun requireQaEmail(scroll: Boolean = false) {
         if (scroll) scrollAccountToTop()
-        await("QA_IDENTITY_MISSING") { hasText(QA_EMAIL) }
+        requireEmail(QA_EMAIL)
     }
+
+    private fun requireEmail(email: String) = await("QA_IDENTITY_MISSING") { hasText(email) }
 
     private fun scrollAccountToTop() {
         repeat(12) {
@@ -234,11 +298,11 @@ class ReleaseApkBlackBoxTest {
         exists { label(it, setOf("Salva profilo", "Save profile")) && it.isEnabled && visible(it) }
     }
 
-    private fun logoutQa(report: JSONObject): Boolean = runCatching {
+    private fun logoutQa(report: JSONObject, email: String = QA_EMAIL): Boolean = runCatching {
         // Both phases stay on Account after identity confirmation; preferences may scroll Profile away.
         scrollAccountToTop()
         requireCode(hasProfileContent(), "QA_ACCOUNT_CONTENT_MISSING")
-        requireQaEmail()
+        requireEmail(email)
         clickLabel(setOf("Sign out of your account", "Esci dall’account"), "QA_LOGOUT_CONTROL_MISSING", scroll = true)
         await("QA_LOGOUT_NOT_CONFIRMED") { editable(password = false) && editable(password = true) && !hasText("Dashboard") }
         true
@@ -488,5 +552,7 @@ class ReleaseApkBlackBoxTest {
         private const val INPUT = "release-qualification-input.json"
         private const val QA_USER = "d46cee52-3d3b-45ae-9bc3-c95931a82339"
         private const val QA_EMAIL = "android-qa-5ef2838c-a@example.invalid"
+        private const val QA_USER_B = "ed79c6ec-5265-4b8b-9f50-4fc1f296bc5b"
+        private const val QA_EMAIL_B = "android-qa-5ef2838c-b@example.invalid"
     }
 }

@@ -7,6 +7,7 @@ import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
 import cc.savely.android.data.SupabaseApi
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -23,6 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -35,6 +37,7 @@ class CoupleScreenTest {
     private lateinit var server: MockWebServer
     private lateinit var client: OkHttpClient
     private lateinit var api: SupabaseApi
+    private lateinit var store: MemorySessionStore
     private val connected = AtomicBoolean(false)
     private val invited = AtomicBoolean(false)
     private val shared = AtomicBoolean(false)
@@ -46,6 +49,15 @@ class CoupleScreenTest {
     private val archiveReads = AtomicInteger()
     private val privateReads = AtomicInteger()
     private val mutations = AtomicInteger()
+    private val incomingInvitation = AtomicBoolean(false)
+    private val invitationClosed = AtomicBoolean(false)
+    private val invitationPatches = AtomicInteger()
+    private val requestReadsAfterPatch = AtomicInteger()
+    private val invitationPatchBody = AtomicReference("")
+    private val invitationPatchQuery = AtomicReference<Map<String, String?>>(emptyMap())
+    private val newOwnerMutations = AtomicInteger()
+    private val holdInvitationPatch = AtomicBoolean(false)
+    private val releaseInvitationPatch = CountDownLatch(1)
 
     @Before fun setup() {
         val certificate = HeldCertificate.Builder().commonName("Savely Couple fixture")
@@ -53,12 +65,15 @@ class CoupleScreenTest {
         val serverCertificates = HandshakeCertificates.Builder().heldCertificate(certificate).build()
         val trust = HandshakeCertificates.Builder().addTrustedCertificate(certificate.certificate).build()
         client = OkHttpClient.Builder().sslSocketFactory(trust.sslSocketFactory(), trust.trustManager)
-            .retryOnConnectionFailure(false).connectTimeout(5, TimeUnit.SECONDS).readTimeout(5, TimeUnit.SECONDS).build()
+            .retryOnConnectionFailure(false).connectTimeout(5, TimeUnit.SECONDS)
+            // The gated PATCH must outlive its bounded 15-second response gate, not become a transport timeout.
+            .readTimeout(20, TimeUnit.SECONDS).build()
         server = MockWebServer().apply { useHttps(serverCertificates.sslSocketFactory(), false); dispatcher = fixture(); start() }
-        api = SupabaseApi(BackendConfig(server.url("/").toString(), "couple-public-key"),
-            MemorySessionStore(Session("couple-ui-token", "refresh", System.currentTimeMillis() / 1000 + 3600, USER, "couple-ui@example.test")), client)
+        store = MemorySessionStore(Session("couple-ui-token", "refresh", System.currentTimeMillis() / 1000 + 3600, USER, "couple-ui@example.test"))
+        api = SupabaseApi(BackendConfig(server.url("/").toString(), "couple-public-key"), store, client)
     }
     @After fun teardown() {
+        releaseInvitationPatch.countDown()
         server.shutdown(); client.dispatcher.executorService.shutdown(); client.connectionPool.evictAll()
     }
 
@@ -75,6 +90,86 @@ class CoupleScreenTest {
         waitFor("Invito inviato")
         assertEquals(1, lookups.get())
         compose.onNodeWithText("Invita partner").assertIsNotEnabled()
+    }
+
+    @Test fun incomingInvitationRejectUsesReceiverAndPendingCasThenDisappearsAfterRefresh() {
+        incomingInvitation.set(true)
+        finishPendingInvitation("Invito ricevuto", "Rifiuta", "rejected", "receiver_id")
+    }
+
+    @Test fun outgoingInvitationCancelUsesSenderAndPendingCasThenDisappearsAfterRefresh() {
+        invited.set(true)
+        finishPendingInvitation("Invito inviato", "Annulla invito", "cancelled", "sender_id")
+    }
+
+    private fun finishPendingInvitation(title: String, action: String, status: String, ownerColumn: String) {
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        waitFor(title)
+        compose.onNodeWithText(action).performScrollTo().performClick()
+        compose.waitUntil(15_000) {
+            invitationPatches.get() == 1 && requestReadsAfterPatch.get() == 1 &&
+                compose.onAllNodesWithText(title).fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodes(hasText("Aggiorna") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertInvitationPatch(status, ownerColumn)
+        compose.onNodeWithText(title).assertDoesNotExist()
+        compose.onNodeWithText(action).assertDoesNotExist()
+        compose.onNodeWithText("Accetta").assertDoesNotExist()
+        compose.onNodeWithText("Connessione attiva").assertDoesNotExist()
+        assertEquals(1, mutations.get())
+        assertEquals(0, privateReads.get())
+        assertEquals(0, lookups.get())
+        assertEquals(0, sharePosts.get())
+        assertEquals(0, newOwnerMutations.get())
+    }
+
+    @Test fun lateRejectResponseFromOldOwnerClearsStaleInvitationsWithoutWritingAsNewOwner() {
+        incomingInvitation.set(true)
+        holdInvitationPatch.set(true)
+        compose.setContent { SavelyTheme("light") { CoupleScreen(api) } }
+        waitFor("Invito ricevuto")
+        val originalRevision = requireNotNull(api.sessionOwnerRevision())
+        compose.onNodeWithText("Rifiuta").performScrollTo().performClick()
+        compose.waitUntil(15_000) { invitationPatches.get() == 1 }
+        compose.onNodeWithText("Rifiuta").assertIsNotEnabled()
+        compose.onNodeWithText("Accetta").assertIsNotEnabled()
+
+        store.save(Session("couple-new-owner-token", "new-refresh", System.currentTimeMillis() / 1000 + 3600,
+            PARTNER, "couple-new-owner@example.test"))
+        // Observing the replacement through the API advances its revision; changing the store alone does not.
+        assertEquals(PARTNER, runBlocking { api.session() }?.userId)
+        assertNotEquals(originalRevision, api.sessionOwnerRevision())
+        releaseInvitationPatch.countDown()
+
+        waitFor("La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        compose.onNodeWithText("ABCD2345").assertDoesNotExist()
+        compose.onNodeWithText("Invito ricevuto").assertDoesNotExist()
+        compose.onNodeWithText("Invito inviato").assertDoesNotExist()
+        compose.onNodeWithText("Rifiuta").assertDoesNotExist()
+        compose.onNodeWithText("Accetta").assertDoesNotExist()
+        assertEquals(0, requestReadsAfterPatch.get())
+        assertInvitationPatch("rejected", "receiver_id")
+
+        compose.onNodeWithText("Aggiorna").performScrollTo().performClick()
+        waitFor("WXYZ2345")
+        compose.waitUntil(15_000) {
+            compose.onAllNodes(hasText("Aggiorna") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Invito ricevuto").assertDoesNotExist()
+        compose.onNodeWithText("Invito inviato").assertDoesNotExist()
+        assertEquals(PARTNER, store.load()?.userId)
+        assertEquals(1, invitationPatches.get())
+        assertEquals(1, mutations.get())
+        assertEquals(0, newOwnerMutations.get())
+        assertEquals(0, privateReads.get())
+        assertEquals(0, lookups.get())
+        assertEquals(0, sharePosts.get())
+    }
+
+    private fun assertInvitationPatch(status: String, ownerColumn: String) {
+        assertEquals("{\"status\":\"$status\"}", invitationPatchBody.get())
+        assertEquals(mapOf("id" to "eq.$REQUEST", ownerColumn to "eq.$USER", "status" to "eq.pending"),
+            invitationPatchQuery.get())
     }
 
     @Test fun rendersBudgetMedianAndValidatesCustomSplitBeforeSharing() {
@@ -149,20 +244,44 @@ class CoupleScreenTest {
     private fun fixture() = object : Dispatcher() {
         override fun dispatch(request: RecordedRequest): MockResponse {
             if (request.method != "GET") mutations.incrementAndGet()
-            if (request.getHeader("Authorization") != "Bearer couple-ui-token" || request.getHeader("apikey") != "couple-public-key") return json("{}", 401)
+            val newOwner = request.getHeader("Authorization") == "Bearer couple-new-owner-token"
+            if (newOwner && request.method != "GET") newOwnerMutations.incrementAndGet()
+            if ((!newOwner && request.getHeader("Authorization") != "Bearer couple-ui-token") || request.getHeader("apikey") != "couple-public-key") return json("{}", 401)
             val url = request.requestUrl ?: return json("{}", 400)
+            val reader = if (newOwner) PARTNER else USER
             return when (url.encodedPath) {
-                "/rest/v1/profiles" -> json("""[{"couple_code":"ABCD2345","permissions":{"couple_expenses":true}}]""")
-                "/rest/v1/couple_connections" -> if (url.queryParameter("revoked_at") == "not.is.null") {
+                "/rest/v1/profiles" -> if (url.queryParameter("user_id") != "eq.$reader") json("{}", 403)
+                else json("""[{"couple_code":"${if (newOwner) "WXYZ2345" else "ABCD2345"}","permissions":{"couple_expenses":true}}]""")
+                "/rest/v1/couple_connections" -> if (url.queryParameter("or") != "(user_a.eq.$reader,user_b.eq.$reader)") json("{}", 403)
+                else if (url.queryParameter("revoked_at") == "not.is.null") {
                     archiveReads.incrementAndGet()
-                    if (url.queryParameter("or") != "(user_a.eq.$USER,user_b.eq.$USER)") json("{}", 403)
-                    else if (failArchive.get()) json("{}", 503)
+                    if (failArchive.get()) json("{}", 503)
                     else json(if (showArchive.get() && url.queryParameter("id") == null)
                         """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER","created_at":"2025-01-02T12:00:00Z","revoked_at":"2026-02-03T12:00:00Z"}]""" else "[]")
                 } else json(if (connected.get()) """[{"id":"$CONNECTION","user_a":"$USER","user_b":"$PARTNER"}]""" else "[]")
                 "/rest/v1/couple_connection_requests" -> when (request.method) {
                     "POST" -> { invited.set(true); json("""[{"id":"$REQUEST","sender_id":"$USER","receiver_id":"$PARTNER","status":"pending"}]""") }
-                    else -> json(if (invited.get() && url.queryParameter("id") == null) """[{"id":"$REQUEST","sender_id":"$USER","receiver_id":"$PARTNER","status":"pending"}]""" else "[]")
+                    "PATCH" -> {
+                        invitationPatchBody.set(request.body.readUtf8())
+                        invitationPatchQuery.set(url.queryParameterNames.associateWith { url.queryParameter(it) })
+                        invitationPatches.incrementAndGet()
+                        if (holdInvitationPatch.get() && !releaseInvitationPatch.await(15, TimeUnit.SECONDS)) return json("{}", 503)
+                        val incoming = incomingInvitation.get()
+                        val status = if (incoming) "rejected" else "cancelled"
+                        val ownerColumn = if (incoming) "receiver_id" else "sender_id"
+                        if (newOwner || invitationPatchBody.get() != "{\"status\":\"$status\"}" ||
+                            invitationPatchQuery.get() != mapOf("id" to "eq.$REQUEST", ownerColumn to "eq.$USER", "status" to "eq.pending")) return json("{}", 400)
+                        invitationClosed.set(true)
+                        json("""[{"id":"$REQUEST","sender_id":"${if (incoming) PARTNER else USER}","receiver_id":"${if (incoming) USER else PARTNER}","status":"$status"}]""")
+                    }
+                    "GET" -> {
+                        if (invitationClosed.get() && !newOwner) requestReadsAfterPatch.incrementAndGet()
+                        val owner = if (newOwner) PARTNER else USER
+                        if (url.queryParameter("or") != "(sender_id.eq.$owner,receiver_id.eq.$owner)" || url.queryParameter("status") != "eq.pending") json("{}", 403)
+                        else json(if (!newOwner && !invitationClosed.get() && (invited.get() || incomingInvitation.get()) && url.queryParameter("id") == null)
+                            """[{"id":"$REQUEST","sender_id":"${if (incomingInvitation.get()) PARTNER else USER}","receiver_id":"${if (incomingInvitation.get()) USER else PARTNER}","status":"pending"}]""" else "[]")
+                    }
+                    else -> json("{}", 405)
                 }
                 "/rest/v1/rpc/find_user_by_couple_code" -> {
                     lookups.incrementAndGet()
