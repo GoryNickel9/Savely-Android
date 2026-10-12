@@ -67,7 +67,7 @@ class SettingsProfileRecreationTest {
     private var mounted = false
     private val lifecycle = ActivityLifecycleCallback { activity, stage ->
         if (mounted && activity is ComponentActivity && stage == Stage.CREATED) {
-            activity.setContent { FixtureContent() }
+            installContent(activity)
         }
     }
 
@@ -172,7 +172,12 @@ class SettingsProfileRecreationTest {
 
     private fun mount() {
         mounted = true
-        compose.setContent { FixtureContent() }
+        compose.activityRule.scenario.onActivity { installContent(it) }
+    }
+
+    private fun installContent(activity: ComponentActivity) {
+        // The same composition call site keeps rememberSaveable keys stable across recreation.
+        activity.setContent { FixtureContent() }
     }
 
     @Composable private fun FixtureContent() {

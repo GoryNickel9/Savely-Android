@@ -79,7 +79,7 @@ class TransferDocumentScreenTest {
     private val lifecycle = ActivityLifecycleCallback { activity, stage ->
         if (mounted && activity is ComponentActivity && stage == Stage.CREATED) {
             // Reinstall the same production screen in the replacement Activity; its ViewModelStore survives recreation.
-            activity.setContent { FixtureContent() }
+            installContent(activity)
         }
     }
 
@@ -355,8 +355,13 @@ class TransferDocumentScreenTest {
 
     private fun mount() {
         mounted = true
-        compose.setContent { FixtureContent() }
+        compose.activityRule.scenario.onActivity { installContent(it) }
         await("Owner screen loaded") { compose.onAllNodesWithText("Scegli CSV e prepara anteprima").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun installContent(activity: ComponentActivity) {
+        // The same composition call site keeps rememberSaveable keys stable across recreation.
+        activity.setContent { FixtureContent() }
     }
 
     @Composable private fun FixtureContent() {
