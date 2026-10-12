@@ -148,15 +148,24 @@ class TransferExportSessionTest {
                 val model = TransferViewModel(fixture.api).also { models.put("export", it) }
                 model.prepareExport()
                 val ready = withTimeout(10_000) { model.state.first { !it.busy } }
-                val csv = requireNotNull(ready.export).csv
+                val exported = requireNotNull(ready.export)
+                val csv = exported.csv
                 val reads = fixture.requests.size
                 val discards = AtomicInteger()
                 var output = ""
+                var observedNewRevision: Long? = null
                 model.saveExport(discardUnwritten = { discards.incrementAndGet(); ExportDiscardResult.REMOVED }) {
                     output = it
                     fixture.store.save(session(NEW_LOGIN))
+                    // Direct fixture-store edits are observed through session(), unlike production
+                    // sign-in, which updates the API's owner revision as part of saving the login.
+                    val newSession = requireNotNull(fixture.api.session())
+                    assertEquals(OWNER, newSession.userId)
+                    observedNewRevision = fixture.api.sessionOwnerRevision(newSession)
                 }
                 val rejected = withTimeout(10_000) { model.state.first { !it.busy } }
+                assertNotNull(observedNewRevision)
+                assertNotEquals(exported.ownerRevision, observedNewRevision)
                 assertEquals(csv, output)
                 assertEquals(0, discards.get())
                 assertFalse(rejected.message.orEmpty().startsWith("CSV salvato:"))
