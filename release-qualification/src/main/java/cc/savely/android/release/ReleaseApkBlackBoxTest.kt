@@ -339,12 +339,14 @@ class ReleaseApkBlackBoxTest {
     }
 
     @Test fun logoutDedicatedQaForCouple() {
-        val run = preflight(11)
+        val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
+        requireCode(code in setOf(11, 12), "EXPECTED_TARGET_CODE_INVALID")
+        val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
         requireCode(previous.optString("run_id") == run && previous.optString("user_id") == user &&
             previous.optString("stage") == "passed" && previous.optBoolean("settings_identity"), "COUPLE_LOGIN_CHECKPOINT_INVALID")
-        val report = baseReport(run, 11, "couple-logout").put("user_id", user)
+        val report = baseReport(run, code, "couple-logout").put("user_id", user)
         try {
             report.put("pid", launch())
             clickLabel(setOf("Settings", "Impostazioni"), "SETTINGS_NAVIGATION_MISSING")
