@@ -107,9 +107,10 @@ class FireSharingScreenTest {
             runCatching { restored(owner) == expected && FireParameters.decode(diskSnapshot(owner)) == expected }.getOrDefault(false) &&
                 compose.onAllNodesWithText("Importa configurazione FIRE").fetchSemanticsNodes().isEmpty()
         }
-        list().performScrollToIndex(15)
-        compose.onNodeWithText("Obiettivo Barista").assertIsDisplayed()
-        compose.onNodeWithText(NumberFormat.getCurrencyInstance(Locale.ITALY).format(600000.0)).assertIsDisplayed()
+        clearFocus()
+        list().performScrollToNode(hasText("Obiettivo Barista"))
+        compose.onNodeWithText("Obiettivo Barista").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(NumberFormat.getCurrencyInstance(Locale.ITALY).format(600000.0)).performScrollTo().assertIsDisplayed()
         assertStored(expected)
     }
 
