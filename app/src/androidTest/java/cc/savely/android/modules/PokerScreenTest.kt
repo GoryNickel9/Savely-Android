@@ -316,6 +316,7 @@ class PokerScreenTest {
         compose.onNodeWithText("Rake ${euro("200")} · ricevuto ${euro("60")} · 30,0%").assertIsDisplayed()
         list().performScrollToIndex(4)
         compose.onNodeWithText("$MONTH: $month").assertIsDisplayed()
+        scrollVisible(hasText("Percentuale: 25,0%")).assertIsDisplayed()
         scrollVisible(button("Modifica")).assertIsDisplayed()
         compose.onAllNodes(button("Modifica")).assertCountEquals(1)
         compose.onNodeWithText("$MONTH: $previousYear-05").assertDoesNotExist()

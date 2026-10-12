@@ -26,6 +26,8 @@ import cc.savely.android.data.SupabaseApi
 import cc.savely.android.data.PasswordPolicy
 import cc.savely.android.data.authSessionId
 import cc.savely.android.data.revocableSessionId
+import cc.savely.android.data.ApiError
+import cc.savely.android.data.ApiException
 import cc.savely.android.transfer.TransferScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -37,6 +39,14 @@ import java.io.StringReader
 
 @Composable
 fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (String) -> Unit, onSignOut: () -> Unit, onLegal: (String) -> Unit) {
+    key(session.userId, session.authSessionId()) {
+        SettingsContent(api, session, theme, onTheme, onSignOut, onLegal)
+    }
+}
+
+@Composable
+private fun SettingsContent(api: SupabaseApi, session: Session, theme: String, onTheme: (String) -> Unit, onSignOut: () -> Unit, onLegal: (String) -> Unit) {
+    val revision = remember(api, session.userId, session.authSessionId()) { api.sessionOwnerRevision(session) }
     var pane by rememberSaveable { mutableStateOf("account") }
     var profile by remember { mutableStateOf<JSONObject?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -54,17 +64,27 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
         if (busy) return
         busy = true; error = null; message = null
         scope.launch {
-            try { block() }
+            try { requireSettingsOwner(api, revision); block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { error = userMessage(failure) }
+            catch (failure: Exception) {
+                if (failure is ApiException && failure.kind == ApiError.PERMISSION) {
+                    profile = null; deleteDialog = false; deleteConfirmation = ""
+                    password = ""; passwordConfirmation = ""
+                }
+                error = userMessage(failure)
+            }
             finally { busy = false }
         }
     }
     LaunchedEffect(api) {
         run {
-            profile = api.profile()
-            fullName = profile?.optString("full_name")?.takeUnless { it == "null" } ?: ""
-            currency = profile?.optString("default_currency", "EUR") ?: "EUR"
+            val fresh = api.profile(expectedOwner = session.userId, expectedRevision = revision)
+            requireSettingsOwner(api, revision)
+            api.withCurrentSessionOwner(requireNotNull(revision)) {
+                profile = fresh
+                fullName = fresh?.optString("full_name")?.takeUnless { it == "null" } ?: ""
+                currency = fresh?.optString("default_currency", "EUR") ?: "EUR"
+            }
         }
     }
     Column(Modifier.fillMaxSize()) {
@@ -75,7 +95,7 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
         }
         when (pane) {
             "transfer" -> TransferScreen(api, Modifier.weight(1f))
-            "security" -> SecurityPane(api, Modifier.weight(1f), onSignOut)
+            "security" -> SecurityPane(api, session.userId, revision, Modifier.weight(1f))
             else -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(session.email, style = MaterialTheme.typography.titleLarge)
@@ -89,7 +109,8 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
                     listOf("JPY", "CNY", "IDR").forEach { code -> FilterChip(currency == code, { currency = code }, label = { Text(code) }) }
                 }
                 Button({ run {
-                    api.updateProfile(JSONObject().put("full_name", fullName.trim()).put("default_currency", currency))
+                    api.updateProfile(JSONObject().put("full_name", fullName.trim()).put("default_currency", currency),
+                        expectedOwner = session.userId, expectedRevision = revision)
                     message = "Profilo salvato."
                 } }, enabled = !busy && profile != null) { Text(localized("Salva profilo")) }
                 HorizontalDivider()
@@ -105,7 +126,7 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
                 Text(localized("Credenziali"), style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(email, { email = it }, label = { Text(localized("Nuova email")) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth(), enabled = !busy)
-                Button({ run { api.updateAccount(email = email); message = "Controlla le email di conferma prima di usare il nuovo indirizzo." } },
+                Button({ run { api.updateAccount(email = email, expectedOwner = session.userId, expectedRevision = revision); message = "Controlla le email di conferma prima di usare il nuovo indirizzo." } },
                     enabled = !busy && email.isNotBlank() && email != session.email) { Text(localized("Modifica email")) }
                 OutlinedTextField(password, { password = it }, label = { Text(localized("Nuova password")) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -119,7 +140,7 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
                     Text(localized("Le password non coincidono."), color = MaterialTheme.colorScheme.error)
                 Button({ run {
                     require(password == passwordConfirmation) { "Le password non coincidono." }
-                    api.updateAccount(password = password); password = ""; passwordConfirmation = ""; message = "Password aggiornata."
+                    api.updateAccount(password = password, expectedOwner = session.userId, expectedRevision = revision); password = ""; passwordConfirmation = ""; message = "Password aggiornata."
                 } }, enabled = !busy && PasswordPolicy.error(password) == null && passwordConfirmation == password) { Text(localized("Modifica password")) }
                 error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
                 message?.let { Text(localized(it), color = MaterialTheme.colorScheme.primary) }
@@ -142,13 +163,13 @@ fun SettingsScreen(api: SupabaseApi, session: Session, theme: String, onTheme: (
             OutlinedTextField(deleteConfirmation, { deleteConfirmation = it }, label = { Text(localized("Conferma")) }, enabled = !busy)
             error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         } }, confirmButton = {
-            TextButton({ run { api.deleteAccount(); deleteDialog = false; deleteConfirmation = "" } },
+            TextButton({ run { api.deleteAccount(expectedOwner = session.userId, expectedRevision = revision); deleteDialog = false; deleteConfirmation = "" } },
                 enabled = !busy && deleteConfirmation == "ELIMINA") { Text(localized("Elimina account")) }
         }, dismissButton = { TextButton({ deleteDialog = false; deleteConfirmation = "" }, enabled = !busy) { Text(localized("Annulla")) } })
 }
 
 @Composable
-private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> Unit) {
+private fun SecurityPane(api: SupabaseApi, owner: String, revision: Long?, modifier: Modifier) {
     var factors by remember { mutableStateOf(JSONArray()) }
     var sessions by remember { mutableStateOf(JSONArray()) }
     var enrollment by remember { mutableStateOf<JSONObject?>(null) }
@@ -163,17 +184,28 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     suspend fun refresh() {
-        currentSessionId = api.session()?.authSessionId()
-        factors = api.listMfaFactors(includeUnverified = true)
-        sessions = api.rpc("get_active_sessions") as? JSONArray ?: throw IllegalArgumentException("Risposta sessioni non valida.")
+        requireSettingsOwner(api, revision)
+        val sessionId = api.session()?.authSessionId()
+        val freshFactors = api.listMfaFactors(includeUnverified = true, expectedOwner = owner, expectedRevision = revision)
+        val freshSessions = api.rpc("get_active_sessions", expectedOwner = owner, expectedRevision = revision) as? JSONArray
+            ?: throw IllegalArgumentException("Risposta sessioni non valida.")
+        api.withCurrentSessionOwner(requireNotNull(revision)) {
+            currentSessionId = sessionId; factors = freshFactors; sessions = freshSessions
+        }
     }
     fun run(block: suspend () -> Unit) {
         if (busy) return
         busy = true; error = null; message = null
         scope.launch {
-            try { block() }
+            try { requireSettingsOwner(api, revision); block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { error = userMessage(failure) }
+            catch (failure: Exception) {
+                if (failure is ApiException && failure.kind == ApiError.PERMISSION) {
+                    factors = JSONArray(); sessions = JSONArray(); enrollment = null
+                    code = ""; removalCode = ""; confirmation = null; currentSessionId = null
+                }
+                error = userMessage(failure)
+            }
             finally { busy = false }
         }
     }
@@ -182,7 +214,7 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
         Text(localized("Verifica in due passaggi"), style = MaterialTheme.typography.titleLarge)
         if (factors.length() == 0 && enrollment == null) {
             Text(localized("Proteggi l’accesso con un codice della tua app di autenticazione."))
-            Button({ run { enrollment = api.enrollTotp() } }, enabled = !busy) { Text(localized("Configura autenticatore")) }
+            Button({ run { enrollment = api.enrollTotp(expectedOwner = owner, expectedRevision = revision) } }, enabled = !busy) { Text(localized("Configura autenticatore")) }
         }
         enrollment?.let { pending ->
             val totp = pending.getJSONObject("totp")
@@ -195,7 +227,7 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
             }) { Text(localized("Apri autenticatore")) }
             OutlinedTextField(code, { code = it.filter { digit -> digit in '0'..'9' }.take(6) }, label = { Text(localized("Codice a 6 cifre")) }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-            Button({ run { api.verifyTotp(pending.getString("id"), code); enrollment = null; code = ""; refresh(); message = "Autenticatore attivato." } },
+            Button({ run { api.verifyTotp(pending.getString("id"), code, expectedOwner = owner, expectedRevision = revision); enrollment = null; code = ""; refresh(); message = "Autenticatore attivato." } },
                 enabled = !busy && code.length == 6) { Text(localized("Attiva verifica")) }
             TextButton({ error = null; confirmation = "pending-factor" to pending.getString("id") }, enabled = !busy) { Text(localized("Annulla configurazione")) }
         }
@@ -268,8 +300,8 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
                 val submittedCode = removalCode
                 run {
                     try {
-                        api.verifyTotp(id, submittedCode)
-                        api.unenrollTotp(id)
+                        api.verifyTotp(id, submittedCode, expectedOwner = owner, expectedRevision = revision)
+                        api.unenrollTotp(id, expectedOwner = owner, expectedRevision = revision)
                         confirmation = null
                         refresh()
                         message = "Autenticatore rimosso."
@@ -277,7 +309,7 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
                 }
             } else if (kind == "pending-factor") {
                 run {
-                    api.unenrollPendingTotp(id)
+                    api.unenrollPendingTotp(id, expectedOwner = owner, expectedRevision = revision)
                     if (enrollment?.optString("id") == id) { enrollment = null; code = "" }
                     confirmation = null
                     refresh()
@@ -285,7 +317,7 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
                 }
             } else if (kind == "other-sessions") {
                 run {
-                    api.signOutOtherSessions()
+                    api.signOutOtherSessions(expectedOwner = owner, expectedRevision = revision)
                     confirmation = null
                     refresh()
                     message = "Altre sessioni chiuse."
@@ -293,12 +325,20 @@ private fun SecurityPane(api: SupabaseApi, modifier: Modifier, onSignOut: () -> 
             } else {
                 confirmation = null
                 run {
-                    if (api.revokeSession(id)) onSignOut()
-                    else { revokedSessionIds = revokedSessionIds + id; refresh(); message = "Accesso revocato." }
+                    // Revoking this session already clears it and notifies the central UI collector.
+                    // Never issue another logout that could target a replacement login.
+                    if (!api.revokeSession(id, expectedOwner = owner, expectedRevision = revision)) {
+                        revokedSessionIds = revokedSessionIds + id; refresh(); message = "Accesso revocato."
+                    }
                 }
             }
         }, enabled = !busy && (kind != "factor" || removalCode.length == 6)) { Text(localized("Conferma")) } },
         dismissButton = { TextButton({ confirmation = null; removalCode = "" }, enabled = !busy) { Text(localized("Annulla")) } }) }
+}
+
+private fun requireSettingsOwner(api: SupabaseApi, revision: Long?) {
+    if (revision == null || !api.isSessionOwnerCurrent(revision))
+        throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
 }
 
 /** QR payloads contain the TOTP secret: local bytes only, no image caches or external SVG resources. */

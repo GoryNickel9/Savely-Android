@@ -104,7 +104,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
         val owner = api.sessionOwnerRevision(session) ?: return
         val recovery = api.isPasswordRecovery(session)
         // Verified factors require aal2 before any account data is displayed.
-        val factors = api.listMfaFactors()
+        val factors = api.listMfaFactors(expectedOwner = session.userId, expectedRevision = owner)
         if (!api.isSessionOwnerCurrent(owner)) return
         if (factors.length() > 0 && assuranceLevel(session) != "aal2") {
             api.withCurrentSessionOwner(owner) {
@@ -113,7 +113,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
             }
             return
         }
-        val permissions = if (recovery) emptyMap() else api.permissions()
+        val permissions = if (recovery) emptyMap() else api.permissions(expectedOwner = session.userId, expectedRevision = owner)
         // A pane may invalidate the session while this restore is awaiting HTTP.
         api.withCurrentSessionOwner(owner) {
             mutable.value = AppState(initialized = true, busy = mutable.value.busy, session = session, permissions = permissions, recovery = recovery)
@@ -122,14 +122,23 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
 
     private fun runAction(block: suspend () -> Unit) {
         if (mutable.value.busy) return
+        val actionOwner = api.sessionOwnerRevision()
         mutable.value = mutable.value.copy(busy = true, error = null, message = null)
         viewModelScope.launch {
             try { block() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
-                mutable.value = if (error is ApiException && error.kind in setOf(ApiError.AUTHENTICATION, ApiError.STORAGE)) {
-                    AppState(initialized = true, busy = mutable.value.busy, error = userMessage(error))
-                } else mutable.value.copy(initialized = true, error = userMessage(error))
+                if (error is ApiException && error.kind in setOf(ApiError.AUTHENTICATION, ApiError.STORAGE)) {
+                    // Definitive invalidations already clear their own observed login centrally.
+                    // Keep the unsigned error fallback, without clearing a newer successful login.
+                    api.withFailedSessionOwner(actionOwner) {
+                        mutable.value = AppState(initialized = true, busy = mutable.value.busy, error = userMessage(error))
+                    }
+                    // Initial restore can first observe an existing login inside the action.
+                    // Initialize its empty UI on failure without erasing an accepted replacement.
+                    if (!mutable.value.initialized && mutable.value.session == null)
+                        mutable.value = mutable.value.copy(initialized = true, error = userMessage(error))
+                } else mutable.value = mutable.value.copy(initialized = true, error = userMessage(error))
             } finally { mutable.value = mutable.value.copy(busy = false) }
         }
     }

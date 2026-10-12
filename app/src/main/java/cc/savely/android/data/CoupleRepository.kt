@@ -21,6 +21,7 @@ data class CoupleSnapshot(
     val comparisons: List<CoupleBudgetComparison>,
     val medians: Map<String, BigDecimal>,
     val archivedConnections: List<CoupleArchivedConnection> = emptyList(),
+    val ownerRevision: Long? = null,
 )
 
 data class CoupleArchivedConnection(val id: String, val createdAt: Instant, val revokedAt: Instant)
@@ -115,16 +116,15 @@ fun availableCoupleCategories(shares: JSONArray, budgets: JSONArray): List<Strin
 
 class CoupleRepository(private val api: SupabaseApi) {
     suspend fun load(): CoupleSnapshot {
-        val user = userId()
-        val revision = api.sessionOwnerRevision()
-        val profile = api.profile()
+        val (user, revision) = owner()
+        val profile = api.profile(expectedOwner = user, expectedRevision = revision)
         if (SupabaseApi.parsePermissions(profile?.optJSONObject("permissions"))["couple_expenses"] != true) {
             throw ApiException(ApiError.PERMISSION, "Le spese di coppia non sono abilitate per il tuo account.")
         }
-        val connections = api.select("couple_connections", "or=(user_a.eq.$user,user_b.eq.$user)&revoked_at=is.null")
+        val connections = api.select("couple_connections", "or=(user_a.eq.$user,user_b.eq.$user)&revoked_at=is.null", user, revision)
         require(connections.length() <= 1) { "Più connessioni attive: verifica il tuo account." }
         val connection = connections.optJSONObject(0)
-        val requests = pages("couple_connection_requests", "or=(sender_id.eq.$user,receiver_id.eq.$user)&status=eq.pending")
+        val requests = pages("couple_connection_requests", "or=(sender_id.eq.$user,receiver_id.eq.$user)&status=eq.pending", user, revision)
         val shares: JSONArray
         val budgets: JSONArray
         val transactions: JSONArray
@@ -132,9 +132,9 @@ class CoupleRepository(private val api: SupabaseApi) {
             shares = JSONArray(); budgets = JSONArray(); transactions = JSONArray()
         } else {
             val id = uuid(connection.getString("id"))
-            shares = sortedRows(pages("shared_expenses_view", "connection_id=eq.$id"), "date", descending = true)
-            budgets = sortedRows(pages("couple_budgets", "connection_id=eq.$id"), "couple_category_name")
-            transactions = sortedRows(pages("transactions", "user_id=eq.$user&type=eq.expense&deleted_at=is.null"), "date", descending = true)
+            shares = sortedRows(pages("shared_expenses_view", "connection_id=eq.$id", user, revision), "date", descending = true)
+            budgets = sortedRows(pages("couple_budgets", "connection_id=eq.$id", user, revision), "couple_category_name")
+            transactions = sortedRows(pages("transactions", "user_id=eq.$user&type=eq.expense&deleted_at=is.null", user, revision), "date", descending = true)
         }
         val comparisons = (0 until budgets.length()).map { index ->
             val row = budgets.getJSONObject(index)
@@ -148,29 +148,27 @@ class CoupleRepository(private val api: SupabaseApi) {
             .filter { it.isNull("tx_deleted_at") }.map { it.getString("currency") }.distinct().sorted()
         val medians = currencies.associateWith { medianMonthlyCoupleShare(shares, it) }
         // Privacy migrations allow archived connection metadata, not the former partner's expenses or budgets.
-        val archiveRows = pages("couple_connections", "or=(user_a.eq.$user,user_b.eq.$user)&revoked_at=not.is.null")
+        val archiveRows = pages("couple_connections", "or=(user_a.eq.$user,user_b.eq.$user)&revoked_at=not.is.null", user, revision)
         val archived = (0 until archiveRows.length()).map { index ->
             val row = archiveRows.getJSONObject(index)
             require(uuid(row.getString("user_a")) == user || uuid(row.getString("user_b")) == user) { "Connessione archiviata non appartenente all'account." }
             CoupleArchivedConnection(uuid(row.getString("id")), parseBackendInstant(row.getString("created_at")), parseBackendInstant(row.getString("revoked_at")))
         }.sortedWith(compareByDescending<CoupleArchivedConnection> { it.revokedAt }.thenBy { it.id })
-        if (userId() != user || api.sessionOwnerRevision() != revision) {
-            throw ApiException(ApiError.AUTHENTICATION, "Account cambiato durante il caricamento. Accedi nuovamente.")
-        }
+        if (!api.isSessionOwnerCurrent(revision)) throw changedOwner()
         val code = profile?.optString("couple_code")?.takeUnless { it == "null" } ?: ""
-        return CoupleSnapshot(user, code, connection, requests, shares, budgets, transactions, comparisons, medians, archived)
+        return CoupleSnapshot(user, code, connection, requests, shares, budgets, transactions, comparisons, medians, archived, revision)
     }
 
-    suspend fun sendInvitation(rawCode: String) {
+    suspend fun sendInvitation(rawCode: String, expectedOwner: String? = null, expectedRevision: Long? = null) {
         val code = normalizedCoupleCode(rawCode)
-        val sender = userId()
-        val resolved = api.rpc("find_user_by_couple_code", JSONObject().put("p_code", code))
+        val (sender, revision) = owner(expectedOwner, expectedRevision)
+        val resolved = api.rpc("find_user_by_couple_code", JSONObject().put("p_code", code), sender, revision)
         require(resolved is String && resolved.isNotBlank()) { "Nessun utente trovato con questo codice." }
         val receiver = uuid(resolved)
         require(receiver != sender) { "Non puoi invitare te stesso." }
-        val pending = api.select("couple_connection_requests", "select=id&sender_id=eq.$sender&status=eq.pending&limit=1")
+        val pending = api.select("couple_connection_requests", "select=id&sender_id=eq.$sender&status=eq.pending&limit=1", sender, revision)
         require(pending.length() == 0) { "Hai già un invito in attesa. Annullalo prima di inviarne un altro." }
-        api.insert("couple_connection_requests", JSONObject().put("sender_id", sender).put("receiver_id", receiver))
+        api.insert("couple_connection_requests", JSONObject().put("sender_id", sender).put("receiver_id", receiver), sender, revision)
     }
 
     suspend fun shareExpense(connectionId: String, transactionId: String, category: String, customPartner: String? = null,
@@ -201,11 +199,11 @@ class CoupleRepository(private val api: SupabaseApi) {
     }
 
     /** Keyset pagination continues after server-truncated pages. Refuse totals if the dataset exceeds the bound. */
-    private suspend fun pages(table: String, scope: String): JSONArray {
+    private suspend fun pages(table: String, scope: String, owner: String, revision: Long): JSONArray {
         val result = JSONArray()
         var cursor: String? = null
         while (true) {
-            val rows = api.select(table, "select=*&$scope&order=id.asc&limit=500" + (cursor?.let { "&id=gt.$it" } ?: ""))
+            val rows = api.select(table, "select=*&$scope&order=id.asc&limit=500" + (cursor?.let { "&id=gt.$it" } ?: ""), owner, revision)
             if (rows.length() == 0) return result
             for (index in 0 until rows.length()) {
                 val row = rows.getJSONObject(index)
@@ -218,7 +216,15 @@ class CoupleRepository(private val api: SupabaseApi) {
         }
     }
 
-    private suspend fun userId(): String = uuid(api.session()?.userId ?: throw ApiException(ApiError.AUTHENTICATION, "Accedi di nuovo."))
+    private suspend fun owner(expectedOwner: String? = null, expectedRevision: Long? = null): Pair<String, Long> {
+        require((expectedOwner == null) == (expectedRevision == null)) { "Il vincolo della sessione non è completo." }
+        val session = api.session() ?: throw ApiException(ApiError.AUTHENTICATION, "Accedi di nuovo.")
+        val user = uuid(session.userId)
+        val revision = api.sessionOwnerRevision(session) ?: throw changedOwner()
+        if (expectedOwner != null && (expectedOwner != user || expectedRevision != revision)) throw changedOwner()
+        return user to revision
+    }
+    private fun changedOwner() = ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
     private fun uuid(value: String): String {
         require(Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}").matches(value)) { "ID condiviso non valido." }
         return UUID.fromString(value).toString()

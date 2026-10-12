@@ -600,6 +600,7 @@
   },
   "unreleasedQaQualification": {
     "date": "2026-10-12",
+    "sourceCommit": "0714f3974cd29bcdbedada193dde70d5b1553b4a",
     "sourceState": "after-public-0.1.9-not-released",
     "report": "docs/QA_QUALIFICATION.md",
     "provisioningRun": "5ef2838c-ae5b-47d9-ac05-72dc5362b6a9",
@@ -644,5 +645,18 @@
       "google-books-success",
       "final-source-api35-and-physical-device-qualification"
     ]
+  },
+  "staticAudit": {
+    "date": "2026-10-12",
+    "startingAndroidRevision": "0714f3974cd29bcdbedada193dde70d5b1553b4a",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "report": "docs/STATIC_PARITY_AUDIT_2026_10_12.md",
+    "status": "source-reviewed-fixes-unverified",
+    "testsExecuted": false,
+    "buildExecuted": false,
+    "backendAccessed": false,
+    "webModified": false,
+    "inheritsPriorTestResults": false,
+    "apkPublished": false
   }
 }

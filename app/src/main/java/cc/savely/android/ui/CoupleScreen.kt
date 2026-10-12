@@ -31,6 +31,7 @@ fun CoupleScreen(api: SupabaseApi) {
     val repository = remember(api) { CoupleRepository(api) }
     val context = LocalContext.current
     var myId by remember { mutableStateOf("") }
+    var loadedRevision by remember { mutableStateOf<Long?>(null) }
     var myCode by remember { mutableStateOf("") }
     var partnerCode by rememberSaveable { mutableStateOf("") }
     var connection by remember { mutableStateOf<JSONObject?>(null) }
@@ -56,11 +57,20 @@ fun CoupleScreen(api: SupabaseApi) {
     val scope = rememberCoroutineScope()
     suspend fun refresh() {
         val loaded = repository.load()
-        myId = loaded.userId; myCode = loaded.code; connection = loaded.connection
-        requests = loaded.requests; shares = loaded.shares; budgets = loaded.budgets; transactions = loaded.transactions
-        comparisons = loaded.comparisons; medians = loaded.medians
-        archivedConnections = loaded.archivedConnections
-        selectedTransaction = null; editingBudget = null
+        api.withCurrentSessionOwner(requireNotNull(loaded.ownerRevision)) {
+            myId = loaded.userId; loadedRevision = loaded.ownerRevision; myCode = loaded.code; connection = loaded.connection
+            requests = loaded.requests; shares = loaded.shares; budgets = loaded.budgets; transactions = loaded.transactions
+            comparisons = loaded.comparisons; medians = loaded.medians
+            archivedConnections = loaded.archivedConnections
+            selectedTransaction = null; editingBudget = null; confirmation = null
+        }
+    }
+    suspend fun actionOwner(): Pair<String, Long> {
+        val current = api.session()
+        val revision = loadedRevision
+        if (current == null || current.userId != myId || revision == null || api.sessionOwnerRevision(current) != revision)
+            throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
+        return myId to revision
     }
     fun run(block: suspend () -> Unit) {
         if (busy) return
@@ -72,6 +82,8 @@ fun CoupleScreen(api: SupabaseApi) {
                 if (failure is ApiException && failure.kind in setOf(ApiError.AUTHENTICATION, ApiError.PERMISSION)) {
                     connection = null; requests = JSONArray(); shares = JSONArray(); budgets = JSONArray(); transactions = JSONArray()
                     comparisons = emptyList(); medians = emptyMap(); archivedConnections = emptyList(); selectedTransaction = null; editingBudget = null; myId = ""; myCode = ""
+                    loadedRevision = null; confirmation = null; partnerCode = ""; budgetName = ""; budgetAmount = ""
+                    shareCategory = ""; partnerAmount = ""
                 }
                 error = userMessage(failure)
             }
@@ -93,7 +105,8 @@ fun CoupleScreen(api: SupabaseApi) {
             OutlinedTextField(partnerCode, { partnerCode = it }, label = { Text(localized("Codice del partner")) }, singleLine = true,
                 enabled = !busy, modifier = Modifier.fillMaxWidth())
             Button({ run {
-                repository.sendInvitation(partnerCode)
+                val (owner, revision) = actionOwner()
+                repository.sendInvitation(partnerCode, owner, revision)
                 partnerCode = ""; refresh()
             } }, enabled = !busy && myId.isNotBlank() && partnerCode.isNotBlank() && (0 until requests.length()).none { requests.getJSONObject(it).getString("sender_id") == myId }) { Text(localized("Invita partner")) }
         } else {
@@ -106,12 +119,14 @@ fun CoupleScreen(api: SupabaseApi) {
             Text(localized(if (incoming) "Invito ricevuto" else "Invito inviato"), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (incoming) Button({ run {
-                    api.rpc("accept_couple_request", JSONObject().put("p_request_id", request.getString("id"))); refresh()
+                    val (owner, revision) = actionOwner()
+                    api.rpc("accept_couple_request", JSONObject().put("p_request_id", request.getString("id")), owner, revision); refresh()
                 } }, enabled = !busy) { Text(localized("Accetta")) }
                 TextButton({ run {
+                    val (owner, revision) = actionOwner()
                     api.update("couple_connection_requests", request.getString("id"),
                         JSONObject().put("status", if (incoming) "rejected" else "cancelled"),
-                        "${if (incoming) "receiver_id" else "sender_id"}=eq.$myId&status=eq.pending")
+                        "${if (incoming) "receiver_id" else "sender_id"}=eq.$owner&status=eq.pending", owner, revision)
                     refresh()
                 } }, enabled = !busy) { Text(localized(if (incoming) "Rifiuta" else "Annulla invito")) }
             }
@@ -160,13 +175,14 @@ fun CoupleScreen(api: SupabaseApi) {
             OutlinedTextField(budgetAmount, { budgetAmount = it }, label = { Text(localized("Limite mensile {{value0}}", "value0" to (editingBudget?.optString("currency") ?: "EUR"))) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), enabled = !busy, modifier = Modifier.fillMaxWidth())
             Button({ run {
+                val (owner, revision) = actionOwner()
                 val amount = positiveAmount(budgetAmount)
                 val connectionId = connection!!.getString("id")
-                if (editingBudget != null) api.update("couple_budgets", editingBudget!!.getString("id"), JSONObject().put("amount", amount), "connection_id=eq.$connectionId")
+                if (editingBudget != null) api.update("couple_budgets", editingBudget!!.getString("id"), JSONObject().put("amount", amount), "connection_id=eq.$connectionId", owner, revision)
                 else {
                     require(budgetName in availableCategories) { "Scegli una categoria condivisa senza budget." }
                     api.insert("couple_budgets", JSONObject().put("connection_id", connectionId).put("couple_category_name", budgetName)
-                        .put("amount", amount.toPlainString()).put("currency", "EUR").put("month", 1).put("year", 2000).put("created_by", myId))
+                        .put("amount", amount.toPlainString()).put("currency", "EUR").put("month", 1).put("year", 2000).put("created_by", owner), owner, revision)
                 }
                 editingBudget = null; budgetName = ""; budgetAmount = ""; refresh()
             } }, enabled = !busy && budgetName.isNotBlank() && budgetAmount.isNotBlank()) { Text(localized("Salva budget")) }
@@ -206,8 +222,9 @@ fun CoupleScreen(api: SupabaseApi) {
                 if (customSplit && partnerAmount.isNotBlank() && preview.isFailure) Text(localized(preview.exceptionOrNull()?.message ?: "Quota non valida."), color = MaterialTheme.colorScheme.error)
             }
             Button({ run {
+                val (owner, revision) = actionOwner()
                 val tx = selectedTransaction ?: throw IllegalArgumentException("Scegli una transazione.")
-                repository.shareExpense(connection!!.getString("id"), tx.getString("id"), shareCategory, if (customSplit) partnerAmount else null)
+                repository.shareExpense(connection!!.getString("id"), tx.getString("id"), shareCategory, if (customSplit) partnerAmount else null, owner, revision)
                 selectedTransaction = null; partnerAmount = ""; shareCategory = ""; refresh()
             } }, enabled = !busy && selectedTransaction != null) { Text(localized("Condividi spesa")) }
             HorizontalDivider()
@@ -250,15 +267,15 @@ fun CoupleScreen(api: SupabaseApi) {
         title = { Text(localized(when (kind) { "revoke" -> "Revocare la connessione?"; "budget" -> "Eliminare il budget?"; else -> "Rimuovere la condivisione?" })) },
         text = { Text(localized(if (kind == "share") "La transazione originale rimane nel conto di chi l’ha creata." else "Conferma l’operazione sui dati condivisi.")) },
         confirmButton = { TextButton({ confirmation = null; run {
+            val (owner, revision) = actionOwner()
             when (kind) {
                 "revoke" -> {
-                    require(api.session()?.userId == myId) { "Account cambiato. Aggiorna i dati prima di continuare." }
                     api.update("couple_connections", row.getString("id"), JSONObject().put("revoked_at", Instant.now().toString()),
-                        "or=(user_a.eq.$myId,user_b.eq.$myId)&revoked_at=is.null")
+                        "or=(user_a.eq.$owner,user_b.eq.$owner)&revoked_at=is.null", owner, revision)
                 }
-                "budget" -> api.delete("couple_budgets", row.getString("id"), "connection_id=eq.${connection!!.getString("id")}")
-                else -> if (row.getString("created_by") == myId) api.delete("shared_expenses", row.getString("id"), "created_by=eq.$myId")
-                    else api.rpc("delete_shared_expense_by_partner", JSONObject().put("p_id", row.getString("id")))
+                "budget" -> api.delete("couple_budgets", row.getString("id"), "connection_id=eq.${connection!!.getString("id")}", owner, revision)
+                else -> if (row.getString("created_by") == owner) api.delete("shared_expenses", row.getString("id"), "created_by=eq.$owner", owner, revision)
+                    else api.rpc("delete_shared_expense_by_partner", JSONObject().put("p_id", row.getString("id")), owner, revision)
             }
             refresh()
         } }) { Text(localized("Conferma")) } }, dismissButton = { TextButton({ confirmation = null }) { Text(localized("Annulla")) } }) }

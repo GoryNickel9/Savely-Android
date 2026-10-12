@@ -16,7 +16,7 @@ data class ImportContext(
     val existingTransactions: List<JSONObject> = emptyList(), val includesInvestments: Boolean = false,
     val ownerRevision: Long? = null,
 )
-data class ExportData(val csv: String, val counts: Map<String, Int>, val userId: String)
+data class ExportData(val csv: String, val counts: Map<String, Int>, val userId: String, val ownerRevision: Long)
 
 class TransferRepository(private val api: SupabaseApi) {
     suspend fun importContext(includeInvestments: Boolean = false, expectedOwner: String? = null, expectedRevision: Long? = null): ImportContext {
@@ -115,11 +115,13 @@ class TransferRepository(private val api: SupabaseApi) {
     }
 
     suspend fun export(): ExportData {
-        val userId = api.session()?.userId ?: throw TransferException("Accedi prima di esportare.")
+        val snapshot = api.session() ?: throw TransferException("Accedi prima di esportare.")
+        val userId = snapshot.userId
+        val revision = api.sessionOwnerRevision(snapshot) ?: throw TransferException("Account cambiato durante l'export. Riprova.")
         val records = mutableListOf<JSONObject>()
         val counts = linkedMapOf<String, Int>()
         var estimatedBytes = 0L
-        val connections = fetchAll("couple_connections", participantScope("couple_connections", userId))
+        val connections = fetchAll("couple_connections", participantScope("couple_connections", userId), userId, revision)
         connections.forEach { validateExportOwner("couple_connections", it, userId, emptySet()) }
         val connectionIds = connections.map { it.getString("id") }.toSet()
         for (table in USER_TABLES) {
@@ -127,9 +129,9 @@ class TransferRepository(private val api: SupabaseApi) {
             val rows = when (table) {
                 "couple_connections" -> connections
                 "couple_budgets", "shared_expenses" -> connectionIds.chunked(100).flatMap { ids ->
-                    fetchAll(table, "connection_id=in.(${ids.joinToString(",") { encoded(it) }})")
+                    fetchAll(table, "connection_id=in.(${ids.joinToString(",") { encoded(it) }})", userId, revision, connectionIds)
                 }
-                else -> fetchAll(table, participantScope(table, userId))
+                else -> fetchAll(table, participantScope(table, userId), userId, revision)
             }
             counts[table] = rows.size
             for (row in rows) {
@@ -141,15 +143,17 @@ class TransferRepository(private val api: SupabaseApi) {
             }
         }
         // Preserve the current account boundary even if a different login happened during collection.
-        if (api.session()?.userId != userId) throw TransferException("Account cambiato durante l'export. Riprova.")
+        checkAccount(userId, revision)
         if (records.isEmpty()) throw TransferException("Non ci sono dati da esportare.")
         val csv = TransferCsv.serialize(records)
         if (csv.toByteArray(Charsets.UTF_8).size > MAX_EXPORT_BYTES) throw TransferException("L'export supera 25 MiB. Nessun file parziale è stato salvato.")
-        return ExportData(csv, counts, userId)
+        checkAccount(userId, revision)
+        return ExportData(csv, counts, userId, revision)
     }
 
     /** Keyset pagination continues until an empty page, including servers with a lower max_rows. */
-    private suspend fun fetchAll(table: String, scope: String, owner: String? = null, revision: Long? = null): List<JSONObject> {
+    private suspend fun fetchAll(table: String, scope: String, owner: String? = null, revision: Long? = null,
+        connectionIds: Set<String> = emptySet()): List<JSONObject> {
         val records = mutableListOf<JSONObject>()
         var bytes = 0L
         var cursor: String? = null
@@ -157,12 +161,12 @@ class TransferRepository(private val api: SupabaseApi) {
             currentCoroutineContext().ensureActive()
             if (owner != null) checkAccount(owner, revision)
             val query = "select=*&order=id.asc&limit=500&$scope" + (cursor?.let { "&id=gt.${encoded(it)}" } ?: "")
-            val page = api.select(table, query)
+            val page = api.select(table, query, expectedOwner = owner, expectedRevision = revision)
             if (owner != null) checkAccount(owner, revision)
             if (page.length() == 0) return records
             for (index in 0 until page.length()) {
                 val row = page.optJSONObject(index) ?: throw TransferException("Risposta export non valida per $table.")
-                if (owner != null) validateExportOwner(table, row, owner, emptySet())
+                if (owner != null) validateExportOwner(table, row, owner, connectionIds)
                 val id = row.optString("id")
                 if (!SAFE_ID.matches(id) || (cursor != null && id <= cursor!!)) throw TransferException("Paginazione non valida per $table; export interrotto.")
                 cursor = id

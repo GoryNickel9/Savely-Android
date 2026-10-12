@@ -160,7 +160,7 @@ class CoupleRepositoryTest {
             }
         }
         try { repository.load(); fail("Expected account-switch rejection") }
-        catch (error: ApiException) { assertEquals(ApiError.AUTHENTICATION, error.kind) }
+        catch (error: ApiException) { assertEquals(ApiError.PERMISSION, error.kind) }
     }
 
     @Test fun disabledPermissionStopsBeforeReadingCoupleData() = runBlocking {

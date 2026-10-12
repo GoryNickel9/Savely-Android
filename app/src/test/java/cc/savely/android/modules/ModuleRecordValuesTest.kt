@@ -6,6 +6,26 @@ import org.junit.Test
 import java.time.LocalDate
 
 class ModuleRecordValuesTest {
+    @Test fun cardTraderEuroPriceNeverOverwritesDeclaredForeignUnitsOrManualPrices() {
+        val usd = JSONObject().put("currency", " usd ").put("purchase_price", 10).put("current_price", 12.5)
+        val before = usd.toString()
+        assertEquals("USD", tcgRecordCurrency(usd))
+        assertFalse(tcgAllowsCardTraderPrice(usd))
+        assertFalse(tcgAllowsCardTraderPrice(JSONObject().put("currency", "GBP")))
+        assertFalse(tcgAllowsCardTraderPrice(JSONObject().put("currency", "")))
+        assertTrue(tcgAllowsCardTraderPrice(JSONObject().put("currency", " eur ")))
+        assertTrue(tcgAllowsCardTraderPrice(JSONObject().put("currency", JSONObject.NULL)))
+        assertTrue(tcgAllowsCardTraderPrice(JSONObject()))
+        assertEquals(before, usd.toString())
+        val overview = collectionOverview(CollectionKind.TCG, "owner", listOf(JSONObject(usd.toString())
+            .put("id", "usd").put("user_id", "owner").put("category", "magic").put("quantity", 2)))
+        val total = overview.currencies.single()
+        assertEquals("USD", total.currency)
+        assertEquals(0, java.math.BigDecimal("20").compareTo(total.investment))
+        assertEquals(0, java.math.BigDecimal("25").compareTo(total.value))
+        assertEquals(0, java.math.BigDecimal("5").compareTo(total.profit))
+    }
+
     @Test fun mangaCoverAcceptsAbsoluteWebUrlsAndPreservesEscapedPathAndQuery() {
         assertEquals("http://example.test/cover%20one.png?v=2#front",
             mangaCoverUrl("  http://example.test/cover%20one.png?v=2#front  "))

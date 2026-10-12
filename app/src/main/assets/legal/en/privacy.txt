@@ -46,21 +46,21 @@ Your data is processed for the following purposes, each with its own legal basis
 
 • Consent (art. 6(a) GDPR): for any optional features that require it. Consent can be withdrawn at any time.
 
-The processing is necessario to provide you with the Service: without account and financial data, Savely cannot work. Refusing to provide them means you cannot sign up or use the app.
+The processing is necessary to provide you with the Service: without account and financial data, Savely cannot work. Refusing to provide them means you cannot sign up or use the app.
 
 4. Data recipients and subprocessors
 
 Your data is processed exclusively by the Data Controller and the following external processors (subprocessors), selected to provide the technical infrastructure of the Service:
 
-• Supabase Inc. — Autenticazione, database (PostgreSQL), storage e funzioni serverless (regione: Unione Europea (Irlanda)). Privacy Notice.
+• Supabase Inc. — Authentication, database (PostgreSQL), storage and serverless functions (region: European Union (Ireland)). Privacy Notice.
 
-• Vercel Inc. — Hosting dell'applicazione web e funzioni serverless (regione: Unione Europea (Dublino)). Privacy Notice.
+• Vercel Inc. — Web application hosting and serverless functions (region: European Union (Dublin)). Privacy Notice.
 
 Your data is not sold, transferred to third parties for commercial purposes, or used for profiling or advertising.
 
 5. Transfer of data outside the EU
 
-L'infrastruttura del Servizio risiede nell'Unione Europea: il database è ospitato in Irlanda (Supabase) e l'applicazione è distribuita dalla regione di Dublino (Vercel). Non sono previsti trasferimenti intenzionali dei dati fuori dallo Spazio Economico Europeo; qualora in futuro fossero necessari trasferimenti tecnici extra-UE, avverrebbero con le garanzie adeguate previste dal GDPR (es. clausole contrattuali tipo approvate dalla Commissione Europea) e unicamente per le finalità tecniche necessarie.
+The Service's infrastructure is located in the European Union: the database is hosted in Ireland (Supabase) and the application is deployed from the Dublin region (Vercel). No intentional transfers of data outside the European Economic Area are planned. If technical transfers outside the EU become necessary in the future, they will use the appropriate safeguards required by the GDPR (e.g. standard contractual clauses approved by the European Commission) and solely for the necessary technical purposes.
 
 6. Retention period
 

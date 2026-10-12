@@ -2,9 +2,11 @@
 
 ## In sviluppo dopo la 0.1.9 — 12 ottobre 2026
 
+Audit statico Android/web: bloccate nuove scritture dopo elaborazione ricorrenze parziale; vincolate al login iniziale operazioni account/sicurezza/Coppia, export e panoramiche collezioni. CardTrader aggiorna automaticamente soltanto record EUR, con avviso sui prezzi non-EUR precedenti; aggiunta percentuale mensile Rakeback. Completati i frammenti italiani nei documenti EN e aggiornati roadmap e matrice. Correzioni e nuove regressioni **non eseguite né testate**, come richiesto; nessun nuovo APK. Dettagli in [STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md).
+
 Corretto il caricamento dei timestamp PostgREST con offset su Android 12: archivio Coppia e storico dei cambi usano un parser condiviso che conserva la precisione. Le operazioni Admin restano legate al login iniziale anche durante il preflight; il ViewModel conserva lo stato occupato fino al finalizzatore, evitando sovrapposizioni fra ripristino e challenge MFA.
 
-Tre nuovi account QA permettono prove reali di password/TOTP/revoca sessioni, invito/quote/budget/revoca Coppia e diniego/lettura/ripristino permessi Admin. Registrazioni ripristinate disabilitate, credenziali cifrate fuori dalla repo, nessuna email inviata. Passano 514 JVM, 36 test host Python e 132 casi ordinari Android 12 in un singolo run finale. I test ordinari e i limiti dei flussi sono in [QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md); queste modifiche non sono ancora distribuite in un nuovo APK.
+Tre nuovi account QA permettono prove reali di password/TOTP/revoca sessioni, invito/quote/budget/revoca Coppia e diniego/lettura/ripristino permessi Admin. Registrazioni ripristinate disabilitate, credenziali cifrate fuori dalla repo, nessuna email inviata. Sul sorgente precedente `0714f39` passano 514 JVM, 36 test host Python e 132 casi ordinari Android 12 in un singolo run finale. I test ordinari e i limiti dei flussi sono in [QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md); queste modifiche non sono ancora distribuite in un nuovo APK.
 
 ## 0.1.9-alpha — 12 ottobre 2026
 

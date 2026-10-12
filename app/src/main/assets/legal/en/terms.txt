@@ -22,15 +22,15 @@ Savely is a free web application for managing and tracking personal finances. It
 
 3. Informational purpose — not financial advice
 
-Savely non fornisce consulenza finanziaria, fiscale, legale o d'investimento. I calcoli, gli indicatori (es. FIRE, asset allocation) e le statistiche mostrate hanno scopo unicamente informativo e didattico. Non costituiscono raccomandazione personalizzata.
+Savely does not provide financial, tax, legal or investment advice. The calculations, indicators (e.g. FIRE, asset allocation) and statistics shown are solely for information and education. They do not constitute a personalized recommendation.
 
 Financial decisions are your sole responsibility. Consult qualified professionals before making significant decisions.
 
 4. Intellectual property
 
-Il codice sorgente del Servizio è pubblicato come software open source su GitHub: l'utilizzo del codice è disciplinato dalla licenza riportata nel repository, mentre l'utilizzo del Servizio ospitato resta regolato dai presenti Termini.
+The Service's source code is published as open-source software on GitHub. Use of the code is governed by the license in the repository; use of the hosted Service remains governed by these Terms.
 
-I dati che inserisci rimangono di tua proprietà. Marchi, identità visiva e contenuti del sito restano del Titolare, che non ne concede alcun uso salvo quanto previsto dalla licenza del codice.
+The data you enter remains your property. Trademarks, visual identity and site content remain the property of the Data Controller, who grants no permission to use them except as provided by the code license.
 
 5. Account suspension and termination
 

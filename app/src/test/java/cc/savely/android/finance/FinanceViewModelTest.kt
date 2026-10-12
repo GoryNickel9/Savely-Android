@@ -25,6 +25,44 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FinanceViewModelTest {
+    @Test fun `partial recurring processing blocks replay and other writes while refresh still fails`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val api = SupabaseApi(BackendConfig("https://fixture.invalid/", "public-test-key", "https://fixture.invalid/"), MemorySessionStore())
+        val model = FinanceViewModel(FinanceRepository(api), "recurring")
+        var attempts = 0
+        var successes = 0
+        try {
+            val failure = RecurringProcessingException(RecurringProcessingResult(created = 1),
+                "l’aggiornamento della scadenza", IllegalStateException("PATCH reply lost"))
+            model.mutate({ attempts++; throw failure }) { successes++ }
+            runCurrent()
+            assertEquals(1, attempts)
+            assertEquals(0, successes)
+            assertFalse(model.state.value.saving)
+            assertTrue(model.state.value.reconciliationRequired)
+            assertEquals(failure.message, model.state.value.error)
+            model.mutate({ attempts++ }) {}
+            model.processDueRecurring()
+            runCurrent()
+            assertEquals(1, attempts)
+            assertEquals(0, successes)
+            // No session means refresh fails locally, without dispatching any HTTP request.
+            model.refresh()
+            runCurrent()
+            assertFalse(model.state.value.loading)
+            assertNull(model.state.value.updatedAt)
+            assertNotNull(model.state.value.error)
+            assertTrue(model.state.value.reconciliationRequired)
+            model.mutate({ attempts++ }) {}
+            runCurrent()
+            assertEquals(1, attempts)
+        } finally {
+            model.viewModelScope.cancel()
+            api.close()
+            Dispatchers.resetMain()
+        }
+    }
+
     @Test fun `busy guard rejects second submit before coroutine starts and while first waits`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val repository = FinanceRepository(SupabaseApi(BackendConfig("https://fixture.invalid/", "public-test-key", "https://fixture.invalid/"), MemorySessionStore()))

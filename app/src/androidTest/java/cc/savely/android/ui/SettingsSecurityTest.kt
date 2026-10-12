@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cc.savely.android.data.*
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -40,6 +41,7 @@ class SettingsSecurityTest {
     private val passwordBody = AtomicReference("")
     private val signedOut = AtomicBoolean(false)
     private val otherLogouts = AtomicInteger()
+    private val localLogouts = AtomicInteger()
     private val otherLogoutStatus = AtomicInteger(204)
     private val accountDeletes = AtomicInteger()
 
@@ -55,6 +57,7 @@ class SettingsSecurityTest {
         session = Session("header.$payload.signature", "refresh", System.currentTimeMillis() / 1000 + 3600, USER, "account@example.test")
         store = MemorySessionStore(session)
         api = SupabaseApi(BackendConfig(server.url("/").toString(), "account-public-key"), store, client)
+        runBlocking { assertEquals(session, api.session()) } // Match the observed owner before MainShell renders settings.
     }
     @After fun teardown() {
         api.close(); server.shutdown(); client.dispatcher.executorService.shutdown(); client.connectionPool.evictAll()
@@ -67,10 +70,12 @@ class SettingsSecurityTest {
         compose.onNodeWithTag("revoke-session-unavailable-1").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithTag("revoke-session-$SID").performScrollTo().assertIsEnabled().performClick()
         compose.onNodeWithText("Conferma", substring = false).performClick()
-        compose.waitUntil(15_000) { signedOut.get() }
+        compose.waitUntil(15_000) { store.load() == null && api.sessionInvalidation.value != null }
         assertEquals(SID, revokedId.get())
         assertNotEquals(ACTIVITY_ID, revokedId.get())
         assertNull(store.load())
+        assertFalse(signedOut.get())
+        assertEquals(0, localLogouts.get())
     }
 
     @Test fun passwordChangeNeedsPolicyAndConfirmationAndClearsBothFields() {
@@ -168,7 +173,7 @@ class SettingsSecurityTest {
                 otherLogouts.incrementAndGet()
                 val status = otherLogoutStatus.get()
                 json(if (status == 204) "" else "{}", status)
-            } else json("{}", 400)
+            } else { localLogouts.incrementAndGet(); json("{}", 400) }
             "/functions/v1/delete-account" -> if (request.method == "POST" &&
                 request.getHeader("Authorization") == "Bearer ${session.accessToken}" && request.body.readUtf8() == "{}") {
                 accountDeletes.incrementAndGet()

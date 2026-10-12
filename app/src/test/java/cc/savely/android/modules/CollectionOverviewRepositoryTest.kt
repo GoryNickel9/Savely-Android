@@ -28,6 +28,7 @@ class CollectionOverviewRepositoryTest {
     private val rows = mutableListOf<JSONObject>()
     private var failOffset: Int? = null
     private var switchOffset: Int? = null
+    private var reloginOffset: Int? = null
     private var duplicateSecondPage = false
     private var foreignSecondPage = false
 
@@ -49,6 +50,11 @@ class CollectionOverviewRepositoryTest {
                     val offset = url.queryParameter("offset")?.toIntOrNull() ?: return json(403, JSONObject())
                     if (offset == failOffset) return json(503, JSONObject().put("message", "Synthetic second-page failure"))
                     if (offset == switchOffset) store.save(session(FOREIGN_OWNER))
+                    if (offset == reloginOffset) {
+                        val payload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                            JSONObject().put("sub", OWNER).put("session_id", "37000000-0000-4000-8000-000000000003").toString().toByteArray())
+                        store.save(session(OWNER).copy(accessToken = "e30.$payload.fixture", refreshToken = "new-overview-refresh"))
+                    }
                     val selected = rows.drop(offset).take(500).map { JSONObject(it.toString()) }.toMutableList()
                     if (offset == 500 && duplicateSecondPage) selected[0] = JSONObject(rows[0].toString())
                     if (offset == 500 && foreignSecondPage) selected[0].put("user_id", FOREIGN_OWNER)
@@ -90,6 +96,17 @@ class CollectionOverviewRepositoryTest {
         runBlocking {
             assertTrue(runCatching { repository.load(CollectionKind.TCG) }.isFailure)
             assertEquals(2, requests.size)
+        }
+    }
+
+    @Test fun sameOwnerWithNewLoginRejectsTheWholeSnapshotAndStopsBeforeNextPage() {
+        reloginOffset = 500
+        runBlocking {
+            val before = rows.map(JSONObject::toString)
+            assertTrue(runCatching { repository.load(CollectionKind.TCG) }.isFailure)
+            assertEquals(listOf("0", "500"), requests.map { it.requestUrl!!.queryParameter("offset") })
+            assertTrue(requests.all { it.method == "GET" })
+            assertEquals(before, rows.map(JSONObject::toString))
         }
     }
 

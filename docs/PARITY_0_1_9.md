@@ -12,6 +12,8 @@ Riferimento: Savely web `1cfcf6297e85d56bfafe3522362ceecef6f6b281`. La 0.1.9-alp
 
 CSV è il formato supportato dal web. XLS/XLSX, ripristino globale dell'account e convertitore PDF nativo non sono lacune di parità: la precedente indicazione era errata. Il convertitore Bank è un prodotto distinto, aperto nel browser anche dal sito.
 
+L'[audit statico successivo](STATIC_PARITY_AUDIT_2026_10_12.md) corregge ulteriori problemi di sessione, elaborazione parziale, valuta TCG e presentazione. Queste modifiche sono da verificare: nessun test o build eseguito durante l'audit, nessuna nuova release. Le prove storiche restano associate ai rispettivi sorgenti.
+
 ## Verifiche locali
 
 I risultati definitivi, i log delle esecuzioni fallite e i limiti delle fixture sono registrati in [TESTING.md](TESTING.md). Build, test, lint e firma vengono eseguiti sul computer locale; nessuna CI GitHub. Le fixture HTTP/TLS usano dati sintetici e verificano il client. Non dimostrano da sole che email, ruoli e policy del servizio remoto funzionino come previsto.

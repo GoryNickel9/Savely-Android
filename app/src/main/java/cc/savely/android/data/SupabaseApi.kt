@@ -259,8 +259,9 @@ class SupabaseApi(
     }
 
     /** Revoke other devices without clearing this device or retrying an ambiguous logout request. */
-    suspend fun signOutOtherSessions() = authMutex.withLock {
+    suspend fun signOutOtherSessions(expectedOwner: String? = null, expectedRevision: Long? = null) = authMutex.withLock {
         val saved = load() ?: throw unauthorized()
+        requireOwner(saved, expectedOwner, expectedRevision)
         val current = if (saved.expiresAt <= System.currentTimeMillis() / 1000 + REFRESH_MARGIN_SECONDS) refresh(saved) else saved
         request(endpoint(base, "auth/v1/logout", "scope=others"), "POST", JSONObject(), current.accessToken)
         if (!sameAccountSession(current, load())) {
@@ -269,8 +270,9 @@ class SupabaseApi(
     }
 
     /** Clear only the caller's local session after the Edge Function explicitly confirms deletion. */
-    suspend fun deleteAccount(): Boolean = authMutex.withLock {
+    suspend fun deleteAccount(expectedOwner: String? = null, expectedRevision: Long? = null): Boolean = authMutex.withLock {
         val saved = load() ?: throw unauthorized()
+        requireOwner(saved, expectedOwner, expectedRevision)
         val current = if (saved.expiresAt <= System.currentTimeMillis() / 1000 + REFRESH_MARGIN_SECONDS) refresh(saved) else saved
         val result = objectValue(request(endpoint(base, "functions/v1/delete-account"), "POST", JSONObject(), current.accessToken))
         if (result.has("error") && !result.isNull("error")) {
@@ -301,9 +303,9 @@ class SupabaseApi(
         else refresh(saved)
     }
 
-    suspend fun select(table: String, query: String = ""): JSONArray {
+    suspend fun select(table: String, query: String = "", expectedOwner: String? = null, expectedRevision: Long? = null): JSONArray {
         identifier(table)
-        return arrayValue(authorized(endpoint(base, "rest/v1/$table", query)))
+        return arrayValue(authorized(endpoint(base, "rest/v1/$table", query), expectedOwner = expectedOwner, expectedRevision = expectedRevision))
     }
 
     suspend fun insert(table: String, body: JSONObject, expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject {
@@ -339,29 +341,35 @@ class SupabaseApi(
             expectedOwner = expectedOwner, expectedRevision = expectedRevision)
     }
 
-    suspend fun profile(): JSONObject? {
+    suspend fun profile(expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject? {
         val current = requireSession()
+        val revision = requireOwner(current, expectedOwner, expectedRevision)
         val url = endpoint(base, "rest/v1/profiles").newBuilder()
             .addQueryParameter("select", "*").addQueryParameter("user_id", "eq.${current.userId}").build()
-        val rows = arrayValue(authorized(url))
+        val rows = arrayValue(authorized(url, expectedOwner = current.userId, expectedRevision = revision))
         if (rows.length() > 1) throw ApiException(ApiError.RESPONSE, "Il profilo contiene dati incoerenti.")
         return rows.optJSONObject(0)
     }
 
-    suspend fun permissions(): Map<String, Boolean> = parsePermissions(profile()?.optJSONObject("permissions"))
+    suspend fun permissions(expectedOwner: String? = null, expectedRevision: Long? = null): Map<String, Boolean> =
+        parsePermissions(profile(expectedOwner, expectedRevision)?.optJSONObject("permissions"))
 
     suspend fun registrationsEnabled(): Boolean = publicRpc("get_registrations_enabled", JSONObject()) as? Boolean ?: throw responseError()
 
-    suspend fun updateProfile(body: JSONObject): JSONObject {
+    suspend fun updateProfile(body: JSONObject, expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject {
         val current = requireSession()
+        val revision = requireOwner(current, expectedOwner, expectedRevision)
         val url = endpoint(base, "rest/v1/profiles").newBuilder()
             .addQueryParameter("user_id", "eq.${current.userId}").build()
-        return singleRow(authorized(url, "PATCH", body, representation = true))
+        return singleRow(authorized(url, "PATCH", body, representation = true,
+            expectedOwner = current.userId, expectedRevision = revision))
     }
 
-    suspend fun updateAccount(email: String? = null, password: String? = null): JSONObject = authMutex.withLock {
+    suspend fun updateAccount(email: String? = null, password: String? = null,
+        expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject = authMutex.withLock {
         password?.let(PasswordPolicy::validate)
         val saved = load() ?: throw unauthorized()
+        requireOwner(saved, expectedOwner, expectedRevision)
         val current = if (saved.expiresAt <= System.currentTimeMillis() / 1000 + REFRESH_MARGIN_SECONDS) refresh(saved) else saved
         val body = JSONObject()
         email?.let { validateEmail(it); body.put("email", it.trim()) }
@@ -375,12 +383,14 @@ class SupabaseApi(
     }
 
     /** Returns true only when this revocation also clears the currently stored session. */
-    suspend fun revokeSession(sessionId: String): Boolean {
+    suspend fun revokeSession(sessionId: String, expectedOwner: String? = null, expectedRevision: Long? = null): Boolean {
         val id = canonicalAuthSessionId(sessionId) ?: throw ApiException(ApiError.VALIDATION, "ID della sessione non valido.")
-        rpc("delete_session", JSONObject().put("p_session_id", id))
+        val current = requireSession()
+        val revision = requireOwner(current, expectedOwner, expectedRevision)
+        rpc("delete_session", JSONObject().put("p_session_id", id), expectedOwner = current.userId, expectedRevision = revision)
         return authMutex.withLock {
             val saved = load()
-            if (saved?.authSessionId() == id) {
+            if (sameAccountSession(current, saved) && isSessionOwnerCurrent(revision) && saved?.authSessionId() == id) {
                 cancelPendingAudit()
                 clearStoredSession()
                 true
@@ -453,8 +463,9 @@ class SupabaseApi(
     }
 
     // Access gates only need verified factors; settings also need unfinished enrollments.
-    suspend fun listMfaFactors(includeUnverified: Boolean = false): JSONArray {
-        val user = objectValue(authorized(endpoint(base, "auth/v1/user")))
+    suspend fun listMfaFactors(includeUnverified: Boolean = false,
+        expectedOwner: String? = null, expectedRevision: Long? = null): JSONArray {
+        val user = objectValue(authorized(endpoint(base, "auth/v1/user"), expectedOwner = expectedOwner, expectedRevision = expectedRevision))
         val factors = user.optJSONArray("factors") ?: JSONArray()
         return JSONArray().apply {
             for (index in 0 until factors.length()) {
@@ -466,14 +477,17 @@ class SupabaseApi(
         }
     }
 
-    suspend fun enrollTotp(): JSONObject = objectValue(authorized(endpoint(base, "auth/v1/factors"), "POST",
-        JSONObject().put("factor_type", "totp").put("friendly_name", "Savely Android")))
+    suspend fun enrollTotp(expectedOwner: String? = null, expectedRevision: Long? = null): JSONObject = objectValue(authorized(endpoint(base, "auth/v1/factors"), "POST",
+        JSONObject().put("factor_type", "totp").put("friendly_name", "Savely Android"),
+        expectedOwner = expectedOwner, expectedRevision = expectedRevision))
 
-    suspend fun verifyTotp(factorId: String, code: String): Session = authMutex.withLock {
+    suspend fun verifyTotp(factorId: String, code: String,
+        expectedOwner: String? = null, expectedRevision: Long? = null): Session = authMutex.withLock {
         validateId(factorId)
         val cleaned = code.replace(Regex("[\\s-]"), "")
         if (!Regex("[0-9]{6}").matches(cleaned)) throw ApiException(ApiError.VALIDATION, "Il codice deve essere di 6 cifre.")
         val saved = load() ?: throw unauthorized()
+        requireOwner(saved, expectedOwner, expectedRevision)
         val current = if (saved.expiresAt <= System.currentTimeMillis() / 1000 + REFRESH_MARGIN_SECONDS) refresh(saved) else saved
         val challenge = objectValue(request(endpoint(base, "auth/v1/factors/$factorId/challenge"), "POST", JSONObject(), current.accessToken))
         val challengeId = challenge.optString("id")
@@ -483,20 +497,22 @@ class SupabaseApi(
         parseSession(verified).also { store(it) }
     }
 
-    suspend fun unenrollTotp(factorId: String) {
+    suspend fun unenrollTotp(factorId: String, expectedOwner: String? = null, expectedRevision: Long? = null) {
         validateId(factorId)
-        authorized(endpoint(base, "auth/v1/factors/$factorId"), "DELETE")
+        authorized(endpoint(base, "auth/v1/factors/$factorId"), "DELETE", expectedOwner = expectedOwner, expectedRevision = expectedRevision)
     }
 
-    suspend fun unenrollPendingTotp(factorId: String) {
+    suspend fun unenrollPendingTotp(factorId: String, expectedOwner: String? = null, expectedRevision: Long? = null) {
         validateId(factorId)
-        val factors = listMfaFactors(includeUnverified = true)
+        val current = requireSession()
+        val revision = requireOwner(current, expectedOwner, expectedRevision)
+        val factors = listMfaFactors(includeUnverified = true, expectedOwner = current.userId, expectedRevision = revision)
         val pending = (0 until factors.length()).map { factors.getJSONObject(it) }
             .firstOrNull { it.optString("id") == factorId }
         if (pending?.optString("status") != "unverified") {
             throw ApiException(ApiError.VALIDATION, "La configurazione non è più incompleta. Aggiorna sicurezza prima di continuare.")
         }
-        unenrollTotp(factorId)
+        unenrollTotp(factorId, expectedOwner = current.userId, expectedRevision = revision)
     }
 
     private suspend fun publicRpc(name: String, body: JSONObject): Any = request(endpoint(base, "rest/v1/rpc/$name"), "POST", body, config.anonKey)
@@ -552,6 +568,14 @@ class SupabaseApi(
 
     private fun changedOwner() = ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
 
+    private fun requireOwner(session: Session, expectedOwner: String? = null, expectedRevision: Long? = null): Long {
+        if ((expectedOwner == null) != (expectedRevision == null))
+            throw ApiException(ApiError.VALIDATION, "Il vincolo della sessione non è completo.")
+        val revision = sessionOwnerRevision(session) ?: throw changedOwner()
+        if (expectedOwner != null && (expectedOwner != session.userId || expectedRevision != revision)) throw changedOwner()
+        return revision
+    }
+
     private suspend fun requireSession(): Session = session() ?: throw unauthorized()
 
     private suspend fun refresh(saved: Session): Session {
@@ -585,6 +609,11 @@ class SupabaseApi(
     }
     internal fun withCurrentSessionInvalidation(event: SessionInvalidation, update: () -> Unit): Unit = synchronized(sessionStateLock) {
         if (isSessionInvalidationCurrent(event)) update()
+    }
+
+    /** A delayed failed action cannot erase a replacement login between the check and UI update. */
+    internal fun withFailedSessionOwner(revision: Long?, update: () -> Unit): Unit = synchronized(sessionStateLock) {
+        if (!ownerActive || ownerRevision == revision) update()
     }
 
     private fun observeSession(session: Session, newLogin: Boolean = false) = synchronized(sessionStateLock) {

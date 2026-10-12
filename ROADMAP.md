@@ -2,6 +2,8 @@
 
 Data: 12 ottobre 2026. Stato: 0.1.9-alpha pubblicata con APK firmato, 503 JVM e due suite Android complete da 130 casi (API 31 e 35). Il codice successivo corregge timestamp, cambio account Admin e sovrapposizione del recupero MFA; 514 JVM e la suite finale Android 12 da 132 casi passano. Creati tre account QA dopo autorizzazione, con registrazioni ripristinate disabilitate. Accesso nativo con password, TOTP/revoca sessioni, flusso Coppia e lettura/diniego/ripristino permessi Admin hanno prove reali con scope dichiarato in [QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md). Nessuna nuova release pubblica o parità globale deriva automaticamente da questi PASS. La 1.0.0 richiede ancora i gate in [PARITY_0_1_9.md](docs/PARITY_0_1_9.md). I cinque blocchi precedenti conservano l’evidenza storica in docs/ROADMAP_CLOSURE.md.
 
+Audit statico successivo: [STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md). Le nuove correzioni restano **da verificare**: nessun test, build, lint, CI, emulatore o accesso al backend viene eseguito durante questo audit. I PASS sopra appartengono al sorgente precedente `0714f39`, non alle modifiche dell'audit.
+
 ## 1. Risultato richiesto e vincoli
 
 Realizzare un'app Android nativa con tutte le funzioni attualmente disponibili in Savely, account e dati condivisi, APK firmato distribuibile direttamente e schermate utilizzabili senza caricare il sito.
@@ -194,7 +196,7 @@ I percorsi seguenti descrivono il piano. Sono già presenti app, wrapper, contra
 | `app/`, Gradle wrapper e configurazione | Progetto Android e codice nativo | Fase 2 |
 | `docs/API_CONTRACTS.md` | Query, RPC, endpoint e autorizzazioni | Fase 1 |
 | `parity/web-baseline.json` | Revisioni web e versione APK verificata | Fasi 1-2 |
-| `parity/source-map.yml` | Mapping sorgenti-funzioni | Fasi 1-2 |
+| `parity/source-map.json` | Mapping sorgenti-funzioni | Fasi 1-2 |
 | `parity/fixtures/` | Input sintetici e risultati attesi | Dalla fase 1 |
 | `.github/workflows/web-parity-audit.yml` | Report differenze in sola lettura | Entro fase 3 |
 | `.github/workflows/android.yml` | Build, test e artifact | Fase 2 |
@@ -220,14 +222,21 @@ Il dettaglio delle prove e dei limiti è in [ROADMAP_CLOSURE.md](docs/ROADMAP_CL
 
 1. **Funzioni native:** callback PKCE, conferma email e recupero password, archivio Coppia revocati, donut categorie e collegamenti Dashboard implementati. Archivio limitato ai metadati consentiti dalle RLS. Bank inventariato: interoperabilità CSV inclusa, convertitore PDF separato.
 2. **Identità web:** icona originale, palette, font locali e cinque destinazioni di navigazione implementati. Tre screenshot di fixture controllati; accessibilità, lingua e font grandi coperti dai test registrati. Il confronto visivo di tutte le pagine non è certificato.
-3. **Backend:** 42 contratti su 43 passano; 12 inserimenti, 8 modifiche, due chiusure CAS e letture native verificati. Google Books risponde HTTP 429 per quota esaurita. Recovery della stessa esecuzione conferma eliminazione dei dati temporanei, logout e rimozione dei file privati, senza pulizia pendente.
-4. **Lifecycle e file:** prove su emulatori Android 12 e 15, test di rete, ricreazione, tastiera e documenti. Suite finale Android 15 108/108; Android 12 ha 108 esiti finali positivi dopo riesecuzioni mirate. Sei casi SAF/import/export passano su entrambe le API; l’interfaccia del selettore di file non è automatizzata. Risultati completi e correzioni del solo harness sono in TESTING.md.
-5. **Distribuzione:** APK 0.1.8 con firma continua, repository pubblico separato per APK e metadati, backup portabile cifrato verificato. Riferimento web distribuito legato al deployment e bundle pubblico confrontato. La copia della firma su un dispositivo diverso resta da verificare.
+3. **Backend:** la prova storica passa 41 contratti su 42; Google Books risponde HTTP 429. Le successive prove QA verificano password/TOTP/revoca, il flusso Coppia e le operazioni Admin elencate in QA_QUALIFICATION.md, con pulizia completa. Nessuno di questi risultati copre tutti i percorsi o le correzioni statiche successive.
+4. **Lifecycle e file:** la 0.1.9 passa due suite complete da 130 casi su API 31 e 35. Il sorgente successivo `0714f39` passa 132 casi ordinari su API 31; API 35 non è stata rieseguita su quel sorgente. Picker di sistema, provider cloud e terminazione reale del processo restano verifiche distinte. Nessuna suite eseguita durante l'audit statico.
+5. **Distribuzione:** APK pubblico 0.1.9-alpha con firma continua, repository separato per APK e metadati, backup portabile cifrato verificato. Aggiornamento 0.1.8→0.1.9 provato sul solo AVD anonimo. Il codice successivo non è distribuito; aggiornamento autenticato e copia della firma su un altro dispositivo restano aperti.
 
 ## 11. Gate esterni ancora aperti
 
-Le registrazioni sono disabilitate anche dal trigger. L’unico account QA documentato ha password ignota e una sessione precedente: non vengono alterati password, MFA o sessioni preesistenti per completare una prova. Questo limita login reale con password, email/PKCE completo, MFA positivo, cambio email/password, Coppia con due utenti, Admin autorizzato ed eliminazione di un account sintetico. I contratti simulati non sostituiscono queste verifiche.
+Sono disponibili due utenti QA e un Admin dedicati, creati con apertura temporanea autorizzata delle registrazioni e ripristino immediato di `false`. Password, TOTP, revoca delle altre sessioni e i percorsi Coppia/Admin documentati hanno prove reali. Gli indirizzi sintetici non hanno mailbox: consegna email, conferma e recupero PKCE restano aperti. I PASS non includono modifiche email/password, eliminazione di un account sacrificabile, rifiuto/cancellazione inviti e tutte le operazioni Admin.
 
 L’utente conferma installazione e uso generale della 0.1.7 sul Doogee S100 Android 12, ma non proverà direttamente i nuovi flussi. Le prove su emulatori non vengono attribuite al telefono. I gate originari relativi al dispositivo restano quindi non verificati, salvo le conferme già documentate.
 
-`parity/web-baseline.json` conserva `globalParityVerified=false`. Il porting completo mantiene le differenze dichiarate in FEATURE_PARITY.md e IMPORT_EXPORT.md: mapping ISIN/categorie, formati XLS/XLSX, equivalenza visiva globale e casi reali dei ruoli non sono certificati da questa alpha. Non viene dichiarata completata la roadmap di parità stabile.
+`parity/web-baseline.json` conserva `globalParityVerified=false` e `verifiedApkVersion=null`. Mapping ISIN/categorie e import CSV sono presenti; XLS/XLSX, restore globale e convertitore PDF nativo non sono requisiti del web. Restano confronto finale sullo stesso dataset, import reale e provider cloud, servizi esterni, percorsi dei ruoli esclusi e qualifica dell'APK firmato finale.
+
+## 12. Prossime attività per la stabile
+
+1. **Completato — audit statico:** confronto del riferimento web `1cfcf629`, correzioni delle lacune dimostrate e regressioni scritte senza eseguirle. Ogni correzione resta non verificata nel rapporto dell'audit.
+2. **Dopo — verifica locale:** quando autorizzato, eseguire regressioni, suite integrate e controlli Android 12/15 sul sorgente finale. I risultati delle versioni precedenti restano separati.
+3. **Dopo — parità reale:** completare matrice web/Android, percorsi account/Coppia/Admin esclusi, import e servizi esterni. Risolvere il gate mailbox prima delle prove email/PKCE.
+4. **Dopo — distribuzione:** verificare release ottimizzata, firma, aggiornamento con sessione autenticata e dispositivo fisico; pubblicare 1.0.0 soltanto a gate superati. Nessuna data stabile è assegnata all'audit senza test.

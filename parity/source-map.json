@@ -188,12 +188,19 @@
         "src/pages/Privacy.tsx",
         "src/pages/Cookies.tsx",
         "src/pages/Termini.tsx",
-        "src/lib/legalContents.ts"
+        "src/lib/legalContents.ts",
+        "src/components/legal/**",
+        "src/i18n/locales/en.json"
       ],
       "android": [
-        "app/src/main/java/cc/savely/android/ui/**"
+        "app/src/main/java/cc/savely/android/ui/**",
+        "app/src/main/assets/legal/**",
+        "tools/export-legal.cjs",
+        "tools/legal-en-overrides.json"
       ],
-      "tests": []
+      "tests": [
+        "app/src/androidTest/java/cc/savely/android/ui/LegalScreenTest.kt"
+      ]
     },
     {
       "id": "backend-contracts",

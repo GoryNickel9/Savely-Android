@@ -87,6 +87,7 @@ class SettingsMfaTest {
         session = Session(token("initial"), "synthetic-refresh", System.currentTimeMillis() / 1000 + 3600, USER, EMAIL)
         store = MemorySessionStore(session)
         api = SupabaseApi(BackendConfig(origin.toString(), "mfa-public-key", origin.toString()), store, client)
+        runBlocking { assertEquals(session, api.session()) } // Match the observed owner before MainShell renders settings.
     }
 
     @After fun teardown() {

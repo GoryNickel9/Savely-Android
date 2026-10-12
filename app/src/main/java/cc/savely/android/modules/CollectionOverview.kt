@@ -25,18 +25,28 @@ internal data class CollectionCategoryTotal(
 internal data class CollectionOverview(
     val ownerId: String, val records: Int, val pieces: Long,
     val currencies: List<CollectionCurrencyTotal>, val categories: List<CollectionCategoryTotal>,
+    val ownerRevision: Long? = null,
 )
 
 /** A complete owner snapshot is required before any totals are returned to the screen. */
 internal class CollectionOverviewRepository(private val api: SupabaseApi) {
     suspend fun load(kind: CollectionKind): CollectionOverview {
-        val owner = api.session()?.userId ?: error("Accedi per leggere i tuoi dati")
+        val snapshot = api.session() ?: error("Accedi per leggere i tuoi dati")
+        val owner = snapshot.userId
+        val revision = requireNotNull(api.sessionOwnerRevision(snapshot)) { "Account cambiato durante la lettura della collezione" }
+        suspend fun checkOwner() {
+            val current = api.session()
+            check(current != null && current.userId == owner && api.sessionOwnerRevision(current) == revision) {
+                "Account cambiato durante la lettura della collezione"
+            }
+        }
         val rows = mutableListOf<JSONObject>()
         val ids = mutableSetOf<String>()
         while (true) {
-            check(api.session()?.userId == owner) { "Account cambiato durante la lettura della collezione" }
-            val page = api.select(kind.table, "user_id=eq.$owner&order=id.asc&limit=500&offset=${rows.size}")
-            check(api.session()?.userId == owner) { "Account cambiato durante la lettura della collezione" }
+            checkOwner()
+            val page = api.select(kind.table, "user_id=eq.$owner&order=id.asc&limit=500&offset=${rows.size}",
+                expectedOwner = owner, expectedRevision = revision)
+            checkOwner()
             require(page.length() <= 500) { "Pagina della collezione non valida" }
             if (page.length() == 0) break
             for (index in 0 until page.length()) {
@@ -47,8 +57,8 @@ internal class CollectionOverviewRepository(private val api: SupabaseApi) {
             }
             require(rows.size <= 100000) { "Collezione troppo grande per la panoramica" }
         }
-        val result = collectionOverview(kind, owner, rows)
-        check(api.session()?.userId == owner) { "Account cambiato durante la lettura della collezione" }
+        val result = collectionOverview(kind, owner, rows).copy(ownerRevision = revision)
+        checkOwner()
         return result
     }
 }

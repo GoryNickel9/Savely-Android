@@ -8,6 +8,12 @@ import java.net.URISyntaxException
 import java.text.NumberFormat
 import java.util.Locale
 
+/** CardTrader's proxy reports euros; a non-EUR record must retain its manually declared unit. */
+internal fun tcgRecordCurrency(row: JSONObject): String = if (row.isNull("currency")) "EUR"
+    else row.getString("currency").trim().uppercase(Locale.ROOT)
+
+internal fun tcgAllowsCardTraderPrice(row: JSONObject): Boolean = tcgRecordCurrency(row) == "EUR"
+
 /** Manga.tsx saves the trimmed nullable URL; validation must not rewrite stored metadata. */
 internal fun mangaCoverUrl(value: String): String? {
     val text = value.trim()

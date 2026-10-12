@@ -1,4 +1,7 @@
 {
+  "Percentuale: {{percent}}%": "Percentage: {{percent}}%",
+  "CardTrader fornisce prezzi in EUR. Per questo record in {{currency}}, verifica i prezzi già salvati e inserisci manualmente il valore nella valuta del record; l'origine dei prezzi precedenti non è disponibile.": "CardTrader supplies prices in EUR. For this {{currency}} record, check saved prices and enter the value manually in the record's currency; the origin of earlier prices is unavailable.",
+  "I prezzi CardTrader sono disponibili soltanto per record in EUR.": "CardTrader prices are available only for EUR records.",
   " Aggiorna la schermata per leggere i prezzi salvati.": " Refresh the screen to read saved prices.",
   " · {{quantity}} ml/giorno": " · {{quantity}} ml/day",
   "(eliminata)": "(deleted)",

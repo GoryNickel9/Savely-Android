@@ -62,4 +62,6 @@ I tempi sono osservazioni locali sull'AVD, non benchmark del telefono. Le otto c
 
 ## Gate ancora aperti
 
+Le prove di questo rapporto riguardano il sorgente `0714f39`. L'[audit statico successivo](STATIC_PARITY_AUDIT_2026_10_12.md) contiene nuove correzioni non eseguite o testate; non eredita questi PASS.
+
 I PASS reali coprono soltanto le operazioni descritte. Restano aperti email/PKCE, modifiche account, eliminazione di un account sacrificabile, i percorsi Coppia/Admin esclusi, aggiornamento firmato con sessione autenticata e confronto finale della matrice. Google Books aveva restituito HTTP 429. Le nuove funzioni non sono state provate sul telefono fisico; la parità globale resta falsa e la 1.0.0 non è ancora qualificata.

@@ -150,7 +150,8 @@ class MangaVolumeRepository(private val api: SupabaseApi) {
         }
         suspend fun reconcile(body: JSONObject): Boolean {
             checkOwner()
-            val result = api.select("library_items", "id=eq.${body.getString("id")}&user_id=eq.${expectedOwner}&limit=2")
+            val result = api.select("library_items", "id=eq.${body.getString("id")}&user_id=eq.${expectedOwner}&limit=2",
+                expectedOwner = expectedOwner, expectedRevision = expectedRevision)
             checkOwner()
             require(result.length() <= 1) { "Risposta non valida: controlla la collezione prima di riprovare" }
             if (result.length() == 0) return false

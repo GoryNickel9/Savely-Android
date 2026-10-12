@@ -397,8 +397,10 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
         viewModelScope.launch {
             try {
                 val data = withContext(Dispatchers.IO) { repository.export() }
-                mutable.update { it.copy(export = data, message = "${data.counts.values.sum()} righe in ${data.counts.size} tabelle. Scegli dove salvare il CSV.",
-                    messageNotice = TransferNotice("{{rows}} righe in {{tables}} tabelle. Scegli dove salvare il CSV.", listOf("rows" to data.counts.values.sum(), "tables" to data.counts.size))) }
+                api.withCurrentSessionOwner(data.ownerRevision) {
+                    mutable.update { it.copy(export = data, message = "${data.counts.values.sum()} righe in ${data.counts.size} tabelle. Scegli dove salvare il CSV.",
+                        messageNotice = TransferNotice("{{rows}} righe in {{tables}} tabelle. Scegli dove salvare il CSV.", listOf("rows" to data.counts.values.sum(), "tables" to data.counts.size))) }
+                }
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
             finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }
@@ -413,10 +415,14 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
         mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, progress = "Salvo il documento CSV…", message = null) }
         viewModelScope.launch {
             try {
-                if (api.session()?.userId != export.userId) throw TransferException("Account cambiato. Prepara di nuovo l'export.")
+                val snapshot = api.session()
+                if (snapshot == null || snapshot.userId != export.userId || api.sessionOwnerRevision(snapshot) != export.ownerRevision)
+                    throw TransferException("Account cambiato. Prepara di nuovo l'export.")
                 write(export.csv)
-                mutable.update { it.copy(message = "CSV salvato: ${export.counts.values.sum()} righe da ${export.counts.size} tabelle.",
-                    messageNotice = TransferNotice("CSV salvato: {{rows}} righe da {{tables}} tabelle.", listOf("rows" to export.counts.values.sum(), "tables" to export.counts.size))) }
+                api.withCurrentSessionOwner(export.ownerRevision) {
+                    mutable.update { it.copy(message = "CSV salvato: ${export.counts.values.sum()} righe da ${export.counts.size} tabelle.",
+                        messageNotice = TransferNotice("CSV salvato: {{rows}} righe da {{tables}} tabelle.", listOf("rows" to export.counts.values.sum(), "tables" to export.counts.size))) }
+                }
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
             finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }

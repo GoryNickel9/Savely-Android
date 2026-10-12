@@ -64,11 +64,13 @@ private suspend fun SupabaseApi.userRows(table: String, extra: String = ""): Lis
         check(isSessionOwnerCurrent(ownerRevision)) { "Account cambiato. Riapri la schermata." }
         check(page.all { it.optString("user_id") == userId }) { "Dati di un altro account rifiutati" }
     }
-    if (extra.contains("&limit=")) return select(table, "user_id=eq.$userId$extra").rows().also(::checkPage)
+    if (extra.contains("&limit=")) return select(table, "user_id=eq.$userId$extra",
+        expectedOwner = userId, expectedRevision = ownerRevision).rows().also(::checkPage)
     val rows = mutableListOf<JSONObject>()
     val order = if (extra.contains("&order=")) "" else "&order=id.asc"
     while (true) {
-        val page = select(table, "user_id=eq.$userId$extra$order&limit=500&offset=${rows.size}").rows()
+        val page = select(table, "user_id=eq.$userId$extra$order&limit=500&offset=${rows.size}",
+            expectedOwner = userId, expectedRevision = ownerRevision).rows()
         checkPage(page)
         if (page.isEmpty()) return rows
         rows.addAll(page)
@@ -521,7 +523,10 @@ private fun CollectionOverviewScreen(api: SupabaseApi, kind: CollectionKind, mod
         var revision by remember { mutableIntStateOf(0) }
         LaunchedEffect(repository, revision) {
             snapshot = null; loading = true; failed = false
-            try { snapshot = repository.load(kind) }
+            try {
+                val loaded = repository.load(kind)
+                api.withCurrentSessionOwner(requireNotNull(loaded.ownerRevision)) { snapshot = loaded }
+            }
             catch (failure: CancellationException) { throw failure }
             catch (_: Exception) { failed = true }
             finally { loading = false }
@@ -753,11 +758,19 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                             modifier = Modifier.size(width = 96.dp, height = 128.dp), contentScale = ContentScale.Fit)
                         schema.fields.forEach { field ->
                             val text = readField(row, field)
-                            if (text.isNotBlank()) Text("${localized(field.label)}: $text")
+                            val label = localized(field.label).let {
+                                if (schema.table == "tgc_cards" && field.key in setOf("purchase_price", "current_price") && !tcgAllowsCardTraderPrice(row))
+                                    it.replace("€", tcgRecordCurrency(row)) else it
+                            }
+                            if (text.isNotBlank()) Text("$label: $text")
                         }
                         if (schema.table == "poker_hourly_earnings") {
                             val hourly = PokerCalculations.hourly(row.getDouble("hours_played") * 60, row.getDouble("profit_loss"), row.optDouble("net_won_ev", 0.0))
                             Text(localized("Orario dopo deal {{rate}} · EV {{ev}}", "rate" to pokerRateMoney(hourly.hourlyRate * deal), "ev" to pokerRateMoney(hourly.hourlyRateEv * deal)))
+                        }
+                        if (schema.table == "poker_rakeback") {
+                            Text(localized("Percentuale: {{percent}}%", "percent" to format(PokerCalculations.rakebackPercentage(
+                                row.getDouble("rake_generated"), row.getDouble("rakeback_received")))))
                         }
                         if (schema.table in listOf("cbd", "thc", "liquido_sigaretta")) {
                             val liquid = schema.table == "liquido_sigaretta"
@@ -770,10 +783,14 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                             TextButton({ deleteError = null; deleteRow = row }, enabled = !loading && dataReady) { Text(localized("Elimina")) }
                         }
                         if (schema.table == "tgc_cards" && !row.isNull("card_id")) {
+                            if (!tcgAllowsCardTraderPrice(row)) Text(localized(
+                                "CardTrader fornisce prezzi in EUR. Per questo record in {{currency}}, verifica i prezzi già salvati e inserisci manualmente il valore nella valuta del record; l'origine dei prezzi precedenti non è disponibile.",
+                                "currency" to tcgRecordCurrency(row)), style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = {
                                 scope.launch {
                                     loading = true
                                     try {
+                                        check(tcgAllowsCardTraderPrice(row)) { "I prezzi CardTrader sono disponibili soltanto per record in EUR." }
                                         val price = catalog.cardPrice(row.getString("card_id"), row.getString("condition"))
                                         require(price != null) { "Nessun prezzo disponibile per questa carta" }
                                         api.update(schema.table, row.getString("id"), JSONObject().put("current_price", price), expectedOwner = owner, expectedRevision = ownerRevision)
@@ -783,7 +800,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                                     catch (failure: Exception) { error = failure.message ?: "Aggiornamento prezzo non riuscito" }
                                     finally { loading = false }
                                 }
-                            }, enabled = !loading && dataReady) { Text(localized("Aggiorna prezzo CardTrader")) }
+                            }, enabled = !loading && dataReady && tcgAllowsCardTraderPrice(row)) { Text(localized("Aggiorna prezzo CardTrader")) }
                         }
                     }
                 }
@@ -903,7 +920,13 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                         Text(if (field.key == "condition") localized(choice.replace('_', ' ')) else choice)
                     }) }
                 } else OutlinedTextField(values[field.key] ?: "", { values[field.key] = it; invalidField = null }, Modifier.fillMaxWidth(),
-                    label = { Text(localized(field.label) + if (field.optional) " " + localized("(facoltativo)") else "") }, enabled = !loading && batchSnapshot == null,
+                    label = {
+                        val label = localized(field.label).let {
+                            if (schema.table == "tgc_cards" && row != null && field.key in setOf("purchase_price", "current_price") && !tcgAllowsCardTraderPrice(row))
+                                it.replace("€", tcgRecordCurrency(row)) else it
+                        }
+                        Text(label + if (field.optional) " " + localized("(facoltativo)") else "")
+                    }, enabled = !loading && batchSnapshot == null,
                     singleLine = field.key != "notes", isError = invalidField == field.key,
                     readOnly = schema.uniqueMonth && row != null && field.type == FieldType.MONTH,
                     keyboardOptions = KeyboardOptions(keyboardType = when (field.type) {

@@ -23,8 +23,10 @@ function load(relative, imports = {}) {
 }
 const legal = load('src/lib/legalContents.ts');
 const english = JSON.parse(fs.readFileSync(path.join(source, 'src/i18n/locales/en.json'), 'utf8'));
+// Android-only translations for gaps in the pinned web catalog; legal content remains unchanged.
+const englishOverrides = JSON.parse(fs.readFileSync(path.join(__dirname, 'legal-en-overrides.json'), 'utf8'));
 let language = 'it';
-const t = (text, values = {}) => (language === 'en' ? english[text] || text : text)
+const t = (text, values = {}) => (language === 'en' ? englishOverrides[text] || english[text] || text : text)
   .replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] ?? `{{${key}}}`);
 const imports = {
   'react-i18next': { useTranslation: () => ({ t }) },

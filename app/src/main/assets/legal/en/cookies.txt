@@ -10,7 +10,7 @@ Cookies are small text files that a website saves on your device. They are used 
 
 2. Cookies used by Savely
 
-Savely utilizza exclusively strictly necessary technical cookies to the operation and security of the Service. Does not use profiling cookies, third-party analytics, advertising cookies or marketing tracking.
+Savely uses exclusively strictly necessary technical cookies to the operation and security of the Service. Does not use profiling cookies, third-party analytics, advertising cookies or marketing tracking.
 
 Detailed list:
 
