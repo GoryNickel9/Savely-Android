@@ -16,6 +16,7 @@ import java.util.UUID
 import org.json.JSONObject
 
 enum class ImportStatus { READY, DUPLICATE, IMPORTED, FAILED, UNCERTAIN }
+internal enum class ExportDiscardResult { NOT_REQUESTED, REMOVED, RETAINED, FAILED }
 data class TransferNotice(val template: String, val values: List<Pair<String, Any?>>, val localizedValueKeys: Set<String> = emptySet())
 data class PreviewTransaction(
     val transaction: ImportTransaction,
@@ -408,24 +409,50 @@ class TransferViewModel(private val api: SupabaseApi) : ViewModel() {
     }
 
     fun exportSaved(message: String) { mutable.update { it.copy(messageNotice = null, message = message) } }
-    fun saveExport(write: suspend (String) -> Unit) {
+    internal fun saveExport(
+        hasPendingRequest: Boolean = true,
+        discardUnwritten: suspend () -> ExportDiscardResult = { ExportDiscardResult.NOT_REQUESTED },
+        write: suspend (String) -> Unit,
+    ) {
         val initial = mutable.value
-        if (initial.busy) return
-        val export = initial.export ?: return
-        mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, progress = "Salvo il documento CSV…", message = null) }
+        // A restored picker result can reach a new ViewModel with no in-memory CSV.
+        // Never reconstruct it or silently leave the newly created empty output behind.
+        if (!initial.busy) mutable.update { it.copy(progressNotice = null, messageNotice = null, busy = true, progress = "Salvo il documento CSV…", message = null) }
         viewModelScope.launch {
+            var writeCompleted = false
             try {
+                if (initial.busy) throw TransferException("Un'altra operazione è in corso. Il CSV non è stato salvato.")
+                if (!hasPendingRequest) throw TransferException("Risultato del selettore file non più valido. Prepara di nuovo l'export.")
+                val export = initial.export ?: throw TransferException("L'export preparato non è più disponibile. Prepara di nuovo l'export.")
                 val snapshot = api.session()
                 if (snapshot == null || snapshot.userId != export.userId || api.sessionOwnerRevision(snapshot) != export.ownerRevision)
                     throw TransferException("Account cambiato. Prepara di nuovo l'export.")
                 write(export.csv)
+                writeCompleted = true
                 api.withCurrentSessionOwner(export.ownerRevision) {
                     mutable.update { it.copy(message = "CSV salvato: ${export.counts.values.sum()} righe da ${export.counts.size} tabelle.",
                         messageNotice = TransferNotice("CSV salvato: {{rows}} righe da {{tables}} tabelle.", listOf("rows" to export.counts.values.sum(), "tables" to export.counts.size))) }
                 }
             } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { mutable.update { it.copy(messageNotice = null, message = safeMessage(error)) } }
-            finally { mutable.update { it.copy(progressNotice = null, busy = false, progress = "") } }
+            catch (error: Exception) {
+                val reason = safeMessage(error)
+                val discarded = if (writeCompleted) ExportDiscardResult.NOT_REQUESTED else try {
+                    discardUnwritten()
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { ExportDiscardResult.FAILED }
+                val cleanup = when (discarded) {
+                    ExportDiscardResult.NOT_REQUESTED -> null
+                    ExportDiscardResult.REMOVED -> "Il documento vuoto appena creato è stato rimosso."
+                    ExportDiscardResult.RETAINED -> "Il documento non è stato rimosso: non è un nuovo file vuoto verificabile. Controllalo prima di riprovare."
+                    ExportDiscardResult.FAILED -> "Impossibile rimuovere il documento vuoto appena creato. Controllalo prima di riprovare."
+                }
+                mutable.update { it.copy(message = if (cleanup == null) reason else "$reason $cleanup",
+                    messageNotice = cleanup?.let { TransferNotice("{{reason}} {{cleanup}}", listOf("reason" to reason, "cleanup" to it), setOf("reason", "cleanup")) }) }
+            }
+            finally {
+                // A callback arriving while import/export is busy must not release that operation's guard.
+                if (!initial.busy) mutable.update { it.copy(progressNotice = null, busy = false, progress = "") }
+            }
         }
     }
     private fun result(row: Int, status: ImportStatus, message: String, notice: TransferNotice? = null) = mutable.update { state ->

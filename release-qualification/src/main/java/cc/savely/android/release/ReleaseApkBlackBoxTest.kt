@@ -94,7 +94,7 @@ class ReleaseApkBlackBoxTest {
             awaitDashboard()
             requireCode(!editable(password = true), "LOGIN_FORM_AFTER_UPGRADE")
             report.put("dashboard", true).put("no_login_form", true)
-            clickLabel(setOf("Settings"), "ENGLISH_NAVIGATION_MISSING")
+            openSettings(englishOnly = true)
             requireQaEmail()
             awaitProfileRead()
             identityConfirmed = true
@@ -163,7 +163,38 @@ class ReleaseApkBlackBoxTest {
         return requireNotNull(pid)
     }
 
-    private fun openSettings() = clickLabel(setOf("Impostazioni", "Settings"), "SETTINGS_NAVIGATION_MISSING")
+    private fun openSettings(englishOnly: Boolean = false) {
+        // Saved navigation/pane state may reopen Data. Always navigate from a confirmed Dashboard.
+        awaitDashboard()
+        clickNavigation(if (englishOnly) setOf("Settings") else setOf("Impostazioni", "Settings"),
+            if (englishOnly) "ENGLISH_NAVIGATION_MISSING" else "SETTINGS_NAVIGATION_MISSING")
+        await("SETTINGS_PANES_MISSING") {
+            hasText("Account") && (hasText("Security") || hasText("Sicurezza") || hasText("Data") || hasText("Dati"))
+        }
+        scrollAccountToTop()
+        // An already selected chip may not expose OnClick; only the actual Profile content permits skipping it.
+        if (!hasProfileContent()) clickLabel(setOf("Account"), "ACCOUNT_PANE_MISSING")
+        scrollAccountToTop()
+        await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
+    }
+
+    private fun clickNavigation(labels: Set<String>, code: String) {
+        var found: AccessibilityNodeInfo? = null
+        await(code) {
+            found = find { navigationLabel(it, labels) && it.isEnabled && hasClickableAncestor(it) }
+            found != null
+        }
+        clickControl(requireNotNull(found), code)
+    }
+
+    private fun navigationLabel(node: AccessibilityNodeInfo, labels: Set<String>): Boolean {
+        if (!label(node, labels) || !visible(node)) return false
+        val bounds = Rect().also(node::getBoundsInScreen)
+        return bounds.top >= instrumentation.context.resources.displayMetrics.heightPixels * 0.70f
+    }
+
+    private fun hasDashboardContent(): Boolean = hasText("Your finances") || hasText("La tua finanza")
+    private fun hasProfileContent(): Boolean = hasText("Profile") || hasText("Profilo")
 
     private fun requireQaEmail(scroll: Boolean = false) {
         if (scroll) scrollAccountToTop()
@@ -183,7 +214,15 @@ class ReleaseApkBlackBoxTest {
         }
     }
 
-    private fun awaitDashboard() = await("DASHBOARD_MISSING") { hasText("Dashboard") && !editable(password = true) }
+    private fun awaitDashboard() {
+        await("DASHBOARD_NAVIGATION_MISSING") { exists { navigationLabel(it, setOf("Dashboard")) } }
+        if (!hasDashboardContent()) {
+            scrollAccountToTop()
+            if (!hasDashboardContent()) clickNavigation(setOf("Dashboard"), "DASHBOARD_NAVIGATION_MISSING")
+        }
+        scrollAccountToTop()
+        await("DASHBOARD_MISSING") { hasDashboardContent() && !editable(password = true) }
+    }
 
     private fun awaitProfileRead() = await("PROFILE_READ_NOT_CONFIRMED") {
         exists { label(it, setOf("Salva profilo", "Save profile")) && it.isEnabled && visible(it) }
@@ -231,7 +270,11 @@ class ReleaseApkBlackBoxTest {
     }
 
     private fun clickLabel(labels: Set<String>, code: String, scroll: Boolean = false) {
-        var node = seekLabel(labels, code, scroll, clickable = true)
+        clickControl(seekLabel(labels, code, scroll, clickable = true), code)
+    }
+
+    private fun clickControl(candidate: AccessibilityNodeInfo, code: String) {
+        var node = candidate
         try {
             for (depth in 0 until 8) {
                 if (node.isClickable && node.isEnabled) {
@@ -330,6 +373,8 @@ class ReleaseApkBlackBoxTest {
         runCatching {
             report.put("ui_diagnostic", JSONObject()
                 .put("dashboard_label_seen", hasText("Dashboard"))
+                .put("dashboard_content_seen", hasDashboardContent())
+                .put("account_profile_seen", hasProfileContent())
                 .put("password_field_seen", editable(password = true))
                 .put("settings_navigation_seen", hasText("Settings") || hasText("Impostazioni"))
                 .put("qa_identity_seen", hasText(QA_EMAIL)))

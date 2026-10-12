@@ -5,6 +5,8 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.provider.MediaStore
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -32,6 +34,7 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.time.LocalDate
+import java.util.UUID
 
 /** Native document picker, bounded preview and explicit confirmation before importing. */
 @Composable
@@ -63,21 +66,20 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
     var mappingSaveRequested by remember { mutableStateOf(false) }
     var deletingMapping by remember { mutableStateOf<TransferIsinMapping?>(null) }
     var showMappings by remember { mutableStateOf(false) }
+    // Only a request marker survives process death; the account CSV remains in memory.
+    var pendingExportName by rememberSaveable(owner) { mutableStateOf<String?>(null) }
     val uriHandler = LocalUriHandler.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) model.prepare({ readCsv(context, uri) }, format, bankCurrency)
     }
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) model.saveExport { csv ->
+        val requestedName = pendingExportName
+        pendingExportName = null // Consume once, including cancellation; never authorize a later arbitrary URI.
+        if (uri != null) model.saveExport(hasPendingRequest = validExportRequestName(requestedName),
+            discardUnwritten = { discardEmptyExportDocument(context, uri, requestedName) }) { csv ->
             withContext(Dispatchers.IO) {
-                try {
-                    val output = context.contentResolver.openOutputStream(uri, "wt") ?: throw TransferException("Impossibile aprire il documento.")
-                    output.use { it.write(csv.toByteArray(Charsets.UTF_8)); it.flush() }
-                } catch (error: Exception) {
-                    // Delete only the newly created output document when writing did not finish.
-                    runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }
-                    throw error
-                }
+                val output = context.contentResolver.openOutputStream(uri, "wt") ?: throw TransferException("Impossibile aprire il documento.")
+                output.use { it.write(csv.toByteArray(Charsets.UTF_8)); it.flush() }
             }
         }
     }
@@ -110,7 +112,10 @@ fun TransferScreen(api: SupabaseApi, modifier: Modifier = Modifier) {
             Text(localized("Export completo dell'account"), style = MaterialTheme.typography.titleMedium)
             Text(localized("Tutte le 25 tabelle previste dal sito, con filtri sull'account e lettura di tutte le pagine. Se una tabella fallisce, l'export si interrompe."), style = MaterialTheme.typography.bodyMedium)
             OutlinedButton(onClick = model::prepareExport, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text(localized("Prepara export CSV")) }
-            if (state.export != null) Button(onClick = { saver.launch("savely_export_${LocalDate.now()}.csv") }, enabled = !state.busy,
+            if (state.export != null) Button(onClick = {
+                pendingExportName = "savely_export_${LocalDate.now()}_${UUID.randomUUID()}.csv"
+                saver.launch(pendingExportName!!)
+            }, enabled = !state.busy && pendingExportName == null,
                 modifier = Modifier.fillMaxWidth()) { Text(localized("Salva CSV ({{value0}} righe)", "value0" to (state.export!!.counts.values.sum()))) }
         }
         if (state.busy) item {
@@ -267,6 +272,40 @@ private fun statusLabel(status: ImportStatus): String = when (status) {
     ImportStatus.FAILED -> "Fallita"
     ImportStatus.UNCERTAIN -> "Esito da verificare"
 }
+
+/**
+ * Only the one-shot CreateDocument result carrying our unguessable saved request name may be
+ * discarded. Unknown size, renamed/pre-existing targets and non-empty/partially written files
+ * are retained. No arbitrary URI supplied by import or a caller is an unlink capability.
+ */
+internal suspend fun discardEmptyExportDocument(context: Context, uri: Uri, requestedName: String?): ExportDiscardResult =
+    withContext(Dispatchers.IO) {
+        if (!validExportRequestName(requestedName) ||
+            uri.scheme != "content") return@withContext ExportDiscardResult.RETAINED
+        val resolver = context.contentResolver
+        val document = DocumentsContract.isDocumentUri(context, uri)
+        val ownedDownloads = !document && Build.VERSION.SDK_INT >= 29 && uri.authority == MediaStore.AUTHORITY &&
+            uri.pathSegments.size == 3 && uri.pathSegments[0] in setOf("external", "external_primary") &&
+            uri.pathSegments[1] == "downloads" && uri.pathSegments[2].toLongOrNull() != null
+        if (!document && !ownedDownloads) return@withContext ExportDiscardResult.RETAINED
+        try {
+            val columns = arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE,
+                if (document) DocumentsContract.Document.COLUMN_FLAGS else MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
+            val safe = resolver.query(uri, columns, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst() || cursor.isNull(0) || cursor.getString(0) != requestedName ||
+                    cursor.isNull(1) || cursor.getLong(1) != 0L || cursor.isNull(2)) false
+                else if (document) (cursor.getLong(2) and DocumentsContract.Document.FLAG_SUPPORTS_DELETE.toLong()) != 0L
+                else cursor.getString(2) == context.packageName
+            } ?: false
+            if (!safe) return@withContext ExportDiscardResult.RETAINED
+            val removed = if (document) DocumentsContract.deleteDocument(resolver, uri) else resolver.delete(uri, null, null) == 1
+            if (removed) ExportDiscardResult.REMOVED else ExportDiscardResult.FAILED
+        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (_: Exception) { ExportDiscardResult.FAILED }
+    }
+
+private fun validExportRequestName(name: String?) = name != null &&
+    Regex("savely_export_\\d{4}-\\d{2}-\\d{2}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.csv").matches(name)
 
 private fun readCsv(context: Context, uri: Uri): String {
     val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->

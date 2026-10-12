@@ -1,4 +1,11 @@
 {
+  "Risultato del selettore file non più valido. Prepara di nuovo l'export.": "The file picker result is no longer valid. Prepare the export again.",
+  "L'export preparato non è più disponibile. Prepara di nuovo l'export.": "The prepared export is no longer available. Prepare the export again.",
+  "Un'altra operazione è in corso. Il CSV non è stato salvato.": "Another operation is in progress. The CSV was not saved.",
+  "Il documento vuoto appena creato è stato rimosso.": "The newly created empty document was removed.",
+  "Il documento non è stato rimosso: non è un nuovo file vuoto verificabile. Controllalo prima di riprovare.": "The document was not removed: it could not be verified as a newly created empty file. Check it before trying again.",
+  "Impossibile rimuovere il documento vuoto appena creato. Controllalo prima di riprovare.": "Unable to remove the newly created empty document. Check it before trying again.",
+  "{{reason}} {{cleanup}}": "{{reason}} {{cleanup}}",
   "Questi calcolatori sono forniti esclusivamente a scopo educativo e informativo. Non costituiscono consulenza finanziaria, di investimento, fiscale o legale.": "These calculators are provided solely for educational and informational purposes. They do not constitute financial, investment, tax or legal advice.",
   "I risultati sono proiezioni ipotetiche basate sugli input e sulle assunzioni riguardo rendimenti futuri e inflazione. I risultati effettivi possono variare; la performance passata non garantisce risultati futuri.": "The results are hypothetical projections based on your inputs and assumptions about future returns and inflation. Actual results may vary; past performance does not guarantee future results.",
   "Prima di prendere decisioni finanziarie, consulta un consulente finanziario qualificato, un professionista fiscale o un altro professionista idoneo che possa valutare la tua situazione personale.": "Before making financial decisions, consult a qualified financial advisor, a tax professional or another qualified professional who can assess your personal situation.",

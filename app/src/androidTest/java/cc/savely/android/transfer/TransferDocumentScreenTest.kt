@@ -85,7 +85,7 @@ class TransferDocumentScreenTest {
 
     @Before fun setup() {
         fixture = TransferTlsFixture()
-        registry = DocumentRegistry(context)
+        registry = DocumentRegistry(context) { name -> document(name, byteArrayOf(), exactName = true) }
         registryOwner = object : ActivityResultRegistryOwner { override val activityResultRegistry = registry }
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(lifecycle)
@@ -353,6 +353,96 @@ class TransferDocumentScreenTest {
         assertEquals(0, fixture.posts.get())
     }
 
+    @Test fun restoredCreateDocumentWithFreshViewModelReportsLostSnapshotAndDiscardsOnlyNewEmptyOutput() {
+        val existing = document("existing-user-file.csv", "keep existing bytes".toByteArray())
+        mount()
+        touch(button("Prepara export CSV"))
+        message("2 righe in 25 tabelle. Scegli dove salvare il CSV.")
+        val reads = fixture.reads.get()
+        registry.enqueueDeferredCreatedExport()
+        touch(button("Salva CSV (2 righe)"))
+        assertCreateContract(registry.intents.single())
+        val output = registry.createdDocuments.single()
+        assertTrue(documentExists(output))
+        assertEquals(0, registry.delivered)
+
+        // Retain only Activity saved state/picker marker; explicitly discard the old ViewModelStore.
+        // This is a deterministic process-restore boundary fixture, not an OS process-kill test.
+        compose.activityRule.scenario.onActivity { it.viewModelStore.clear() }
+        compose.activityRule.scenario.recreate()
+        scrollRecreatedList(2)
+        compose.onNodeWithText("Salva CSV (2 righe)").assertDoesNotExist()
+        assertEquals(reads, fixture.reads.get())
+        compose.runOnIdle { registry.deliverDeferred() }
+        message("L'export preparato non è più disponibile. Prepara di nuovo l'export. Il documento vuoto appena creato è stato rimosso.")
+        assertFalse(documentExists(output))
+        assertEquals("keep existing bytes", readDocument(existing))
+        assertEquals(1, registry.delivered)
+        assertEquals(1, registry.createdDocuments.size)
+        assertEquals(reads, fixture.reads.get())
+        assertEquals(0, fixture.posts.get())
+        compose.onNodeWithText("CSV salvato: 2 righe da 25 tabelle.").assertDoesNotExist()
+        compose.onNode(button("Prepara export CSV")).performScrollTo().assertIsEnabled()
+    }
+
+    @Test fun restoredPickerCannotDeleteExistingOrNonEmptyDocumentsOrUriWithoutRequestMarker() {
+        val existing = document("existing-empty-user-file.csv", byteArrayOf())
+        mount()
+        touch(button("Prepara export CSV"))
+        message("2 righe in 25 tabelle. Scegli dove salvare il CSV.")
+        val reads = fixture.reads.get()
+        // Deliberately return a pre-existing URI instead of the nonce-named newly requested output.
+        registry.enqueueDeferred(existing)
+        touch(button("Salva CSV (2 righe)"))
+        compose.activityRule.scenario.onActivity { it.viewModelStore.clear() }
+        compose.activityRule.scenario.recreate()
+        scrollRecreatedList(2)
+        compose.onNodeWithText("Salva CSV (2 righe)").assertDoesNotExist()
+        compose.runOnIdle { registry.deliverDeferred() }
+        message("L'export preparato non è più disponibile. Prepara di nuovo l'export. Il documento non è stato rimosso: non è un nuovo file vuoto verificabile. Controllalo prima di riprovare.")
+        assertTrue(documentExists(existing))
+        assertEquals("", readDocument(existing))
+
+        val requestedName = "savely_export_${LocalDate.now()}_${UUID.randomUUID()}.csv"
+        val partial = document(requestedName, "partial output must remain".toByteArray(), exactName = true)
+        val empty = document("savely_export_${LocalDate.now()}_${UUID.randomUUID()}.csv", byteArrayOf(), exactName = true)
+        assertEquals(ExportDiscardResult.RETAINED, runBlocking { discardEmptyExportDocument(context, partial, requestedName) })
+        assertEquals(ExportDiscardResult.RETAINED, runBlocking { discardEmptyExportDocument(context, empty, null) })
+        assertEquals("partial output must remain", readDocument(partial))
+        assertTrue(documentExists(empty))
+        assertEquals(reads, fixture.reads.get())
+        assertEquals(0, fixture.posts.get())
+        assertEquals(1, registry.delivered)
+        compose.onNodeWithText("CSV salvato: 2 righe da 25 tabelle.").assertDoesNotExist()
+    }
+
+    private fun documentExists(uri: Uri) = context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns._ID), null, null, null)
+        ?.use { it.moveToFirst() } ?: false
+
+    private fun readDocument(uri: Uri) = context.contentResolver.openInputStream(uri)!!.bufferedReader(Charsets.UTF_8).use { it.readText() }
+
+    @Test fun staleCreateDocumentResultWithoutPendingMarkerCannotOverwriteAnotherExistingFile() {
+        mount()
+        touch(button("Prepara export CSV"))
+        message("2 righe in 25 tabelle. Scegli dove salvare il CSV.")
+        val output = document("successful-export.csv", byteArrayOf())
+        registry.enqueue(output)
+        touch(button("Salva CSV (2 righe)"))
+        message("CSV salvato: 2 righe da 25 tabelle.")
+        val savedCsv = readDocument(output)
+        val existing = document("pre-existing-private.csv", "existing content must not be replaced".toByteArray())
+        val reads = fixture.reads.get()
+        // Replay a callback after its one-shot request marker has already been consumed.
+        compose.runOnIdle { registry.redeliverLast(existing) }
+        message("Risultato del selettore file non più valido. Prepara di nuovo l'export. Il documento non è stato rimosso: non è un nuovo file vuoto verificabile. Controllalo prima di riprovare.")
+        assertEquals("existing content must not be replaced", readDocument(existing))
+        assertEquals(savedCsv, readDocument(output))
+        assertEquals(2, registry.delivered)
+        assertEquals(reads, fixture.reads.get())
+        assertEquals(0, fixture.posts.get())
+        assertEquals(1, registry.intents.size)
+    }
+
     private fun mount() {
         mounted = true
         compose.activityRule.scenario.onActivity { installContent(it) }
@@ -469,12 +559,12 @@ class TransferDocumentScreenTest {
     private fun assertCreateContract(intent: Intent) {
         assertEquals(Intent.ACTION_CREATE_DOCUMENT, intent.action)
         assertEquals("text/csv", intent.type)
-        assertEquals("savely_export_${LocalDate.now()}.csv", intent.getStringExtra(Intent.EXTRA_TITLE))
+        assertTrue(Regex("savely_export_${LocalDate.now()}_[0-9a-f-]{36}\\.csv").matches(intent.getStringExtra(Intent.EXTRA_TITLE).orEmpty()))
     }
 
-    private fun document(name: String, bytes: ByteArray): Uri {
+    private fun document(name: String, bytes: ByteArray, exactName: Boolean = false): Uri {
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "${UUID.randomUUID()}-$name")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, if (exactName) name else "${UUID.randomUUID()}-$name")
             put(MediaStore.MediaColumns.MIME_TYPE, if (name.endsWith(".xlsx")) "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" else "text/csv")
             put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/SavelyFixtures/")
             put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -486,15 +576,18 @@ class TransferDocumentScreenTest {
         return uri
     }
 
-    private class DocumentRegistry(private val context: Context) : ActivityResultRegistry() {
-        data class Result(val code: Int, val uri: Uri?, val deferred: Boolean = false)
+    private class DocumentRegistry(private val context: Context, private val createExport: (String) -> Uri) : ActivityResultRegistry() {
+        data class Result(val code: Int, val uri: Uri?, val deferred: Boolean = false, val createNew: Boolean = false)
         val intents = CopyOnWriteArrayList<Intent>()
+        val createdDocuments = CopyOnWriteArrayList<Uri>()
         private val pending = ConcurrentLinkedQueue<Result>()
         private var deferredResult: Pair<Int, Result>? = null
+        private var lastDeliveredRequestCode: Int? = null
         @Volatile var delivered = 0
         fun enqueue(uri: Uri) { pending.add(Result(Activity.RESULT_OK, uri)) }
         fun enqueueCancelled() { pending.add(Result(Activity.RESULT_CANCELED, null)) }
         fun enqueueDeferred(uri: Uri) { pending.add(Result(Activity.RESULT_OK, uri, deferred = true)) }
+        fun enqueueDeferredCreatedExport() { pending.add(Result(Activity.RESULT_OK, null, deferred = true, createNew = true)) }
         fun enqueueDeferredCancellation() { pending.add(Result(Activity.RESULT_CANCELED, null, deferred = true)) }
         fun deliverDeferred() {
             val (requestCode, result) = checkNotNull(deferredResult) { "No pending document launch" }
@@ -502,14 +595,22 @@ class TransferDocumentScreenTest {
             deliver(requestCode, result)
         }
         private fun deliver(requestCode: Int, result: Result) {
+            lastDeliveredRequestCode = requestCode
             dispatchResult(requestCode, result.code, result.uri?.let { Intent().setData(it) })
             delivered++
         }
+        fun redeliverLast(uri: Uri) { deliver(checkNotNull(lastDeliveredRequestCode), Result(Activity.RESULT_OK, uri)) }
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
             val intent = contract.createIntent(context, input)
             check(intent.action == Intent.ACTION_OPEN_DOCUMENT || intent.action == Intent.ACTION_CREATE_DOCUMENT)
             intents += intent
-            val result = checkNotNull(pending.poll()) { "Document result must be explicitly queued by the fixture" }
+            val queued = checkNotNull(pending.poll()) { "Document result must be explicitly queued by the fixture" }
+            val result = if (queued.createNew) {
+                check(intent.action == Intent.ACTION_CREATE_DOCUMENT)
+                val uri = createExport(requireNotNull(intent.getStringExtra(Intent.EXTRA_TITLE)))
+                createdDocuments += uri
+                queued.copy(uri = uri, createNew = false)
+            } else queued
             if (result.deferred) {
                 check(deferredResult == null) { "A document launch is already pending" }
                 deferredResult = requestCode to result
