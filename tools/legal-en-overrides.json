@@ -1,5 +1,8 @@
 {
   "utilizza": "uses",
+  "esclusivamente cookie tecnici strettamente necessari": "only technical cookies strictly necessary",
+  "al funzionamento e alla sicurezza del Servizio.": "for the operation and security of the Service.",
+  "Non utilizza": "It does not use",
   "necessario": "necessary",
   "regione": "region",
   "Autenticazione, database (PostgreSQL), storage e funzioni serverless": "Authentication, database (PostgreSQL), storage and serverless functions",
@@ -7,7 +10,8 @@
   "Unione Europea (Irlanda)": "European Union (Ireland)",
   "Unione Europea (Dublino)": "European Union (Dublin)",
   "L'infrastruttura del Servizio risiede nell'Unione Europea: il database è ospitato in Irlanda (Supabase) e l'applicazione è distribuita dalla regione di Dublino (Vercel). Non sono previsti trasferimenti intenzionali dei dati fuori dallo Spazio Economico Europeo; qualora in futuro fossero necessari trasferimenti tecnici extra-UE, avverrebbero con le garanzie adeguate previste dal GDPR (es. clausole contrattuali tipo approvate dalla Commissione Europea) e unicamente per le finalità tecniche necessarie.": "The Service's infrastructure is located in the European Union: the database is hosted in Ireland (Supabase) and the application is deployed from the Dublin region (Vercel). No intentional transfers of data outside the European Economic Area are planned. If technical transfers outside the EU become necessary in the future, they will use the appropriate safeguards required by the GDPR (e.g. standard contractual clauses approved by the European Commission) and solely for the necessary technical purposes.",
-  "Savely non fornisce consulenza finanziaria, fiscale, legale o d'investimento. I calcoli, gli indicatori (es. FIRE, asset allocation) e le statistiche mostrate hanno scopo unicamente informativo e didattico. Non costituiscono raccomandazione personalizzata.": "Savely does not provide financial, tax, legal or investment advice. The calculations, indicators (e.g. FIRE, asset allocation) and statistics shown are solely for information and education. They do not constitute a personalized recommendation.",
-  "Il codice sorgente del Servizio è pubblicato come software open source su GitHub: l'utilizzo del codice è disciplinato dalla licenza riportata nel repository, mentre l'utilizzo del Servizio ospitato resta regolato dai presenti Termini.": "The Service's source code is published as open-source software on GitHub. Use of the code is governed by the license in the repository; use of the hosted Service remains governed by these Terms.",
+  "{{app}} non fornisce consulenza finanziaria, fiscale, legale o d'investimento. I calcoli, gli indicatori (es. FIRE, asset allocation) e le statistiche mostrate hanno scopo unicamente informativo e didattico. Non costituiscono raccomandazione personalizzata.": "{{app}} does not provide financial, tax, legal or investment advice. The calculations, indicators (e.g. FIRE, asset allocation) and statistics shown are solely for information and education. They do not constitute a personalized recommendation.",
+  "Il codice sorgente del Servizio è pubblicato come software open source su": "The Service's source code is published as open-source software on",
+  ": l'utilizzo del codice è disciplinato dalla licenza riportata nel repository, mentre l'utilizzo del Servizio ospitato resta regolato dai presenti Termini.": ". Use of the code is governed by the license in the repository; use of the hosted Service remains governed by these Terms.",
   "I dati che inserisci rimangono di tua proprietà. Marchi, identità visiva e contenuti del sito restano del Titolare, che non ne concede alcun uso salvo quanto previsto dalla licenza del codice.": "The data you enter remains your property. Trademarks, visual identity and site content remain the property of the Data Controller, who grants no permission to use them except as provided by the code license."
 }

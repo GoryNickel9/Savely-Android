@@ -353,6 +353,14 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                 localized("{{amount}} · valore reale {{real}}\nVersamento {{contribution}} · totale versato {{total}}", "amount" to money(point.portfolio), "real" to money(point.inflationAdjusted),
                     "contribution" to money(point.contributions), "total" to money(point.totalContributions)))
         }
+        item {
+            HorizontalDivider()
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(localized("Questi calcolatori sono forniti esclusivamente a scopo educativo e informativo. Non costituiscono consulenza finanziaria, di investimento, fiscale o legale."), style = MaterialTheme.typography.bodySmall)
+                Text(localized("I risultati sono proiezioni ipotetiche basate sugli input e sulle assunzioni riguardo rendimenti futuri e inflazione. I risultati effettivi possono variare; la performance passata non garantisce risultati futuri."), style = MaterialTheme.typography.bodySmall)
+                Text(localized("Prima di prendere decisioni finanziarie, consulta un consulente finanziario qualificato, un professionista fiscale o un altro professionista idoneo che possa valutare la tua situazione personale."), style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
     if (sharingOpen) FireSharingImportDialog(BuildConfig.WEB_URL, sharingBaseline, importing, sharingError,
         onEdited = { sharingError = null }, close = { sharingOpen = false }, apply = { shared ->
@@ -723,7 +731,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                 val value = rows.sumOf { it.optDouble("reselling_value", 0.0) * it.optInt("quantity", 1) }
                 item { Metric(localized("{{count}} pezzi · costo {{amount}}", "count" to rows.sumOf { it.optInt("quantity", 1) }, "amount" to money(cost)),
                     localized("Valore {{amount}} · variazione {{change}}", "amount" to money(value), "change" to money(value - cost))) }
-                item { Text(localized("Prezzi unitari in euro. I prezzi CardTrader possono non essere disponibili; non vengono stimati."), style = MaterialTheme.typography.bodySmall) }
+                item { Text(localized("Prezzi unitari in euro inseriti manualmente. Google Books fornisce i metadati dei libri."), style = MaterialTheme.typography.bodySmall) }
             }
             if (schema.table == "tgc_cards") {
                 if (tcgTotals?.isFailure == true) item { Text(localized("Riepilogo non disponibile: controlla i dati della collezione."), color = MaterialTheme.colorScheme.error) }

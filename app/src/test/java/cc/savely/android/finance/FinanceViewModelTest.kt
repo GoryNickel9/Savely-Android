@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.MockResponse
@@ -49,6 +50,10 @@ class FinanceViewModelTest {
             // No session means refresh fails locally, without dispatching any HTTP request.
             model.refresh()
             runCurrent()
+            // Repository loading uses IO: wait on its completion with a real-time timeout.
+            withContext(Dispatchers.IO) {
+                withTimeout(10_000) { model.state.first { !it.loading } }
+            }
             assertFalse(model.state.value.loading)
             assertNull(model.state.value.updatedAt)
             assertNotNull(model.state.value.error)
