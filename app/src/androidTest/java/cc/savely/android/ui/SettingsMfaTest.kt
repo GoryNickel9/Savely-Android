@@ -293,7 +293,11 @@ class SettingsMfaTest {
         verifyStatus.set(400)
         startEnrollment()
         val field = compose.onNodeWithText("Codice a 6 cifre", substring = false)
-        field.performScrollTo().performTextInput("000000")
+        field.performScrollTo().performTextInput("12345")
+        activate().performScrollTo().assertIsDisplayed().assertIsNotEnabled()
+        assertEquals(0, challenges.get())
+        assertEquals(0, verifications.get())
+        field.performScrollTo().performTextReplacement("000000")
         activate().performScrollTo().performClick()
         compose.waitUntil(15_000) {
             compose.onAllNodesWithText("Codice di verifica non corretto o scaduto.").fetchSemanticsNodes().isNotEmpty()
