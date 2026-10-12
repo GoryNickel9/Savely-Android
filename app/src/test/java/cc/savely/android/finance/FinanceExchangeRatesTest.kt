@@ -14,16 +14,40 @@ class FinanceExchangeRatesTest {
         val client = OkHttpClient.Builder().followRedirects(false).build()
         try {
             server.enqueue(MockResponse().setBody("""{"base":"USD","rates":{"EUR":0.9155555}}"""))
-            val rates = FinanceExchangeRates(client, server.url("/latest"))
+            val rates = FinanceExchangeRates(client, server.url("/v1/latest"))
             assertEquals(BigDecimal("0.915556"), rates.toEuro("USD"))
             val request = server.takeRequest()
             assertEquals("GET", request.method)
-            assertEquals("USD", request.requestUrl!!.queryParameter("from"))
-            assertEquals("EUR", request.requestUrl!!.queryParameter("to"))
+            assertEquals("/v1/latest", request.requestUrl!!.encodedPath)
+            assertEquals(setOf("base", "symbols"), request.requestUrl!!.queryParameterNames)
+            assertEquals("USD", request.requestUrl!!.queryParameter("base"))
+            assertEquals("EUR", request.requestUrl!!.queryParameter("symbols"))
             assertNull(request.getHeader("Authorization")); assertNull(request.getHeader("apikey")); assertNull(request.getHeader("Cookie"))
             assertEquals(BigDecimal.ONE, rates.toEuro("EUR"))
             assertEquals(1, server.requestCount)
         } finally { server.shutdown(); client.dispatcher.executorService.shutdown(); client.connectionPool.evictAll() }
+    }
+    @Test fun `redirected public quote is rejected without following or substituting a rate`() = runBlocking {
+        val server = MockWebServer().apply { start() }
+        val redirectTarget = MockWebServer().apply { start() }
+        val client = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false)
+            .retryOnConnectionFailure(false).build()
+        try {
+            redirectTarget.enqueue(MockResponse().setBody("""{"base":"USD","rates":{"EUR":0.91}}"""))
+            server.enqueue(MockResponse().setResponseCode(301).setHeader("Location", redirectTarget.url("/v1/latest?base=USD&symbols=EUR")))
+            val rates = FinanceExchangeRates(client, server.url("/v1/latest"))
+            val failure = runCatching { rates.toEuro("USD") }.exceptionOrNull()
+            assertTrue(failure is IllegalStateException)
+            assertEquals("Cambio automatico non disponibile. Inserisci il cambio manualmente.", failure!!.message)
+            assertEquals(1, server.requestCount)
+            assertEquals(0, redirectTarget.requestCount)
+            val request = server.takeRequest()
+            assertEquals("/v1/latest?base=USD&symbols=EUR", request.path)
+            assertNull(request.getHeader("Authorization")); assertNull(request.getHeader("apikey")); assertNull(request.getHeader("Cookie"))
+        } finally {
+            server.shutdown(); redirectTarget.shutdown()
+            client.dispatcher.executorService.shutdown(); client.connectionPool.evictAll()
+        }
     }
     @Test fun `missing wrong negative and failed quotes never silently substitute one`() = runBlocking {
         val server = MockWebServer().apply { start() }

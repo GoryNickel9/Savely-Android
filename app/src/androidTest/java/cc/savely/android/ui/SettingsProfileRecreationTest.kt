@@ -56,7 +56,9 @@ class SettingsProfileRecreationTest {
     private val denied = AtomicInteger()
     private val writes = CopyOnWriteArrayList<Pair<String, JSONObject>>()
     private val releaseRead = CountDownLatch(1)
+    private val releasePatch = CountDownLatch(1)
     @Volatile private var gateReads = false
+    @Volatile private var gatePatch = false
     @Volatile private var profileStatus = 200
     @Volatile private var missingProfile = false
     private lateinit var api: SupabaseApi
@@ -76,7 +78,7 @@ class SettingsProfileRecreationTest {
             .addSubjectAlternativeName("localhost").build()
         val trust = HandshakeCertificates.Builder().addTrustedCertificate(certificate.certificate).build()
         client = OkHttpClient.Builder().sslSocketFactory(trust.sslSocketFactory(), trust.trustManager)
-            .retryOnConnectionFailure(false).connectTimeout(5, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
+            .retryOnConnectionFailure(false).connectTimeout(5, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
         server = MockWebServer().apply {
             useHttps(HandshakeCertificates.Builder().heldCertificate(certificate).build().sslSocketFactory(), false)
             dispatcher = fixture()
@@ -91,6 +93,7 @@ class SettingsProfileRecreationTest {
 
     @After fun cleanup() {
         releaseRead.countDown()
+        releasePatch.countDown()
         if (mounted) { compose.runOnIdle { visible.value = false }; compose.waitForIdle() }
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(lifecycle)
@@ -170,6 +173,62 @@ class SettingsProfileRecreationTest {
         assertEquals(0, writes.size)
     }
 
+    @Test fun restoredDraftSurvivesMissingProfileReloadAndRemainsDisabledUntilProfileReturns() {
+        assertUnavailableReloadPreservesDraft(missing = true)
+    }
+
+    @Test fun restoredDraftSurvives503ReloadWithoutRetryOrSessionLoss() {
+        assertUnavailableReloadPreservesDraft(missing = false)
+    }
+
+    @Test fun pendingProfilePatchDisablesControlsAndRepeatedTapsSaveOnlyOnce() {
+        mount()
+        awaitProfile("Profile A", "EUR")
+        editDraft("Draft awaiting save", "USD")
+        gatePatch = true
+        compose.onNodeWithText("Salva profilo", substring = false).performScrollTo().performClick()
+        compose.waitUntil(15_000) { writes.size == 1 }
+        assertProfileDisabled()
+        assertDraft("Draft awaiting save", "USD")
+        val save = compose.onNodeWithText("Salva profilo", substring = false).performScrollTo()
+        save.assertIsDisplayed().assertIsNotEnabled().performTouchInput { click(); click() }
+        assertEquals(1, writes.size)
+        assertEquals(USER_A, writes.single().first)
+        assertEquals(setOf("full_name", "default_currency"), writes.single().second.keys().asSequence().toSet())
+        assertEquals("Draft awaiting save", writes.single().second.getString("full_name"))
+        assertEquals("USD", writes.single().second.getString("default_currency"))
+        releasePatch.countDown()
+        awaitProfile("Draft awaiting save", "USD")
+        compose.onNodeWithText("Profilo salvato.").performScrollTo().assertIsDisplayed()
+        assertEquals(1, writes.size)
+        assertEquals(1, reads.get())
+        assertEquals(first, store.load())
+    }
+
+    private fun assertUnavailableReloadPreservesDraft(missing: Boolean) {
+        mount()
+        awaitProfile("Profile A", "EUR")
+        editDraft("Draft before failed reload", "USD")
+        missingProfile = missing
+        profileStatus = if (missing) 200 else 503
+        compose.activityRule.scenario.recreate()
+        awaitFinishedRead(expectedReads = 2)
+        assertDraft("Draft before failed reload", "USD")
+        assertProfileDisabled()
+        if (!missing) compose.onNodeWithText("Servizio temporaneamente non disponibile. Riprova.")
+            .performScrollTo().assertIsDisplayed()
+        assertEquals("A failed/empty reload must not automatically retry", 2, reads.get())
+        assertEquals(0, writes.size)
+        assertEquals(first, store.load())
+        missingProfile = false
+        profileStatus = 200
+        compose.activityRule.scenario.recreate()
+        awaitProfile("Draft before failed reload", "USD", minimumReads = 3)
+        assertEquals(3, reads.get())
+        assertEquals(0, writes.size)
+        assertEquals(first, store.load())
+    }
+
     private fun mount() {
         mounted = true
         compose.activityRule.scenario.onActivity { installContent(it) }
@@ -195,9 +254,14 @@ class SettingsProfileRecreationTest {
         compose.waitUntil(15_000) {
             reads.get() >= minimumReads && compose.onAllNodes(hasText("Salva profilo") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
+        assertDraft(name, currency)
+        compose.onNodeWithText(currency, substring = false).performScrollTo().assertIsSelected().assertIsEnabled()
+    }
+
+    private fun assertDraft(name: String, currency: String) {
         compose.onNodeWithText("Nome completo", substring = false).performScrollTo()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(name)))
-        compose.onNodeWithText(currency, substring = false).performScrollTo().assertIsSelected().assertIsEnabled()
+        compose.onNodeWithText(currency, substring = false).performScrollTo().assertIsSelected()
     }
 
     private fun editDraft(name: String, currency: String) {
@@ -212,9 +276,9 @@ class SettingsProfileRecreationTest {
         compose.runOnIdle { current.value = next }
     }
 
-    private fun awaitFinishedRead() {
+    private fun awaitFinishedRead(expectedReads: Int = 1) {
         compose.waitUntil(15_000) {
-            reads.get() == 1 && compose.onAllNodes(hasText("Nuova email") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+            reads.get() == expectedReads && compose.onAllNodes(hasText("Nuova email") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -244,6 +308,7 @@ class SettingsProfileRecreationTest {
                 val body = runCatching { JSONObject(request.body.readUtf8()) }.getOrElse { return reject() }
                 if (body.keys().asSequence().toSet() != setOf("full_name", "default_currency")) return reject()
                 writes += identity.userId to body
+                if (gatePatch && !releasePatch.await(45, TimeUnit.SECONDS)) return json("{}", 504)
                 return json("[$body]")
             }
             return reject()

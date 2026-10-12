@@ -1,11 +1,45 @@
 param([string]$Destination)
 $ErrorActionPreference = 'Stop'
+function Resolve-SigningBackupPhysicalPath([string]$Path, [int]$Depth = 0) {
+    if ($Depth -gt 16) { throw 'Percorso del backup non risolvibile in sicurezza.' }
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $rootPath = [IO.Path]::GetPathRoot($fullPath)
+    $resolved = $rootPath
+    foreach ($part in $fullPath.Substring($rootPath.Length).Split([char[]]@('\', '/'), [StringSplitOptions]::RemoveEmptyEntries)) {
+        $resolved = Join-Path $resolved $part
+        if (Test-Path -LiteralPath $resolved) {
+            $entry = Get-Item -LiteralPath $resolved -Force
+            if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                $target = $entry.ResolveLinkTarget($true)
+                if ($null -eq $target) { throw 'Percorso del backup non risolvibile in sicurezza.' }
+                $resolved = Resolve-SigningBackupPhysicalPath $target.FullName ($Depth + 1)
+            }
+        }
+    }
+    return $resolved
+}
+
+function Get-SafeSigningBackupDestination([string]$DestinationPath, [string]$CheckoutPath) {
+    $lexicalRoot = [IO.Path]::GetFullPath($CheckoutPath).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    $lexicalDestination = [IO.Path]::GetFullPath($DestinationPath).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    if ($lexicalDestination.Equals($lexicalRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $lexicalDestination.StartsWith($lexicalRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Il backup della firma deve restare fuori dal checkout.'
+    }
+    # GetFullPath alone does not resolve a junction in an existing parent directory.
+    $physicalRoot = (Resolve-SigningBackupPhysicalPath $CheckoutPath).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    $physicalDestination = Resolve-SigningBackupPhysicalPath $DestinationPath
+    $comparableDestination = $physicalDestination.TrimEnd([IO.Path]::DirectorySeparatorChar)
+    if ($comparableDestination.Equals($physicalRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $comparableDestination.StartsWith($physicalRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Il backup della firma deve restare fuori dal checkout.'
+    }
+    return $physicalDestination
+}
+
 $taskRoot = Split-Path -Parent $PSScriptRoot
 if (-not $Destination) { $Destination = Join-Path $env:USERPROFILE 'Documents/Savely-Signing-Backup' }
-$taskDestination = [IO.Path]::GetFullPath($Destination)
-if ($taskDestination.StartsWith([IO.Path]::GetFullPath($taskRoot) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Il backup della firma deve restare fuori dal checkout.'
-}
+$taskDestination = Get-SafeSigningBackupDestination $Destination $taskRoot
 New-Item -ItemType Directory -Force -Path $taskDestination | Out-Null
 $taskSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
 $taskAcl = [Security.AccessControl.DirectorySecurity]::new()

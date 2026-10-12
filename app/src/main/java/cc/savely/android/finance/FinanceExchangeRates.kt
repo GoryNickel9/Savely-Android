@@ -16,14 +16,14 @@ import org.json.JSONObject
 class FinanceExchangeRates(
     private val client: OkHttpClient = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false)
         .retryOnConnectionFailure(false).callTimeout(15, TimeUnit.SECONDS).build(),
-    private val endpoint: HttpUrl = "https://api.frankfurter.app/latest".toHttpUrl(),
+    private val endpoint: HttpUrl = "https://api.frankfurter.dev/v1/latest".toHttpUrl(),
 ) {
     suspend fun toEuro(currency: String): BigDecimal {
         require(currency in supportedCurrencies) { "Valuta non supportata" }
         if (currency == "EUR") return BigDecimal.ONE
         return withContext(Dispatchers.IO) {
             try {
-                val request = Request.Builder().url(endpoint.newBuilder().addQueryParameter("from", currency).addQueryParameter("to", "EUR").build()).build()
+                val request = Request.Builder().url(endpoint.newBuilder().addQueryParameter("base", currency).addQueryParameter("symbols", "EUR").build()).build()
                 client.newCall(request).execute().use { response ->
                     require(response.isSuccessful) { "Servizio cambio non disponibile" }
                     val bytes = response.peekBody(16_385).bytes()
