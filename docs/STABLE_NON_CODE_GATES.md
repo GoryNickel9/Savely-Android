@@ -1,6 +1,8 @@
 # Gate non di codice per la 1.0
 
-La [qualifica successiva C01](COUPLE_INVITATION_QUALIFICATION.md) chiude localmente rifiuto e cancellazione degli inviti dai form QA: campione release API 31, 7/7 fixture su API 31/35, riletture per entrambi i ruoli e pulizia dei soli record del run. La matrice conserva 30 verifiche aperte. Gli altri percorsi Coppia/Admin, file, confronto e gate esterni restano da qualificare; le sezioni precedenti conservano i propri conteggi storici.
+La [qualifica C02](COUPLE_FORM_QUALIFICATION.md) chiude localmente quote EUR/USD, budget, quattro rimozioni e revoca/archivio dai form sul release firmato API 31. Passano 14/14 fixture su ciascuna API 31/35 e 31 guardie host; 220 riletture REST coincidono. Pulizia dei soli 16 record residui, sessioni QA attive/fattori zero e AVD spenti. Primo crash Compose API 35 e tentativi del driver conservati; causa del crash non dimostrata, successive prove sullo stesso APK superate. **29 verifiche restano aperte**: confronto completo, altri percorsi QA, file e gate esterni.
+
+Consuntivo precedente: la [qualifica C01](COUPLE_INVITATION_QUALIFICATION.md) chiude localmente rifiuto e cancellazione degli inviti dai form QA: campione release API 31, 7/7 fixture su API 31/35, riletture per entrambi i ruoli e pulizia dei soli record del run. La matrice conservava 30 verifiche aperte. Le sezioni sotto conservano i propri conteggi storici.
 
 ## Aggiornamento candidata locale 0.1.10-alpha
 
@@ -31,7 +33,7 @@ Fonti: [QA_QUALIFICATION.md](QA_QUALIFICATION.md), [FEATURE_PARITY.md](FEATURE_P
 ## 2. Percorsi reali QA ancora esclusi
 
 - [ ] Collegare le prove già disponibili ai soli comportamenti osservati: password/TOTP/revoca, Coppia con split EUR/USD e archivio, diniego Admin e modifica/ripristino del permesso QA. I report e i limiti sono in [QA_QUALIFICATION.md](QA_QUALIFICATION.md); non dimostrano ogni percorso delle schermate.
-- [ ] Qualificare i percorsi esclusi usando identità e record dedicati: submit dei form reali, rifiuto/cancellazione inviti, altre rimozioni delle quote, revoca individuale delle sessioni e modifiche account. Provare l'eliminazione soltanto su un'identità creata per essere cancellata, conservando i tre QA riutilizzabili. Conservare esito per contratto, UUID delle sole righe create e conferma della pulizia; una pulizia riuscita non trasforma un flusso fallito in PASS.
+- [ ] Qualificare i percorsi esclusi usando identità e record dedicati. C01/C02 hanno ora campioni firmati dei form inviti, quote, budget e revoca Coppia; restano, fra gli altri, revoca individuale delle sessioni e modifiche account. Provare l'eliminazione soltanto su un'identità creata per essere cancellata, conservando i tre QA riutilizzabili. Conservare esito per contratto, UUID delle sole righe create e conferma della pulizia; una pulizia riuscita non trasforma un flusso fallito in PASS.
 - [ ] Verificare consegna, conferma email, recupero e callback PKCE solo con una mailbox controllata e destinatari autorizzati. **Ostacolo attuale:** gli account `example.invalid` non hanno mailbox e l'utente non dispone di una casella dedicata. Non sono prove eseguibili con le credenziali attuali; non inviare email a terzi per aggirare il limite.
 
 **Chiusura:** elenco dei percorsi qualificati con report e scope, più decisione esplicita sui percorsi rimasti esclusi. Senza mailbox, i gate email restano non verificati.

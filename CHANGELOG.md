@@ -1,5 +1,7 @@
 # Changelog
 
+Qualifica C02: quote EUR/USD, budget EUR 3→4, quattro rimozioni da Coppia/Transazioni e revoca con archivio in sola lettura dai form QA sul release firmato invariato. Passano 14/14 fixture API 31/35 e 16+15 guardie host; 220 letture REST, pulizia dei soli 16 record residui e sessioni QA attive zero. Primo crash Compose API 35 conservato: causa non dimostrata, test isolato e ripetizione completa sullo stesso APK superati. Aggiunte cinque regressioni e guardie dei journal; il setter accessibile riguarda soltanto il harness separato. Nessuna modifica alla produzione o nuova release; emulatori spenti. C02 PASS LOCALE, 29 verifiche aperte; [rapporto](docs/COUPLE_FORM_QUALIFICATION.md).
+
 Qualifica successiva C01: rifiuto A→B e cancellazione B→A dai form QA sul release 0.1.10-alpha invariato; verifica degli UUID/stati/audit e quattro riletture REST con entrambi i ruoli, poi pulizia delle sole due richieste e quattro audit. Passano 7/7 fixture Coppia su API 31 e 35 e 18 guardie host offline. Corrette soltanto fixture e scroll del driver, conservando i fallimenti. Nessuna nuova build di produzione, CI o pubblicazione; [rapporto](docs/COUPLE_INVITATION_QUALIFICATION.md).
 
 ## 0.1.10-alpha candidata locale — 12 ottobre 2026

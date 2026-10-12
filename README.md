@@ -1,6 +1,8 @@
 # Savely Android
 
-La [qualifica successiva degli inviti Coppia](docs/COUPLE_INVITATION_QUALIFICATION.md) verifica rifiuto e cancellazione dai form QA sullo stesso APK firmato, quattro riletture REST per ruolo e pulizia dei soli sei record temporanei. Passano 7/7 casi Coppia su entrambe le API e 18 guardie host offline. La matrice conserva 30 verifiche aperte; il release resta una candidata alpha locale.
+La [qualifica C02](docs/COUPLE_FORM_QUALIFICATION.md) verifica sul release firmato API 31 i form di quote EUR/USD, budget, quattro rimozioni e revoca con archivio in sola lettura. Passano 14/14 fixture su Android 12 e 15 e 31 guardie host; 220 letture REST dei due ruoli coincidono. Eliminati i soli 16 record residui del run, sessioni QA attive e fattori zero, emulatori spenti. Il primo crash Compose API 35 resta documentato, con causa non dimostrata e successive esecuzioni sullo stesso APK superate. V01/R01/C01/C02 sono chiuse localmente; **29 verifiche restano aperte**. La candidata 0.1.10-alpha resta locale, senza nuova pubblicazione o parità globale.
+
+Consuntivo precedente: la [qualifica degli inviti Coppia](docs/COUPLE_INVITATION_QUALIFICATION.md) verifica rifiuto e cancellazione dai form QA sullo stesso APK firmato, quattro riletture REST per ruolo e pulizia dei soli sei record temporanei. Passano 7/7 casi Coppia su entrambe le API e 18 guardie host offline. La matrice conservava 30 verifiche aperte.
 
 ## Candidata locale 0.1.10-alpha — qualifica locale conclusa
 
@@ -36,6 +38,7 @@ Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copi
 | [docs/STATIC_AUDIT_VERIFICATION.md](docs/STATIC_AUDIT_VERIFICATION.md) | Esiti locali finali e fallimenti conservati dell'audit |
 | [docs/STABLE_NON_CODE_GATES.md](docs/STABLE_NON_CODE_GATES.md) | Checklist delle prove e revisioni residue per la 1.0 |
 | [docs/STABLE_VERIFICATION_MATRIX.md](docs/STABLE_VERIFICATION_MATRIX.md) | Qualifica locale, verifiche aperte, sorgenti e dipendenze |
+| [docs/COUPLE_FORM_QUALIFICATION.md](docs/COUPLE_FORM_QUALIFICATION.md) | Quote, budget, quattro rimozioni e revoca dai form QA sul release firmato, fixture e tentativi conservati |
 | [docs/RECREATION_REGRESSION_VERIFICATION.md](docs/RECREATION_REGRESSION_VERIFICATION.md) | Regressioni CSV/profilo, failure iniziali, suite complete API 31/35 e checksum degli APK debug |
 | [docs/COMMON_DATASET_PARITY_REVIEW.md](docs/COMMON_DATASET_PARITY_REVIEW.md) | Dataset sintetico comune, attese dai sorgenti e regressioni locali rieseguite con tre subagent |
 | [docs/COMMON_VISUAL_PARITY_REVIEW.md](docs/COMMON_VISUAL_PARITY_REVIEW.md) | Confronto osservato, correzioni UI e risultati locali sul dataset comune |

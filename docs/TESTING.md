@@ -1,5 +1,13 @@
 # Verifica Savely Android
 
+## Quote, budget e revoca Coppia — C02
+
+[Rapporto](COUPLE_FORM_QUALIFICATION.md): sul release firmato invariato `d6c4ccb0…e12f0daa`, API 31 EN, i form QA verificano quote EUR 5,01/5,01 su 10,01 con avviso rounding, custom USD 4,99/2,01 su 7,00, budget EUR 3→4, quattro rimozioni e revoca/archivio per entrambi i partner. Gli originali restano invariati; sette fasi REST host producono 220 letture coincidenti, con logout delle sole sessioni create. Pulizia di 16 record residui, sei tabelle QA vuote, sessioni QA non scadute/fattori zero e registrazioni disabilitate. Le proiezioni identità/profili selezionate coincidono; nessuna prova globale RLS o modifica schema/web.
+
+Fixture `b069756`, test APK SHA-256 `a878fe68e18f8f4041f63bb79dadbc3fda969c9fa8e1d35b224e41e4304feae8`, app debug congelata `cac39f0a…2da99e5`: 14/14 API 31 in 47,894 s e API 35 in 56,859 s, zero failure/skip nei due run finali. Sono 11 casi Coppia e tre Finance, cinque nuovi e nove preesistenti; le suite storiche da 170 casi sotto conservano i propri sorgenti. Il primo run API 35 termina con crash `SlotWriter.moveSlotGapTo` durante `CompositionImpl.dispose` al primo caso. Test isolato 1/1 in 6,821 s e ripetizione completa 14/14 passano sullo stesso APK; la causa resta non dimostrata e log/stack sono conservati.
+
+Guard offline: 16 form in 5,884 s e 15 letture ruolo in 0,639 s; il primo tentativo ruolo 14/15 aveva un codice errore atteso errato nella fixture. Build test APK e lint debug conclusi con workaround Java NIO process-scoped già documentato; lint zero errori, 32 warning e sei hint. I harness separati conservano 26 invocazioni login/logout native superate; l'estensione `4def664` aggiunge tre setter opt-in superati senza cambiare quei metodi di autenticazione. Consuntivo con 45 coppie PNG/XML e hash; entrambi gli AVD spenti. Nessuna CI, nuova build dell'app, pubblicazione o qualifica del telefono fisico.
+
 ## Inviti Coppia — qualifica successiva C01
 
 Sul release firmato invariato `d6c4ccb0…e12f0daa`, API 31 EN, i form QA creano A→B e B→A; B rifiuta il primo e cancella il secondo. UUID, stato e attore sono confermati dagli audit. Entrambi i ruoli rileggono via REST host i due record terminali, con tutti i campi coincidenti; UI senza inviti pendenti e nessuna connessione creata. Eliminati soltanto due richieste e quattro audit, sessioni QA finali zero. Il primo logout del driver fallisce sullo scroll salvato e viene chiuso manualmente; log conservato, driver corretto senza cambiare l’app.
