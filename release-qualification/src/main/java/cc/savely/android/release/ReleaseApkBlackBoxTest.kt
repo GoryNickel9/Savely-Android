@@ -214,7 +214,7 @@ class ReleaseApkBlackBoxTest {
         await("MFA_SECURITY_MISSING") { hasText("Two-step verification") }
         // The heading precedes the async factor/session refresh; keep its status area in view until it settles.
         await("MFA_SECURITY_STATUS_MISSING") {
-            hasText("Incomplete authenticator setup") || hasText("Authenticator active") ||
+            hasText("Incomplete authenticator setup") || hasText("Active authenticator") ||
                 exists { label(it, setOf("Set up authenticator")) && visible(it) && hasClickableAncestor(it) }
         }
     }
