@@ -1,5 +1,7 @@
 # Changelog
 
+Qualifica successiva C01: rifiuto A→B e cancellazione B→A dai form QA sul release 0.1.10-alpha invariato; verifica degli UUID/stati/audit e quattro riletture REST con entrambi i ruoli, poi pulizia delle sole due richieste e quattro audit. Passano 7/7 fixture Coppia su API 31 e 35 e 18 guardie host offline. Corrette soltanto fixture e scroll del driver, conservando i fallimenti. Nessuna nuova build di produzione, CI o pubblicazione; [rapporto](docs/COUPLE_INVITATION_QUALIFICATION.md).
+
 ## 0.1.10-alpha candidata locale — 12 ottobre 2026
 
 Corretto il ritorno da CreateDocument dopo perdita dello snapshot export: messaggio esplicito per preparare nuovamente il CSV, senza nuove letture o salvataggio automatico. Un marker monouso salvabile limita il callback; la rimozione riguarda solo il nuovo URI con nome atteso, dimensione zero e permessi/proprietà verificabili. File preesistenti, parziali o non verificabili sono conservati con messaggio; un CSV già scritto resta intatto anche se cambia login. Aggiunte cinque regressioni JVM e tre Android. La fixture replay ripristina lo stato pubblico del registry per consegnare davvero il callback stale, senza cambi di produzione.

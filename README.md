@@ -1,5 +1,7 @@
 # Savely Android
 
+La [qualifica successiva degli inviti Coppia](docs/COUPLE_INVITATION_QUALIFICATION.md) verifica rifiuto e cancellazione dai form QA sullo stesso APK firmato, quattro riletture REST per ruolo e pulizia dei soli sei record temporanei. Passano 7/7 casi Coppia su entrambe le API e 18 guardie host offline. La matrice conserva 30 verifiche aperte; il release resta una candidata alpha locale.
+
 ## Candidata locale 0.1.10-alpha — qualifica locale conclusa
 
 La candidata locale 0.1.10-alpha/code 11 usa produzione `459bbac` e APK release immutabile SHA-256 `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`. Passano 536 JVM per variante debug/release; lint di entrambe: zero errori, 32 avvertenze e 6 suggerimenti. La suite debug API 35 passa 170/170 in 562,616 s sul test source `74d7d0d`; API 31 passa 170/170 in 551,778 s, senza failure/skip, in una singola esecuzione completa. Il campione sul release firmato R8 è una prova distinta dalla suite debug.

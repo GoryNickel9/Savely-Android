@@ -1,5 +1,11 @@
 # Verifica Savely Android
 
+## Inviti Coppia — qualifica successiva C01
+
+Sul release firmato invariato `d6c4ccb0…e12f0daa`, API 31 EN, i form QA creano A→B e B→A; B rifiuta il primo e cancella il secondo. UUID, stato e attore sono confermati dagli audit. Entrambi i ruoli rileggono via REST host i due record terminali, con tutti i campi coincidenti; UI senza inviti pendenti e nessuna connessione creata. Eliminati soltanto due richieste e quattro audit, sessioni QA finali zero. Il primo logout del driver fallisce sullo scroll salvato e viene chiuso manualmente; log conservato, driver corretto senza cambiare l’app.
+
+`CoupleScreenTest`: 7/7 su API 31 in 19,716 s e API 35 in 40,444 s, zero failure/skip, stesso test APK SHA-256 `180d746d8a85f82e80c3d9463705b79fecfa3b62ae154e8c8604ea4342277722`, sorgente `b5860c3`. Comprende tre nuovi casi rifiuto/cancellazione/PATCH tardiva e quattro precedenti, con codice non vuoto nella verifica del blocco pending. Due run iniziali API 31 da 6/7 restano falliti: guard della query duplicati e conteggio RPC/INSERT della fixture corretti. Le 18 guardie host offline passano in 0,983 s. Non è una nuova suite completa da 173 casi: i consuntivi storici sotto mantengono i propri sorgenti. [Rapporto ed evidenze](COUPLE_INVITATION_QUALIFICATION.md). Nessuna CI; emulatori spenti dopo le prove.
+
 ## Candidata locale 0.1.10-alpha — consuntivo locale
 
 | Evidenza | Esito e sorgente | Perimetro |

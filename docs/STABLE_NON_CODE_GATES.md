@@ -1,5 +1,7 @@
 # Gate non di codice per la 1.0
 
+La [qualifica successiva C01](COUPLE_INVITATION_QUALIFICATION.md) chiude localmente rifiuto e cancellazione degli inviti dai form QA: campione release API 31, 7/7 fixture su API 31/35, riletture per entrambi i ruoli e pulizia dei soli record del run. La matrice conserva 30 verifiche aperte. Gli altri percorsi Coppia/Admin, file, confronto e gate esterni restano da qualificare; le sezioni precedenti conservano i propri conteggi storici.
+
 ## Aggiornamento candidata locale 0.1.10-alpha
 
 Il [rapporto firmato](SIGNED_RELEASE_QUALIFICATION.md) e la [matrice](STABLE_VERIFICATION_MATRIX.md) aggiungono campioni sul release R8 code11/hash `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`, produzione `459bbac`. 536 JVM per variante e 170/170 debug API 35 passano; API 31 passa 170/170 in 551,778 s, senza failure/skip. V01 e R01 sono **PASS LOCALE**; le altre 31 righe rimangono aperte. La qualifica storica 164/164 API 31/35 sotto non viene trasferita al nuovo sorgente.

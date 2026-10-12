@@ -1085,5 +1085,117 @@
       "separateFromSuiteResult": true
     },
     "historicalScopePolicy": "Earlier localRegressionQualification retains openVerificationRows=32 as its historical result; current qualification closes V01/R01 locally and leaves31."
+  },
+  "coupleInvitationQualification": {
+    "verificationRow": "C01",
+    "status": "local-qualified-C01-scoped-not-global",
+    "matrixStatus": "PASS LOCALE",
+    "qualifiedVerificationRows": ["V01", "R01", "C01"],
+    "openVerificationRows": 30,
+    "report": "docs/COUPLE_INVITATION_QUALIFICATION.md",
+    "runId": "e8aafd09-c2bb-474d-a638-828cf12bde13",
+    "evidenceDirectory": "artifacts/couple-invitation-ui/e8aafd09-c2bb-474d-a638-828cf12bde13/",
+    "immutableResult": "artifacts/couple-invitation-ui/e8aafd09-c2bb-474d-a638-828cf12bde13/result.json",
+    "productionCommit": "459bbac1a380f05b598f0712ee8e66bda3d4eae1",
+    "releaseApkSha256": "d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa",
+    "releaseApkChanged": false,
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "nativeSample": {
+      "api": 31,
+      "language": "en",
+      "loginFormActors": ["A1", "B", "A2"],
+      "invalidCode": "OABC2345",
+      "invalidCodeClientRejected": true,
+      "invalidCodeRequests": 0,
+      "pendingBlocksNewNonemptyCode": true,
+      "pendingBlockCapture": "artifacts/couple-invitation-ui/e8aafd09-c2bb-474d-a638-828cf12bde13/c01-a-pending-blocks-new-code.xml",
+      "declinedRequest": {
+        "id": "d9d58b0d-b21f-4772-90e4-72d5f300cf9b",
+        "direction": "A-to-B",
+        "actor": "B",
+        "status": "rejected",
+        "auditAction": "request_rejected",
+        "evidence": "evidence/first-terminal.json"
+      },
+      "cancelledRequest": {
+        "id": "551b2662-5c1f-4401-8a76-6151956f9742",
+        "direction": "B-to-A",
+        "actor": "B",
+        "status": "cancelled",
+        "auditAction": "request_cancelled",
+        "evidence": "evidence/reverse-terminal.json"
+      },
+      "a1AutomaticLogout": {
+        "status": "failed-retained",
+        "failureCode": "ACCOUNT_CONTENT_MISSING",
+        "manualUiLogoutAndServerZeroVerified": true,
+        "driverFixCommit": "2d7d70f",
+        "applicationChanged": false
+      },
+      "bAndA2NativeLogoutPassed": true,
+      "a2PendingInvitationsEmpty": true,
+      "correctedHarnessApkSha256": "b67ae850c0b357f0e1b7f7dbc9c2befd4a4562e5274b902eb2ec6033e03dce6e",
+      "singleErrorFreeAutomaticRunClaimed": false
+    },
+    "roleVisibility": {
+      "scope": "separate-host-REST-login-and-local-logout-per-QA-role-not-native-terminal-row-display",
+      "status": "passed",
+      "reads": 4,
+      "allFieldsMatch": true,
+      "hostLogoutBothPassed": true,
+      "evidence": "visibility-result.json"
+    },
+    "cleanup": {
+      "ownedRequestsDeleted": 2,
+      "ownedAuditRowsDeleted": 4,
+      "exactFullJsonCompareAndPerIdAbsence": true,
+      "requests": 0,
+      "auditRows": 0,
+      "qaSessions": 0,
+      "qaTransactions": 0,
+      "factors": 0,
+      "connections": 0,
+      "qaIdentities": 3,
+      "registrationsEnabled": false,
+      "qaMetadataAndProfilesUnchanged": true,
+      "evidence": ["evidence/cleanup-reservation.json", "evidence/cleanup-complete.json", "server-final-cleanup.json"],
+      "allServiceRecordsUnchangedClaimed": false
+    },
+    "offlineHostGuards": {
+      "tests": 18,
+      "passed": 18,
+      "seconds": 0.983,
+      "secretReadsDuringSelfcheck": 0,
+      "log": "artifacts/couple-invitation-ui/host-guard-selfcheck.log"
+    },
+    "targetedDebugFixtures": {
+      "existingCases": 4,
+      "addedCases": 3,
+      "newCases": ["incoming-reject-receiver-pending-cas", "outgoing-cancel-sender-pending-cas", "late-patch-response-after-owner-change"],
+      "fixtureSourceCommit": "b5860c30c5730a745227e1ecf97eb8c24dc16616",
+      "testApk": "qualified-androidTest-final.apk",
+      "testApkSha256": "180d746d8a85f82e80c3d9463705b79fecfa3b62ae154e8c8604ea4342277722",
+      "appDebugApkSha256": "cac39f0af66a2a32d269f5094de6a565306cdc4405aa7731a71b021b02da99e5",
+      "api31Final": {"status": "passed", "tests": 7, "passed": 7, "failures": 0, "skipped": 0, "seconds": 19.716, "singleCompleteClassExecution": true, "log": "android31-couple-fixtures-qualified.log", "logSha256": "0ab22a251b173da540f2e817e3c96eb6636782d9a849e00744c063d0e1f3a56f"},
+      "api35Final": {"status": "passed", "tests": 7, "passed": 7, "failures": 0, "skipped": 0, "seconds": 40.444, "singleCompleteClassExecution": true, "log": "android35-couple-fixtures-qualified.log", "logSha256": "4f0fb467dca430982051920a27e3df007f4b20861cee4529cb364d14e3cf6384"},
+      "executionsAcrossTwoApis": 14,
+      "distinctCases": 7,
+      "priorApi31FailuresRetained": [
+        {"tests": 7, "passed": 6, "failure": "fixture-guard-excluded-sender-pending-select-id-limit-one", "log": "android31-couple-fixtures.log"},
+        {"tests": 7, "passed": 6, "failure": "read-rpc-counted-as-write-expected-one-actual-two", "log": "android31-couple-fixtures-final.log"}
+      ],
+      "newComplete173CaseSuiteClaimed": false,
+      "historicalFullSuite": {"appCommit": "459bbac", "testCommit": "74d7d0d", "testsPerApi": 170, "jvmPerVariant": 536}
+    },
+    "scope": "owned-QA-native-decline-cancel-invalid-pending-plus-local-late-response-fixtures-not-C02-or-global-parity",
+    "historicalQualificationObjectsPreserved": true,
+    "historicalScopePolicy": "Prior localRegressionQualification retains open32 and signedReleaseCandidateQualification retains open31; this later C01 qualification closes V01/R01/C01 locally and leaves30 without changing their original suites or flags.",
+    "artifactCollection": {"nativeXmlAndPngCaptures": 22, "movedIntoRunWithBytesPreserved": true, "perFileHashesRecordedInResult": true, "mutableEmulatorLogsExcludedFromImmutableResult": true},
+    "emulatorShutdown": {"status": "confirmed-by-integrator", "api31StoppedBeforeApi35Started": true, "api35Stopped": true, "api35WindowSizeDensityFontReset": true, "adbDevicesEmpty": true, "ownedParentAndQemuPidsAbsent": true, "newDeviceAccessDuringDocumentUpdate": false},
+    "ciExecuted": false,
+    "published": false,
+    "globalParityQualified": false,
+    "schemaOrWebChanged": false,
+    "emailTriggered": false
   }
 }
