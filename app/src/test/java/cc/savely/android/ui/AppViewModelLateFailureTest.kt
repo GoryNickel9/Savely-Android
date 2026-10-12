@@ -19,6 +19,7 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.Base64
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
@@ -45,6 +46,7 @@ class AppViewModelLateFailureTest {
         val replacement = session(SID_B)
         val store = MemorySessionStore(original)
         val availabilityRequests = LinkedBlockingQueue<RecordedRequest>()
+        val releaseAvailabilityResponse = CountDownLatch(1)
         val server = MockWebServer().apply {
             dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse = when (request.requestUrl!!.encodedPath) {
@@ -52,6 +54,7 @@ class AppViewModelLateFailureTest {
                     "/rest/v1/profiles" -> json("""[{"user_id":"$USER","permissions":{"poker":true,"admin":false}}]""")
                     "/rest/v1/rpc/get_registrations_enabled" -> {
                         availabilityRequests.put(request)
+                        check(releaseAvailabilityResponse.await(10, TimeUnit.SECONDS)) { "RPC fixture response was not released" }
                         json("{}", status)
                     }
                     "/auth/v1/token" -> json(replacement.toJson().toString())
@@ -71,8 +74,9 @@ class AppViewModelLateFailureTest {
             assertEquals(true, before.permissions["poker"])
 
             model.checkRegistrations()
-            main.next().run() // Start the public RPC; its failed continuation remains queued.
+            main.next().run() // The gated HTTP response guarantees this action suspends first.
             assertNotNull(availabilityRequests.poll(10, TimeUnit.SECONDS))
+            releaseAvailabilityResponse.countDown()
             val failedContinuation = main.next()
             assertTrue(model.state.value.busy)
             if (replaceLogin) {
@@ -100,6 +104,7 @@ class AppViewModelLateFailureTest {
                 } else assertNotNull(model.state.value.error)
             }
         } finally {
+            releaseAvailabilityResponse.countDown()
             models.clear(); api.close(); server.shutdown(); Dispatchers.resetMain()
         }
     }
