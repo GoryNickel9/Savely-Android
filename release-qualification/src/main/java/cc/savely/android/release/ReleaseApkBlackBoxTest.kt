@@ -200,8 +200,7 @@ class ReleaseApkBlackBoxTest {
             scrollAccountToTop()
             val node = runCatching { seekLabel(setOf(label), "MFA_CONTROL_MISSING", scroll = true, clickable = true) }.getOrNull()
             if (node != null) {
-                node.recycle()
-                clickLabel(setOf(label), "MFA_CONTROL_MISSING")
+                clickControl(node, "MFA_ACTION_REJECTED")
                 return
             }
             SystemClock.sleep(250)
@@ -667,6 +666,11 @@ class ReleaseApkBlackBoxTest {
     private fun seekLabel(labels: Set<String>, code: String, scroll: Boolean, clickable: Boolean = false): AccessibilityNodeInfo {
         for (attempt in 0..(if (scroll) 64 else 12)) {
             find { label(it, labels) && it.isEnabled && visible(it) && (!clickable || hasClickableAncestor(it)) }?.let { return it }
+            // A busy control already in view must become enabled before searching farther down the page.
+            if (clickable && exists { label(it, labels) && visible(it) }) {
+                SystemClock.sleep(250)
+                continue
+            }
             if (!scroll) {
                 SystemClock.sleep(250)
             } else {
