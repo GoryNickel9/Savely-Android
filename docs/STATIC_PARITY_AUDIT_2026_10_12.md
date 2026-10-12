@@ -1,6 +1,6 @@
 # Audit statico Android/web — 12 ottobre 2026
 
-Le correzioni descritte sono presenti nel sorgente e **da verificare**. Su richiesta dell'utente, questo audit non esegue test, build, lint, CI, emulatori o chiamate al backend. Le regressioni sono scritte ma non eseguite; non viene prodotto o pubblicato un nuovo APK.
+Alla chiusura dell'audit le correzioni erano **da verificare**. Su richiesta dell'utente, l'audit non eseguiva test, build, lint, CI, emulatori o chiamate al backend. Dopo la successiva autorizzazione, la [verifica locale](STATIC_AUDIT_VERIFICATION.md) passa 528 JVM e due suite complete da 132 casi su API 31/35, con le correzioni del solo harness documentate. Nessun nuovo APK pubblico o certificazione globale deriva da questi risultati.
 
 ## Riferimenti e metodo
 

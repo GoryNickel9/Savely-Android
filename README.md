@@ -6,7 +6,7 @@ Stato al 12 ottobre 2026: 0.1.9-alpha pubblicata con APK firmato, 503 test JVM e
 
 Sono presenti accesso e sessione cifrata, dashboard, transazioni, categorie, budget, ricorrenze, grafici, portafoglio, patrimonio, import/export CSV, FIRE, Poker, Fumo, TCG, Libreria, Coppia e impostazioni. La presenza di una schermata non certifica tutti i flussi: i contratti e le lacune sono registrati nei documenti delle singole aree.
 
-L'[audit statico Android/web](docs/STATIC_PARITY_AUDIT_2026_10_12.md) successivo aggiunge correzioni da verificare. Per richiesta dell'utente non sono stati eseguiti test, build, lint, CI o emulatori su queste modifiche; i risultati precedenti appartengono al sorgente `0714f39`.
+L'[audit statico Android/web](docs/STATIC_PARITY_AUDIT_2026_10_12.md) è stato seguito dalla [verifica locale](docs/STATIC_AUDIT_VERIFICATION.md) autorizzata: 528 JVM, 36 host Python e due suite complete da 132 casi su Android 12/15 passano. Lint debug/release senza errori; documenti IT/EN riproducibili. Corrette due attese delle fixture, le chiavi del generatore e le note FIRE/Libreria. Sorgente finale `4d6a376`, nessuna CI o nuova release pubblica. I [gate senza nuove funzionalità](docs/STABLE_NON_CODE_GATES.md) distinguono prove reali e ostacoli ancora aperti.
 
 Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copiare `savely.properties.example` in `savely.properties` e inserire esclusivamente URL e chiave pubblica Supabase. Eseguire `./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`. L'APK viene prodotto in `app/build/outputs/apk/debug/`. I token utente sono cifrati con una chiave Android Keystore; nessuna chiave amministrativa appartiene alla build.
 
@@ -17,6 +17,8 @@ Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copi
 | [docs/PARITY_0_1_9.md](docs/PARITY_0_1_9.md) | Lacune completate nella candidata e condizioni della 1.0 stabile |
 | [docs/QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md) | Account dedicati, prove reali e correzioni successive alla release pubblica |
 | [docs/STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md) | Confronto dei sorgenti, correzioni e verifiche rinviate |
+| [docs/STATIC_AUDIT_VERIFICATION.md](docs/STATIC_AUDIT_VERIFICATION.md) | Esiti locali finali e fallimenti conservati dell'audit |
+| [docs/STABLE_NON_CODE_GATES.md](docs/STABLE_NON_CODE_GATES.md) | Checklist delle prove e revisioni residue per la 1.0 |
 | [docs/DEVELOPMENT_AND_TESTING.md](docs/DEVELOPMENT_AND_TESTING.md) | Processi di sviluppo, test e informazioni documentate su PokerStars |
 | [docs/TESTING.md](docs/TESTING.md) | Comandi, risultati eseguiti e verifiche ancora aperte |
 | [docs/RELEASE.md](docs/RELEASE.md) | Firma, installazione e continuità degli aggiornamenti |

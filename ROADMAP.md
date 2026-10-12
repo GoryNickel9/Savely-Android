@@ -2,7 +2,7 @@
 
 Data: 12 ottobre 2026. Stato: 0.1.9-alpha pubblicata con APK firmato, 503 JVM e due suite Android complete da 130 casi (API 31 e 35). Il codice successivo corregge timestamp, cambio account Admin e sovrapposizione del recupero MFA; 514 JVM e la suite finale Android 12 da 132 casi passano. Creati tre account QA dopo autorizzazione, con registrazioni ripristinate disabilitate. Accesso nativo con password, TOTP/revoca sessioni, flusso Coppia e lettura/diniego/ripristino permessi Admin hanno prove reali con scope dichiarato in [QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md). Nessuna nuova release pubblica o parità globale deriva automaticamente da questi PASS. La 1.0.0 richiede ancora i gate in [PARITY_0_1_9.md](docs/PARITY_0_1_9.md). I cinque blocchi precedenti conservano l’evidenza storica in docs/ROADMAP_CLOSURE.md.
 
-Audit statico successivo: [STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md). Le nuove correzioni restano **da verificare**: nessun test, build, lint, CI, emulatore o accesso al backend viene eseguito durante questo audit. I PASS sopra appartengono al sorgente precedente `0714f39`, non alle modifiche dell'audit.
+Audit statico successivo: [STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md), inizialmente senza test. La [verifica locale autorizzata](docs/STATIC_AUDIT_VERIFICATION.md) passa 528 JVM, 36 host Python e 132/132 su entrambe le API 31/35, in singoli run finali completi. Lint senza errori; sorgente `4d6a376`, hash invariati, nessuna CI o nuova prova backend. I PASS QA reali sopra restano associati a `0714f39`. I [gate non di codice](docs/STABLE_NON_CODE_GATES.md) e la parità globale restano aperti.
 
 ## 1. Risultato richiesto e vincoli
 
@@ -236,7 +236,7 @@ L’utente conferma installazione e uso generale della 0.1.7 sul Doogee S100 And
 
 ## 12. Prossime attività per la stabile
 
-1. **Completato — audit statico:** confronto del riferimento web `1cfcf629`, correzioni delle lacune dimostrate e regressioni scritte senza eseguirle. Ogni correzione resta non verificata nel rapporto dell'audit.
-2. **Dopo — verifica locale:** quando autorizzato, eseguire regressioni, suite integrate e controlli Android 12/15 sul sorgente finale. I risultati delle versioni precedenti restano separati.
+1. **Completato — audit statico:** confronto del riferimento web `1cfcf629`, correzioni delle lacune dimostrate e regressioni inizialmente scritte senza eseguirle.
+2. **Completato — verifica locale:** 528 JVM, 36 host Python, suite finali Android 12/15 da 132 casi ciascuna e lint senza errori. Due problemi di attesa/scroll delle fixture corretti senza rimuovere gli assert. Revisione testuale dei documenti e riproduzione 12/12 asset completate; nessuna prova reale aggiunta ai PASS QA storici.
 3. **Dopo — parità reale:** completare matrice web/Android, percorsi account/Coppia/Admin esclusi, import e servizi esterni. Risolvere il gate mailbox prima delle prove email/PKCE.
-4. **Dopo — distribuzione:** verificare release ottimizzata, firma, aggiornamento con sessione autenticata e dispositivo fisico; pubblicare 1.0.0 soltanto a gate superati. Nessuna data stabile è assegnata all'audit senza test.
+4. **Dopo — distribuzione:** verificare release ottimizzata, firma, aggiornamento con sessione autenticata e dispositivo fisico; pubblicare 1.0.0 soltanto a gate superati. La data della stabile dipende dalla chiusura dei gate reali.

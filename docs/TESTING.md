@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Verifica dell'audit statico — 12 ottobre 2026
+
+[STATIC_AUDIT_VERIFICATION.md](STATIC_AUDIT_VERIFICATION.md) registra il sorgente `4d6a376`: produzione/JVM identici a `935c7ba`, con sola correzione successiva dello scroll della fixture FIRE. Passano 528 JVM, 36 host Python e due suite ordinarie complete da 132 casi su API 31/35, senza failure/errori/skip. Lint debug/release zero errori, 32 avvertenze e 6 suggerimenti per variante. Due esiti iniziali falliti sono conservati; le suite finali non aggregano i rerun. Nessuna CI, prova backend o nuovo APK pubblico. I [gate non di codice](STABLE_NON_CODE_GATES.md) restano separati dai test locali.
+
 ## Qualifica successiva alla 0.1.9
 
 [QA_QUALIFICATION.md](QA_QUALIFICATION.md) registra il codice non ancora pubblicato: 514 JVM, 36 test host Python, 132 casi ordinari Android 12, correzioni di timestamp/Admin/MFA e prove native reali con tre account dedicati. I risultati sotto restano quelli degli APK storici; nessun PASS successivo viene attribuito retroattivamente alla 0.1.9 pubblica.

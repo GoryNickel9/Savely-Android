@@ -658,5 +658,25 @@
     "webModified": false,
     "inheritsPriorTestResults": false,
     "apkPublished": false
+  },
+  "postAuditVerification": {
+    "date": "2026-10-12",
+    "report": "docs/STATIC_AUDIT_VERIFICATION.md",
+    "sourceCommit": "4d6a37667961acf91e042a457c0af6b0e572975a",
+    "jvmExecutedSourceCommit": "935c7ba5a2817cbc2e67179d710060537fb383de",
+    "jvmInputsUnchangedAfterAndroidTestOnlyFix": true,
+    "sourceFiles": 202,
+    "sourcesUnchangedDuringFinalSuites": true,
+    "status": "local-fixtures-passed-not-global-parity",
+    "jvm": { "tests": 528, "failures": 0, "errors": 0, "skipped": 0 },
+    "hostPython": { "tests": 36, "status": "passed" },
+    "androidApi31": { "tests": 132, "passed": 132, "skipped": 0, "durationSeconds": 666.191, "singleCompleteExecution": true },
+    "androidApi35": { "tests": 132, "passed": 132, "skipped": 0, "durationSeconds": 644.736, "singleCompleteExecution": true },
+    "lint": { "errorsPerVariant": 0, "warningsPerVariant": 32, "hintsPerVariant": 6 },
+    "legalFilesMatched": 12,
+    "backendTestsExecuted": false,
+    "physicalDeviceTested": false,
+    "apkPublished": false,
+    "remainingGates": "docs/STABLE_NON_CODE_GATES.md"
   }
 }
