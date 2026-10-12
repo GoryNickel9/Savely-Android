@@ -89,7 +89,9 @@ class CoupleScreenTest {
         compose.onNodeWithText("Invita partner").performClick()
         waitFor("Invito inviato")
         assertEquals(1, lookups.get())
+        compose.onNodeWithText("Codice del partner").performTextInput("ABCD2345")
         compose.onNodeWithText("Invita partner").assertIsNotEnabled()
+        assertEquals(1, mutations.get())
     }
 
     @Test fun incomingInvitationRejectUsesReceiverAndPendingCasThenDisappearsAfterRefresh() {
