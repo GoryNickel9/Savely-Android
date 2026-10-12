@@ -14,7 +14,7 @@ Ogni inserimento include un UUID client stabile e il `user_id` verificato. Error
 
 ## Formati supportati
 
-Revisione statica `de53ac7`: formato import, salvato come nome dell'enum, e valuta del conto usano `rememberSaveable(owner)` in `TransferScreen`. Prima erano soltanto `remember`: una ricreazione mentre OpenDocument era aperto poteva usare Revolut/EUR nella callback. Il percorso di preview e conferma resta quello esistente. Patch SC01 non compilata né provata; [F01 nella matrice](STABLE_VERIFICATION_MATRIX.md) richiede ricreazione con picker pendente, BANK/USD, NORMALIZED, annulla e assenza di scritture automatiche. La bozza del ViewModel e il ledger non diventano checkpoint su disco.
+Revisione statica `de53ac7`: formato import, salvato come nome dell'enum, e valuta del conto usano `rememberSaveable(owner)` in `TransferScreen`. Prima erano soltanto `remember`: una ricreazione mentre OpenDocument era aperto poteva usare Revolut/EUR nella callback. Il percorso di preview e conferma resta quello esistente. SC01 passa ora nelle [suite complete locali API 31/35](RECREATION_REGRESSION_VERIFICATION.md): picker differito con BANK/USD e NORMALIZED, preview ricreata, annulla e assenza di scritture automatiche. [F01 nella matrice](STABLE_VERIFICATION_MATRIX.md) resta aperta per picker/provider reali; il registry controllato della fixture non li certifica. La bozza del ViewModel e il ledger non diventano checkpoint su disco.
 
 | Formato | Contratto | Differenze dichiarate |
 |---|---|---|

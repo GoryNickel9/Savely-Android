@@ -2,6 +2,8 @@
 
 ## In sviluppo dopo la 0.1.9 — 12 ottobre 2026
 
+Verifica locale autorizzata delle regressioni CSV/profilo: 530 JVM, 36 host Python, 14/14 mirati finali e due suite complete da 164/164 su API 31/35 passano; lint debug/release senza errori. Il primo run mirato ha sei failure: corretto il montaggio delle sole fixture da uno stesso callsite per conservare le chiavi saveable; failure export non riprodotto nei tre run successivi, causa separata non dimostrata. Nessuna modifica alla produzione. [Rapporto](docs/RECREATION_REGRESSION_VERIFICATION.md), 81 PNG per API, checksum e sorgenti conservati. V01 qualificata localmente, 32 verifiche aperte; emulatori spenti, nessuna CI, prova backend o nuova release pubblica.
+
 Preparati otto nuovi casi Android per le patch SC01/SC02: opzioni BANK/USD e NORMALIZED con picker pendente dopo ricreazione, annullamento senza accesso ai dati, bozza profilo e salvataggio esplicito, isolamento fra utenti/login e controlli disabilitati durante caricamento o con profilo nullo/fallito. Rafforzato un caso Transfer esistente. Nessuna nuova modifica alla produzione; casi non compilati e non eseguiti, roadmap e [matrice](docs/STABLE_VERIFICATION_MATRIX.md) aggiornate. Test, build, CI ed emulatore restano rinviati.
 
 Revisione statica successiva, sorgente `de53ac7`: opzioni import conservate con stato salvabile e bozza profilo non sovrascritta dal GET dopo ricreazione. Aggiunta la [matrice delle verifiche mancanti](docs/STABLE_VERIFICATION_MATRIX.md), con 33 verifiche aperte, fonti e mapping dei 50 casi comuni. Le patch non sono compilate o provate; nessun test, build, CI, emulatore, accesso backend o nuova release in questa attività.

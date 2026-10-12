@@ -1,6 +1,6 @@
 # Savely Android
 
-Ultima revisione statica: [matrice delle verifiche mancanti](docs/STABLE_VERIFICATION_MATRIX.md), 33 verifiche aperte e collegamento ai 50 casi del dataset. Il sorgente `de53ac7` conserva opzioni import e bozza profilo dopo ricreazione; preparati otto nuovi casi Android per verificarlo. Patch e nuove regressioni non sono state compilate o provate. Nessun nuovo APK, esecuzione di test, build, CI, emulatore o accesso backend in questa attività.
+Ultima [verifica locale CSV/profilo](docs/RECREATION_REGRESSION_VERIFICATION.md): 530 JVM, 36 host Python e due suite complete da 164/164 casi su Android 12/15 passano; lint debug/release senza errori. Le otto nuove regressioni qualificano le patch `de53ac7`; corretto il montaggio delle sole fixture in `f60ab38`, conservando sei failure iniziali. Emulatori spenti, nessuna CI, prova backend o nuova release pubblica. La [matrice](docs/STABLE_VERIFICATION_MATRIX.md) qualifica V01 localmente e conserva 32 verifiche aperte e i 50 casi del dataset.
 
 App Android nativa di Savely in Kotlin e Jetpack Compose, con account e dati condivisi con il sito.
 
@@ -23,7 +23,8 @@ Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copi
 | [docs/STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md) | Confronto dei sorgenti, correzioni e verifiche rinviate |
 | [docs/STATIC_AUDIT_VERIFICATION.md](docs/STATIC_AUDIT_VERIFICATION.md) | Esiti locali finali e fallimenti conservati dell'audit |
 | [docs/STABLE_NON_CODE_GATES.md](docs/STABLE_NON_CODE_GATES.md) | Checklist delle prove e revisioni residue per la 1.0 |
-| [docs/STABLE_VERIFICATION_MATRIX.md](docs/STABLE_VERIFICATION_MATRIX.md) | Verifiche aperte, sorgenti, dipendenze e patch statiche ancora da provare |
+| [docs/STABLE_VERIFICATION_MATRIX.md](docs/STABLE_VERIFICATION_MATRIX.md) | Qualifica locale, verifiche aperte, sorgenti e dipendenze |
+| [docs/RECREATION_REGRESSION_VERIFICATION.md](docs/RECREATION_REGRESSION_VERIFICATION.md) | Regressioni CSV/profilo, failure iniziali, suite complete API 31/35 e checksum degli APK debug |
 | [docs/COMMON_DATASET_PARITY_REVIEW.md](docs/COMMON_DATASET_PARITY_REVIEW.md) | Dataset sintetico comune, attese dai sorgenti e regressioni locali rieseguite con tre subagent |
 | [docs/COMMON_VISUAL_PARITY_REVIEW.md](docs/COMMON_VISUAL_PARITY_REVIEW.md) | Confronto osservato, correzioni UI e risultati locali sul dataset comune |
 | [docs/DEVELOPMENT_AND_TESTING.md](docs/DEVELOPMENT_AND_TESTING.md) | Processi di sviluppo, test e informazioni documentate su PokerStars |

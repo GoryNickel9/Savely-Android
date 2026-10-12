@@ -10,7 +10,7 @@ Il [confronto osservato Android/web](COMMON_VISUAL_PARITY_REVIEW.md) sul dataset
 
 ## Inventario iniziale
 
-La [matrice delle verifiche mancanti](STABLE_VERIFICATION_MATRIX.md) collega codice, fixture, dipendenze e criteri di chiusura a 33 righe aperte e ai 50 casi comuni. Le patch SC01/SC02 del sorgente `de53ac7` riguardano ricreazione di Dati e bozza profilo: non sono compilate o provate. Il campione precedente resta circoscritto a `16c7011`; nessuna baseline globale viene promossa da questa lettura.
+La [matrice delle verifiche mancanti](STABLE_VERIFICATION_MATRIX.md) collega codice, fixture, dipendenze e criteri di chiusura a 33 righe e ai 50 casi comuni. La [verifica locale successiva](RECREATION_REGRESSION_VERIFICATION.md) qualifica SC01/SC02 e V01: 530 JVM, 36 host Python e 164/164 in ciascun run completo API 31/35, lint senza errori. Restano 32 righe aperte e i percorsi reali; nessuna baseline globale viene promossa da questi PASS. Il campione web precedente conserva il proprio sorgente e scope.
 
 I package `ui`, `data`, `finance`, `transfer` e `modules` contengono le schermate e i contratti nativi. Per ogni area, i documenti `API_CONTRACTS_*` e `IMPORT_EXPORT.md` registrano API, calcoli e lacune rispetto al web.
 

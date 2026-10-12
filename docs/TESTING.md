@@ -1,10 +1,16 @@
 # Verifica Savely Android
 
+## Qualifica locale CSV/profilo — 12 ottobre 2026
+
+[RECREATION_REGRESSION_VERIFICATION.md](RECREATION_REGRESSION_VERIFICATION.md): compilate le otto nuove regressioni; 530 JVM e 36 host Python passano, lint debug/release zero errori, 32 warning e 6 hint per variante. Il primo run mirato termina 14 casi/sei failure; corretto il montaggio delle fixture, il finale passa 14/14 in 50,804 s. Due suite complete passano 164/164 su API 31 (483,804 s) e API 35 (598,852 s), senza failure/skip, stessi APK debug/test. Ogni suite include 140 ordinari e 24 visuali; 81 PNG per API conservati. Sorgente Android `f60ab38`; JVM eseguiti su `5f058dc`, con produzione/JVM identici al sorgente finale. Nessuna CI, prova backend o release pubblica; emulatori spenti.
+
+V01 della [matrice](STABLE_VERIFICATION_MATRIX.md) è qualificata localmente. I PASS seguenti restano storici e non sono sommati ai nuovi; le altre 32 verifiche e i gate reali della stabile restano aperti.
+
 ## Revisione statica successiva — 12 ottobre 2026
 
-[STABLE_VERIFICATION_MATRIX.md](STABLE_VERIFICATION_MATRIX.md): 33 verifiche aperte e mapping dei 50 casi. Il sorgente `de53ac7` modifica lo stato salvabile delle opzioni import e l'inizializzazione della bozza profilo. Preparati successivamente otto nuovi casi Android per SC01/SC02, senza esecuzioni. Nessun test, build, lint, CI, emulatore o backend eseguito; le due patch restano non verificate. I risultati riportati sotto qualificano i loro sorgenti precedenti, non questa revisione.
+La [matrice](STABLE_VERIFICATION_MATRIX.md) nasceva con 33 verifiche aperte e il mapping dei 50 casi. Il sorgente `de53ac7` modificava lo stato salvabile delle opzioni import e l'inizializzazione della bozza profilo. Preparati successivamente otto nuovi casi Android per SC01/SC02, senza esecuzioni. In quella fase nessun test, build, lint, CI, emulatore o backend era stato eseguito; le due patch erano non verificate. La qualifica successiva è riportata sopra; i risultati storici sotto conservano i propri sorgenti.
 
-Alla ripresa compilare ed eseguire prima `cc.savely.android.transfer.TransferDocumentScreenTest` e `cc.savely.android.ui.SettingsProfileRecreationTest`. La prima classe aggiunge tre casi con risultato picker differito e rafforza un assert sulla preview ricreata; la seconda aggiunge cinque casi su bozza, salvataggio esplicito, isolamento dei login e caricamento nullo/fallito. Sono fixture locali con Activity ricreata, non prove di picker reale, process death, email o policy backend. Poi rieseguire le suite complete e lint sullo stesso sorgente, registrando separatamente API 31 e 35. Nessun esito è anticipato.
+Il piano allora prevedeva di partire da `cc.savely.android.transfer.TransferDocumentScreenTest` e `cc.savely.android.ui.SettingsProfileRecreationTest`, poi le suite complete e lint. La prima classe aggiunge tre casi con risultato picker differito e rafforza un assert sulla preview ricreata; la seconda aggiunge cinque casi su bozza, salvataggio esplicito, isolamento dei login e caricamento nullo/fallito. Sono fixture locali con Activity ricreata, non prove di picker reale, process death, email o policy backend. L'esecuzione successiva è registrata sopra, senza attribuire retroattivamente PASS alla fase statica.
 
 ## Confronto visuale locale — 12 ottobre 2026
 

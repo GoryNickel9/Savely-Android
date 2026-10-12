@@ -1,6 +1,6 @@
 # Gate non di codice per la 1.0
 
-La [matrice operativa successiva](STABLE_VERIFICATION_MATRIX.md) associa ogni area aperta al codice e alla prova necessaria. Registra anche SC01/SC02, correzioni statiche in `de53ac7` da qualificare prima di usare i risultati precedenti per una nuova candidata. Questa attività non chiude checkbox e non esegue test, build, CI o emulatore.
+La [matrice operativa successiva](STABLE_VERIFICATION_MATRIX.md) associa ogni area al codice e alla prova necessaria. La [verifica locale autorizzata](RECREATION_REGRESSION_VERIFICATION.md) qualifica SC01/SC02 e V01: 530 JVM, 36 host Python e due suite complete da 164/164 su API 31/35; lint senza errori, emulatori spenti. Le altre 32 righe e le checkbox reali di questo documento restano aperte: nessuna CI, nuova prova backend, telefono o APK di distribuzione finale deriva da questo run.
 
 Checklist al 12 ottobre 2026, riferita alla richiesta di verifica del sorgente `75d30ed`. Non introduce funzionalità: distingue le prove ancora necessarie dagli ostacoli esterni. Le verifiche integrate sono gestite dal responsabile dell'integrazione; questo documento non ne anticipa gli esiti.
 
