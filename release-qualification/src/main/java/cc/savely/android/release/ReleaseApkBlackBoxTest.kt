@@ -62,6 +62,7 @@ class ReleaseApkBlackBoxTest {
                 .put("session_retained_for_upgrade", true).put("cleanup_pending", false).put("stage", "prepared")
             prepared = true
         } catch (failure: Throwable) {
+            if (report.optBoolean("input_consumed")) recordUiFlags(report)
             report.put("stage", "prepare_failed").put("failure_code", safeFailure(failure))
             throw AssertionError(safeFailure(failure))
         } finally {
@@ -105,6 +106,7 @@ class ReleaseApkBlackBoxTest {
             report.put("english_preserved", true).put("light_preserved", true)
             verified = true
         } catch (failure: Throwable) {
+            recordUiFlags(report)
             report.put("failure_code", safeFailure(failure))
             throw AssertionError(safeFailure(failure))
         } finally {
@@ -280,20 +282,38 @@ class ReleaseApkBlackBoxTest {
     }
 
     private fun find(predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
-        val roots = automation.windows.mapNotNull { it.root }.toMutableList()
-        if (roots.isEmpty()) automation.rootInActiveWindow?.let(roots::add)
+        // Re-read the active root and virtual Compose nodes after login replaces its content.
+        val active = automation.rootInActiveWindow
+        val roots = mutableListOf<AccessibilityNodeInfo>()
+        active?.let(roots::add)
+        automation.windows.forEach { window ->
+            val root = window.root ?: return@forEach
+            if (root.windowId == active?.windowId) root.recycle() else roots.add(root)
+        }
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.addAll(roots)
         var visited = 0
         try {
             while (queue.isNotEmpty() && visited++ < 4_096) {
                 val node = queue.removeFirst()
+                if (!node.refresh()) { node.recycle(); continue }
                 if (node.packageName?.toString() == TARGET && predicate(node)) return node
                 for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
                 node.recycle()
             }
             return null
         } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+    }
+
+    private fun recordUiFlags(report: JSONObject) {
+        // Fixed-label booleans only: never serialize accessibility text or password nodes.
+        runCatching {
+            report.put("ui_diagnostic", JSONObject()
+                .put("dashboard_label_seen", hasText("Dashboard"))
+                .put("password_field_seen", editable(password = true))
+                .put("settings_navigation_seen", hasText("Settings") || hasText("Impostazioni"))
+                .put("qa_identity_seen", hasText(QA_EMAIL)))
+        }
     }
 
     private fun hideKeyboardIfShown() {
