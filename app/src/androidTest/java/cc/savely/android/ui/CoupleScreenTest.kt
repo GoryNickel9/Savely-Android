@@ -277,11 +277,20 @@ class CoupleScreenTest {
                         json("""[{"id":"$REQUEST","sender_id":"${if (incoming) PARTNER else USER}","receiver_id":"${if (incoming) USER else PARTNER}","status":"$status"}]""")
                     }
                     "GET" -> {
-                        if (invitationClosed.get() && !newOwner) requestReadsAfterPatch.incrementAndGet()
                         val owner = if (newOwner) PARTNER else USER
-                        if (url.queryParameter("or") != "(sender_id.eq.$owner,receiver_id.eq.$owner)" || url.queryParameter("status") != "eq.pending") json("{}", 403)
-                        else json(if (!newOwner && !invitationClosed.get() && (invited.get() || incomingInvitation.get()) && url.queryParameter("id") == null)
-                            """[{"id":"$REQUEST","sender_id":"${if (incomingInvitation.get()) PARTNER else USER}","receiver_id":"${if (incomingInvitation.get()) USER else PARTNER}","status":"pending"}]""" else "[]")
+                        val filters = url.queryParameterNames.associateWith { url.queryParameter(it) }
+                        val duplicateCheck = mapOf("select" to "id", "sender_id" to "eq.$owner", "status" to "eq.pending", "limit" to "1")
+                        val list = mapOf("select" to "*", "or" to "(sender_id.eq.$owner,receiver_id.eq.$owner)",
+                            "status" to "eq.pending", "order" to "id.asc", "limit" to "500")
+                        when (filters) {
+                            duplicateCheck -> json(if (!newOwner && !invitationClosed.get() && invited.get()) """[{"id":"$REQUEST"}]""" else "[]")
+                            list, list + ("id" to "gt.$REQUEST") -> {
+                                if (invitationClosed.get() && !newOwner) requestReadsAfterPatch.incrementAndGet()
+                                json(if (!newOwner && !invitationClosed.get() && (invited.get() || incomingInvitation.get()) && url.queryParameter("id") == null)
+                                    """[{"id":"$REQUEST","sender_id":"${if (incomingInvitation.get()) PARTNER else USER}","receiver_id":"${if (incomingInvitation.get()) USER else PARTNER}","status":"pending"}]""" else "[]")
+                            }
+                            else -> json("{}", 403)
+                        }
                     }
                     else -> json("{}", 405)
                 }
