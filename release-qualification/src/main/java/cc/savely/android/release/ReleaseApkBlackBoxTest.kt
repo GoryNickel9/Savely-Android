@@ -85,6 +85,8 @@ class ReleaseApkBlackBoxTest {
             await("MFA_CANCEL_DIALOG_MISSING") { hasText("Cancel setup?") }
             clickLabel(setOf("Cancel"), "MFA_CANCEL_BUTTON_MISSING")
             await("MFA_CANCEL_NOT_DISMISSED") { !hasText("Cancel setup?") }
+            scrollAccountToTop()
+            seekLabel(setOf("Add this key manually to your authenticator app:"), "MFA_MANUAL_KEY_MISSING", scroll = true).recycle()
             requireCode(exists { it.text?.toString() == secret }, "MFA_SETUP_LOST_AFTER_CANCEL")
             checked("pending_cancel_kept")
             clickLabel(setOf("Account"), "ACCOUNT_PANE_MISSING")
@@ -109,6 +111,8 @@ class ReleaseApkBlackBoxTest {
             mfaFillCode("6-digit code", mfaWrongCode(secret))
             mfaTopClick("Enable verification")
             mfaAwaitMessage("Incorrect or expired verification code.")
+            scrollAccountToTop()
+            seekLabel(setOf("Add this key manually to your authenticator app:"), "MFA_MANUAL_KEY_MISSING", scroll = true).recycle()
             requireCode(exists { it.text?.toString() == secret }, "MFA_SETUP_LOST_AFTER_WRONG_CODE")
             checked("enrollment_wrong")
             mfaFillCode("6-digit code", freshCode(secret))
@@ -226,8 +230,14 @@ class ReleaseApkBlackBoxTest {
 
     private fun mfaAwaitMessage(message: String) {
         hideKeyboardIfShown()
-        scrollAccountToTop()
-        seekLabel(setOf(message), "MFA_MESSAGE_MISSING", scroll = true).recycle()
+        val until = SystemClock.uptimeMillis() + 30_000
+        while (SystemClock.uptimeMillis() < until) {
+            scrollAccountToTop()
+            val node = runCatching { seekLabel(setOf(message), "MFA_MESSAGE_MISSING", scroll = true) }.getOrNull()
+            if (node != null) { node.recycle(); return }
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("MFA_MESSAGE_MISSING")
     }
 
     private fun mfaWrongCode(secret: String): String {
