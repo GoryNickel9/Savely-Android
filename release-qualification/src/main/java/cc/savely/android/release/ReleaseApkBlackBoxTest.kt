@@ -235,7 +235,9 @@ class ReleaseApkBlackBoxTest {
     }
 
     private fun logoutQa(report: JSONObject): Boolean = runCatching {
-        openSettings()
+        // Both qualification phases finish on Account. Re-enter only if that content is absent.
+        // Require the same QA identity again before touching the logout control.
+        if (!hasProfileContent()) openSettings()
         requireQaEmail(scroll = true)
         clickLabel(setOf("Sign out of your account", "Esci dall’account"), "QA_LOGOUT_CONTROL_MISSING", scroll = true)
         await("QA_LOGOUT_NOT_CONFIRMED") { editable(password = false) && editable(password = true) && !hasText("Dashboard") }
