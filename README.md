@@ -25,4 +25,4 @@ La repository [Savely](https://github.com/GoryNickel9/Savely) resta invariata. L
 
 Gli APK sono distribuiti nella repository pubblica [Savely-Android-Releases](https://github.com/GoryNickel9/Savely-Android-Releases); i sorgenti restano privati. L’aggiornamento richiede download e conferma dell’installazione da parte di Android.
 
-Download [0.1.8-alpha](https://github.com/GoryNickel9/Savely-Android-Releases/releases/tag/v0.1.8-alpha), con APK firmato, checksum e rapporto di verifica. Il primo passaggio dalla 0.1.7 richiede il download manuale.
+Download [0.1.9-alpha](https://github.com/GoryNickel9/Savely-Android-Releases/releases/tag/v0.1.9-alpha), con APK firmato, checksum, note e rapporto di verifica. Il primo passaggio dalla 0.1.7 richiede il download manuale; dalla 0.1.8 il controllo aggiornamenti consulta la repository pubblica.

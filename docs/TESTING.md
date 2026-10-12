@@ -12,6 +12,7 @@ Verifica locale su Windows/JBR, senza CI GitHub. Il sorgente finale comprende la
 | Lint debug/release | Zero errori, 32 avvertenze e 6 suggerimenti per variante | `artifacts/parity-0.1.9-release-candidate-build.txt` e XML lint |
 | Android 15 | 130/130, zero fallimenti/skip, singola suite completa finale: 770,007 s | `artifacts/android15-0.1.9-full-final.txt` |
 | Android 12 | 130/130, zero fallimenti/skip, singola suite completa finale: 623,733 s | `artifacts/android12-0.1.9-full-final.txt` |
+| Distribuzione pubblica | Quattro asset senza autenticazione; APK, checksum e commit coincidono | `artifacts/public-release-verification-0.1.9.json` |
 | Cambio pubblico | HTTP 200, USD→EUR positivo, data ISO, nessuna autenticazione inviata | `artifacts/fx-public-contract-0.1.9.json`; lettura host, non form Android |
 | Backend QA | 41 contratti su 42; Google Books HTTP 429; pulizia completa nello stesso run | `artifacts/roadmap-smoke/f49c81d3-b066-4d8e-8f1f-a4565ec908d0/result.json` e `host.json` |
 

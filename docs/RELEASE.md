@@ -10,7 +10,7 @@ Firma v2 RSA 3072 verificata, certificato SHA-256 `e103e92b4ab9576d4ecd1b27dd237
 
 Il nuovo smoke QA conferma 41 contratti su 42 e la pulizia completa; Google Books risponde HTTP 429. Il conteggio precedente 42/43 era errato: anche il report sorgente della 0.1.8 contiene 41 PASS su 42. Gli asset pubblicati precedentemente restano immutabili. I gate reali e le condizioni della 1.0 sono in [PARITY_0_1_9.md](PARITY_0_1_9.md). Nessuna CI GitHub, modifica web o release stabile.
 
-La pubblicazione della candidata deve ancora essere verificata anonimamente; il download corrente resta quello della 0.1.8 finché tale controllo non è completato.
+Pubblicazione [v0.1.9-alpha](https://github.com/GoryNickel9/Savely-Android-Releases/releases/tag/v0.1.9-alpha) verificata senza autenticazione il 12 ottobre 2026: quattro asset raggiungibili, SHA-256 dell’APK scaricato e checksum coincidono, VALIDATION.json associa il sorgente al commit `c470258e6be6241fc3dae05915a49667a92a2a0a`. Il canale alpha legge i metadati pubblici; `/releases/latest` risponde 404 perché non è presente una stabile. Evidenza: `artifacts/public-release-verification-0.1.9.json`. La vecchia 0.1.8 e i suoi asset restano invariati.
 
 ## Evidenza storica 0.1.8
 

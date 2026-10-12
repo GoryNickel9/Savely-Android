@@ -189,12 +189,12 @@
       }
     ],
     "openGates": [
-      "physical-phone-large-font-navigation-and-system-picker",
       "real-email-password-PKCE-and-MFA-flows",
       "two-account-couple-and-session-revocation",
       "authorized-admin-and-synthetic-account-deletion",
       "same-dataset-web-native-calculation-and-visual-comparison",
-      "real-import-external-catalog-and-FX-service-flows"
+      "real-import-external-catalog-and-FX-service-flows",
+      "system-file-picker-and-cloud-provider-validation"
     ],
     "apkVerificationScope": "v2-signature-code10-min26-target36-in-place-code9-upgrade-English-anonymous-AVD-not-global-parity",
     "realBackendContracts": {
@@ -205,7 +205,11 @@
       "temporaryDataAndSessionCleanupVerified": true
     },
     "hostPublicFxContractVerified": true,
-    "newPhysicalPhoneValidation": "not-performed-user-opted-out-of-further-detailed-device-tests"
+    "newPhysicalPhoneValidation": "not-performed-user-opted-out-of-further-detailed-device-tests",
+    "sourceCommit": "c470258e6be6241fc3dae05915a49667a92a2a0a",
+    "publicDistributionVerified": true,
+    "publicReleaseUrl": "https://github.com/GoryNickel9/Savely-Android-Releases/releases/tag/v0.1.9-alpha",
+    "apkSHA256": "a994ae06b3919753c8b6d9547f05586000e9242a0816b70ab0f628c740c931f1"
   },
   "features": [
     {
