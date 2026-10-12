@@ -30,6 +30,44 @@ class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
+    @Test fun fillDedicatedQaCouplePublicField() {
+        val run = preflight(11)
+        val (user, _) = dedicatedQaAccount()
+        val args = InstrumentationRegistry.getArguments()
+        val loginRun = args.getString("releaseQualificationLoginRunId").orEmpty()
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false), "LOGIN_RUN_INVALID")
+        val previous = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(previous.optString("stage") == "passed" && previous.optString("user_id") == user, "QA_LOGIN_CHECKPOINT_INVALID")
+        val field = args.getString("releaseQualificationPublicField").orEmpty()
+        val value = args.getString("releaseQualificationPublicValue").orEmpty()
+        requireCode(field in setOf("Shared category (optional)", "Partner's amount in the transaction currency", "Monthly limit EUR"), "PUBLIC_FIELD_NOT_ALLOWED")
+        val validValue = if (field == "Shared category (optional)")
+            Regex("android-couple-form-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}").matches(value)
+        else value.length in 1..32 && Regex("[0-9]+(?:\\.[0-9]{1,3})?").matches(value)
+        requireCode(validValue, "PUBLIC_VALUE_INVALID")
+        val report = baseReport(run, 11, "couple-field").put("user_id", user).put("field", field)
+        try {
+            repeat(3) { hideKeyboardIfShown(); SystemClock.sleep(250) }
+            var node = seekLabel(setOf(field), "PUBLIC_FIELD_MISSING", scroll = true)
+            try {
+                for (depth in 0 until 8) {
+                    if (node.isEditable && !node.isPassword) break
+                    val parent = node.parent ?: throw IllegalStateException("PUBLIC_EDITABLE_MISSING")
+                    node.recycle(); node = parent
+                }
+                requireCode(node.isEditable && !node.isPassword && node.isEnabled, "PUBLIC_EDITABLE_MISSING")
+                requireCode(node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,
+                    Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value) }), "PUBLIC_SET_TEXT_REJECTED")
+                await("PUBLIC_VALUE_NOT_CONFIRMED") { exists { it.isEditable && !it.isPassword && it.text?.toString() == value && visible(it) } }
+            } finally { node.recycle() }
+            repeat(3) { hideKeyboardIfShown(); SystemClock.sleep(250) }
+            report.put("value_verified", true).put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "couple-field", report) }
+    }
+
     @Test fun loginDedicatedQaForCouple() {
         val run = preflight(11)
         val (user, email) = dedicatedQaAccount()
