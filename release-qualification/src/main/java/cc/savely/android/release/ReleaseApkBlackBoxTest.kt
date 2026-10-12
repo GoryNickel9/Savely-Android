@@ -48,6 +48,7 @@ class ReleaseApkBlackBoxTest {
             awaitDashboard()
             report.put("dashboard", true)
             clickLabel(setOf("Settings", "Impostazioni"), "SETTINGS_NAVIGATION_MISSING")
+            scrollAccountToTop()
             await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
             requireEmail(email)
             awaitProfileRead()
@@ -72,6 +73,7 @@ class ReleaseApkBlackBoxTest {
         try {
             report.put("pid", launch())
             clickLabel(setOf("Settings", "Impostazioni"), "SETTINGS_NAVIGATION_MISSING")
+            scrollAccountToTop()
             await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
             requireEmail(email)
             awaitProfileRead()
