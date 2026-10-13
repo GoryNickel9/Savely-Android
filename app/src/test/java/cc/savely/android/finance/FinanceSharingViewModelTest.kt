@@ -20,6 +20,7 @@ class FinanceSharingViewModelTest {
             "11111111-1111-4111-8111-111111111111", "qa@example.test")))
         Dispatchers.setMain(Dispatchers.Unconfined)
         val model = FinanceViewModel(FinanceRepository(api), "transactions")
+        val modelJob = requireNotNull(model.viewModelScope.coroutineContext[Job])
         try {
             val failure = TransactionSharingException("22222222-2222-4222-8222-222222222222", true, IllegalStateException("fixture"))
             model.mutate({ throw failure }) {}
@@ -30,6 +31,7 @@ class FinanceSharingViewModelTest {
             server.enqueue(MockResponse().setResponseCode(403).setBody("{}"))
             model.refresh()
             withTimeout(10_000) { model.state.first { !it.loading && it.error != null } }
+            withTimeout(10_000) { modelJob.children.toList().joinAll() }
             assertTrue(model.state.value.reconciliationRequired)
             model.mutate({ attempts++ }) {}
             assertEquals(0, attempts)
@@ -45,6 +47,9 @@ class FinanceSharingViewModelTest {
             assertEquals(1, attempts)
             assertEquals(4, server.requestCount)
             repeat(4) { assertEquals("GET", server.takeRequest().method) }
-        } finally { model.viewModelScope.cancel(); Dispatchers.resetMain(); api.close(); server.shutdown() }
+        } finally {
+            try { withTimeout(10_000) { modelJob.cancelAndJoin() } }
+            finally { Dispatchers.resetMain(); api.close(); server.shutdown() }
+        }
     }
 }
