@@ -1473,14 +1473,29 @@ class ReleaseApkBlackBoxTest {
                 node.recycle()
             }
         } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
-        val expected = listOf("0.06", "0.02", "0.04").map { amount ->
+        return financeDashboardAmountsMatch(text.toString())
+    }
+
+    private fun financeDashboardAmountsMatch(text: String): Boolean {
+        val normalized = text.replace('\u00a0', ' ').replace('\u202f', ' ')
+            .replace(Regex("\\s+"), " ")
+        return listOf("Total balance" to "0.04", "Income" to "0.06", "Expenses" to "0.02").all { (label, amount) ->
+            val money =
             java.text.NumberFormat.getCurrencyInstance(java.util.Locale.ITALY).apply {
                 currency = java.util.Currency.getInstance("EUR")
                 minimumFractionDigits = 2; maximumFractionDigits = 2
                 roundingMode = java.math.RoundingMode.HALF_UP
-            }.format(java.math.BigDecimal(amount))
+            }.format(java.math.BigDecimal(amount)).replace('\u00a0', ' ').replace('\u202f', ' ')
+            Regex("(?<![\\p{L}\\p{N}])${Regex.escape(label)}[\\s,]+${Regex.escape(money)}(?![\\p{L}\\p{N}])")
+                .containsMatchIn(normalized)
         }
-        return expected.all { it in text }
+    }
+
+    @Test fun financeDashboardAmountOracleRejectsSwappedNegativeAndSubstringTotals() {
+        org.junit.Assert.assertTrue(financeDashboardAmountsMatch("EUR\nTotal balance\n0,04\u00a0€\nIncome\n0,06\u00a0€\nExpenses\n0,02\u00a0€"))
+        org.junit.Assert.assertFalse(financeDashboardAmountsMatch("Total balance -0,04 € Income 0,06 € Expenses 0,02 €"))
+        org.junit.Assert.assertFalse(financeDashboardAmountsMatch("Total balance 0,04 € Income 0,02 € Expenses 0,06 €"))
+        org.junit.Assert.assertFalse(financeDashboardAmountsMatch("Total balance 10,04 € Income 0,06 € Expenses 0,02 €"))
     }
 
     private fun financeSetField(field: String, value: String) {
