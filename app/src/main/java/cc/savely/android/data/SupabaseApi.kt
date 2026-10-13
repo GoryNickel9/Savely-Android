@@ -237,10 +237,12 @@ class SupabaseApi(
     }
 
     /** Revoke the current session; local credentials are cleared even if the server is unreachable. */
-    suspend fun signOut() = authMutex.withLock {
-        cancelPendingAudit()
+    suspend fun signOut(expectedOwner: String? = null, expectedRevision: Long? = null) = authMutex.withLock {
         withContext(Dispatchers.IO) {
             val saved = load()
+            if (saved != null) requireOwner(saved, expectedOwner, expectedRevision)
+            else if (expectedOwner != null || expectedRevision != null) throw changedOwner()
+            cancelPendingAudit()
             try {
                 if (saved != null) {
                     try {

@@ -19,6 +19,7 @@ data class AppState(
     val initialized: Boolean = false,
     val busy: Boolean = false,
     val session: Session? = null,
+    val sessionRevision: Long? = null,
     val permissions: Map<String, Boolean> = emptyMap(),
     val mfaFactor: String? = null,
     val recovery: Boolean = false,
@@ -95,8 +96,13 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
         acceptSession(api.verifyTotp(factor, code, expectedOwner = session.userId, expectedRevision = owner))
     }
 
-    // The central owner-bound invalidation collector handles logout, including HTTP failures.
-    fun signOut() = runAction { api.signOut() }
+    // Logout belongs to the login displayed by the UI, including when its HTTP request fails.
+    fun signOut() {
+        val shown = mutable.value
+        val session = shown.session ?: return
+        val revision = shown.sessionRevision ?: return
+        runAction { api.signOut(expectedOwner = session.userId, expectedRevision = revision) }
+    }
 
     fun dismissMessage() { mutable.value = mutable.value.copy(message = null, error = null) }
 
@@ -107,13 +113,19 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
 
     private suspend fun acceptSession(session: Session) {
         val owner = api.sessionOwnerRevision(session) ?: return
+        if (mutable.value.session != null && mutable.value.sessionRevision != owner) {
+            // A replacement login must hide the previous account before its preflight reads finish.
+            api.withCurrentSessionOwner(owner) {
+                mutable.value = AppState(initialized = true, busy = mutable.value.busy)
+            }
+        }
         val recovery = api.isPasswordRecovery(session)
         // Verified factors require aal2 before any account data is displayed.
         val factors = api.listMfaFactors(expectedOwner = session.userId, expectedRevision = owner)
         if (!api.isSessionOwnerCurrent(owner)) return
         if (factors.length() > 0 && assuranceLevel(session) != "aal2") {
             api.withCurrentSessionOwner(owner) {
-                mutable.value = AppState(initialized = true, busy = mutable.value.busy, session = session, recovery = recovery,
+                mutable.value = AppState(initialized = true, busy = mutable.value.busy, session = session, sessionRevision = owner, recovery = recovery,
                     mfaFactor = factors.getJSONObject(0).getString("id"))
             }
             return
@@ -121,7 +133,7 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
         val permissions = if (recovery) emptyMap() else api.permissions(expectedOwner = session.userId, expectedRevision = owner)
         // A pane may invalidate the session while this restore is awaiting HTTP.
         api.withCurrentSessionOwner(owner) {
-            mutable.value = AppState(initialized = true, busy = mutable.value.busy, session = session, permissions = permissions, recovery = recovery)
+            mutable.value = AppState(initialized = true, busy = mutable.value.busy, session = session, sessionRevision = owner, permissions = permissions, recovery = recovery)
         }
     }
 
@@ -143,7 +155,12 @@ class AppViewModel(val api: SupabaseApi) : ViewModel() {
                     // Initialize its empty UI on failure without erasing an accepted replacement.
                     if (!mutable.value.initialized && mutable.value.session == null)
                         mutable.value = mutable.value.copy(initialized = true, error = userMessage(error))
-                } else mutable.value = mutable.value.copy(initialized = true, error = userMessage(error))
+                } else {
+                    val shown = mutable.value
+                    if (shown.sessionRevision != null && !api.isSessionOwnerCurrent(shown.sessionRevision))
+                        mutable.value = AppState(initialized = true, busy = shown.busy, error = userMessage(error))
+                    else mutable.value = shown.copy(initialized = true, error = userMessage(error))
+                }
             } finally { mutable.value = mutable.value.copy(busy = false) }
         }
     }

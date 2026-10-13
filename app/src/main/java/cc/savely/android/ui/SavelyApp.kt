@@ -56,6 +56,7 @@ import cc.savely.android.data.AndroidAuthLinkStore
 import cc.savely.android.data.AndroidSessionStore
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.SupabaseApi
+import cc.savely.android.data.authSessionId
 import cc.savely.android.finance.FinanceScreen
 import cc.savely.android.modules.ModuleScreen
 import cc.savely.android.release.AppVersion
@@ -137,7 +138,7 @@ fun SavelyApp(authCallbacks: AuthCallbackInbox? = null) {
                                     onLegal = { legalDocument = it }, onCheckRegistrations = model::checkRegistrations)
                             }
                         }
-                        else -> key(state.session?.userId) {
+                        else -> {
                             MainShell(model, state, theme, { value -> theme = value; preferences.edit().putString("theme", value).apply() }, { legalDocument = it })
                         }
                     }
@@ -151,6 +152,15 @@ fun SavelyApp(authCallbacks: AuthCallbackInbox? = null) {
 @Composable
 internal fun MainShell(model: AppViewModel, state: AppState, theme: String, onTheme: (String) -> Unit, onLegal: (String) -> Unit,
     releaseRepository: ReleaseRepository = remember { ReleaseRepository() }) {
+    key(state.session?.userId, state.sessionRevision ?: state.session?.authSessionId()) {
+        MainShellSession(model, state, theme, onTheme, onLegal, releaseRepository)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainShellSession(model: AppViewModel, state: AppState, theme: String, onTheme: (String) -> Unit,
+    onLegal: (String) -> Unit, releaseRepository: ReleaseRepository) {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: "dashboard"
@@ -172,7 +182,12 @@ internal fun MainShell(model: AppViewModel, state: AppState, theme: String, onTh
     }
     BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
     LaunchedEffect(route, state.permissions) {
-        if (!canNavigate(route, state.permissions)) navigate("dashboard")
+        if (!canNavigate(route, state.permissions)) {
+            nav.navigate("dashboard") { popUpTo("dashboard") { saveState = false }; launchSingleTop = true }
+        }
+        // Revoked entries must not restore a previous draft if access is granted again.
+        destinations.filter { it.permission != null && state.permissions[it.permission] != true }
+            .forEach { nav.clearBackStack(it.route) }
     }
     ModalNavigationDrawer(drawerState = drawer, drawerContent = {
         ModalDrawerSheet(Modifier.widthIn(max = 340.dp).verticalScroll(rememberScrollState())) {
@@ -219,7 +234,9 @@ internal fun MainShell(model: AppViewModel, state: AppState, theme: String, onTh
                             "couple" -> CoupleScreen(model.api)
                             "admin" -> AdminScreen(model.api)
                             "fire", "poker", "fumo", "tcg", "libreria" -> ModuleScreen(model.api, destination.route)
-                            else -> FinanceScreen(model.api, destination.route, accountKey = state.session?.userId.orEmpty(), onNavigate = ::navigate)
+                            else -> FinanceScreen(model.api, destination.route,
+                                accountKey = "${state.session?.userId.orEmpty()}:${state.sessionRevision ?: state.session?.authSessionId().orEmpty()}",
+                                onNavigate = ::navigate)
                         }
                     } }
                     composable("modules") {
