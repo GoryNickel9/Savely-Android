@@ -167,6 +167,15 @@ class ReleaseApkBlackBoxTest {
                 navigationEnter(title)
                 requireCode(!editable(password = true), "NAVIGATION_LOGIN_FALLBACK")
                 covered.put(route)
+                if (route == "modules") {
+                    navigationAssertSelectedMoreButton()
+                    navigationDrawer()
+                    requireCode(navigationScanDrawer() == routes.map { it.second }.toSet() + "Sign out of your account",
+                        "NAVIGATION_SELECTED_MORE_POLICY_INVALID")
+                    navigationBack()
+                    await("NAVIGATION_SELECTED_MORE_BACK_FAILED") { !navigationDrawerOpen() && navigationTitle("Modules") }
+                    report.put("selected_more_accessible", true)
+                }
                 if (route != "dashboard") {
                     navigationBack()
                     await("NAVIGATION_DESTINATION_BACK_FAILED") { navigationTitle("Dashboard") }
@@ -263,6 +272,30 @@ class ReleaseApkBlackBoxTest {
 
     private fun navigationBottomReady(): Boolean = exists {
         navigationLabel(it, setOf("Dashboard")) && it.isEnabled
+    }
+
+    private fun navigationAssertSelectedMoreButton() {
+        var found: AccessibilityNodeInfo? = null
+        await("NAVIGATION_SELECTED_MORE_MISSING") {
+            found = find { navigationLabel(it, setOf("More")) && it.isEnabled && selectedControl(it) }
+            found != null
+        }
+        var node = requireNotNull(found)
+        try {
+            repeat(8) {
+                if (node.isClickable || node.className?.toString() == "android.widget.Button") {
+                    requireCode(node.packageName?.toString() == TARGET && visible(node) && node.isEnabled &&
+                        node.className?.toString() == "android.widget.Button" &&
+                        node.actionList.any { action -> action.id == AccessibilityNodeInfo.ACTION_CLICK },
+                        "NAVIGATION_SELECTED_MORE_BUTTON_INVALID")
+                    return
+                }
+                val parent = node.parent ?: throw IllegalStateException("NAVIGATION_SELECTED_MORE_BUTTON_MISSING")
+                node.recycle()
+                node = parent
+            }
+            throw IllegalStateException("NAVIGATION_SELECTED_MORE_BUTTON_MISSING")
+        } finally { node.recycle() }
     }
 
     private fun navigationDrawerAncestor(node: AccessibilityNodeInfo): Boolean {
