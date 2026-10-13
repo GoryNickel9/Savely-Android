@@ -1,6 +1,6 @@
 # Savely Android
 
-È in corso la [qualifica Finance V03](docs/FINANCE_FORM_QUALIFICATION.md) sulla candidata locale **0.1.14-alpha/code 15**. Letture e salvataggi restano vincolati alla sessione iniziale; la transazione valida gli input prima dell'HTTP. Passano 558 JVM per variante, 34 guardie host e 36 casi Finance e 13 di navigazione su API 31. Finance e navigazione passano 36/36 e 13/13 anche su API 35. Resta il percorso firmato completo: **otto righe chiuse localmente, 25 aperte**.
+La [qualifica Finance V03](docs/FINANCE_FORM_QUALIFICATION.md) è **PASS LOCALE** sulla candidata **0.1.14-alpha/code 15**: 18 verifiche dai form, 14 CRUD osservati sul server e baseline QA ripristinata. Il logout originale resta fallito; il recupero UI separato passa e la pulizia elimina i soli due record residui. Passano **558 JVM per variante, 34 guardie host e 37 casi Finance più 13 di navigazione su ciascuna API 31/35**; lint senza errori e AVD QA spenti. **Nove righe chiuse localmente, 24 aperte**. La candidata resta alpha e locale; segue V04, Ricorrenze.
 
 Consuntivo V02:
 

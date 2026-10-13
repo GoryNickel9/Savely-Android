@@ -1,8 +1,10 @@
 # Changelog
 
-## 0.1.14-alpha candidata locale — Finance V03 in qualifica, 13 ottobre 2026
+## 0.1.14-alpha candidata locale — Finance V03 qualificata localmente, 13 ottobre 2026
 
-Vincolati repository e dialoghi Finance alla sessione che ha caricato i dati; una vecchia callback non può salvare dopo un cambio account o un nuovo login dello stesso utente. Anche paginazione e letture accessorie rifiutano la sessione sostitutiva. Importo, data e cambio manuale vengono validati prima dell'HTTP. Aggiunti sei test JVM e otto fixture UI, più il registro host e un driver esterno per i form del release firmato. Passano 558 JVM per variante, 34 guardie host e 36 casi Finance e 13 di navigazione API 31; build locale e fixture compilate. Finance e navigazione passano 36/36 e 13/13 anche su API 35. V03 resta aperta fino al percorso firmato e alla pulizia verificata; [stato e limiti](docs/FINANCE_FORM_QUALIFICATION.md). Nessuna CI o pubblicazione.
+Vincolati repository e dialoghi Finance alla sessione che ha caricato i dati; una vecchia callback non può salvare dopo un cambio account o un nuovo login dello stesso utente. Anche paginazione e letture accessorie rifiutano la sessione sostitutiva. Importo, data e cambio manuale vengono validati prima dell'HTTP. Aggiunti sei test JVM e nove fixture UI, inclusa la lettura dei valori Dashboard dall'accessibilità nativa entro i limiti della Card, più registro host e driver esterno per il release firmato.
+
+La [qualifica V03](docs/FINANCE_FORM_QUALIFICATION.md) passa nel perimetro Finance: 18 verifiche dai form e 14 CRUD con riletture server. Il logout originale termina in timeout e conserva il fallimento; il recupero UI separato passa, poi due cleanup host esatti ripristinano il baseline QA. Passano 558 JVM per variante, 34 guardie host e 37/37 Finance più 13/13 navigazione su ciascuna API 31/35; lint senza errori. Sessioni/fattori QA zero ed emulatori di qualifica spenti. Nove criteri locali chiusi, 24 aperti; candidata ancora alpha, nessuna CI o pubblicazione.
 
 ## 0.1.13-alpha candidata locale — qualifica navigazione V02, 13 ottobre 2026
 

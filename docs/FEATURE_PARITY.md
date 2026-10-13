@@ -1,8 +1,12 @@
 # Parità fra Savely web e Android
 
-## Qualifica Finance V03 — candidata locale 0.1.14-alpha in corso
+## Qualifica Finance V03 — candidata locale 0.1.14-alpha
 
-[V03](FINANCE_FORM_QUALIFICATION.md) resta aperta. Produzione Finance `8b86ff2`, release firmato code 15/SHA-256 `3844b1717d194fe4bfacb4fe57ea2932056d1d0bbf2d2bb93584defd9c589b2f`. Passano 558 JVM per variante, 34 guardie host e, sullo stesso test APK `5c15a7da…`, 36/36 Finance e 13/13 navigazione su API 31/35; lint senza errori. I run componenti sono `d116849b` e `3fea0853`, con checksum identici dell'app e delle fixture. I tentativi firmati falliti e i recuperi restano separati: il percorso completo con scritture, riletture e pulizia è ancora da concludere. **Otto criteri chiusi localmente, 25 aperti**; nessuna CI o pubblicazione, parità globale non qualificata.
+**[V03 è PASS LOCALE](FINANCE_FORM_QUALIFICATION.md) nel perimetro Dashboard, Transazioni, Categorie e Budget.** Produzione Finance `8b86ff2`, release firmato code 15/SHA-256 `3844b1717d194fe4bfacb4fe57ea2932056d1d0bbf2d2bb93584defd9c589b2f`. Nel run `cfec2d56` passano 18 verifiche dai form API 31/EN, con 14 operazioni CRUD osservate sul server. Il logout originale termina in timeout e resta fallito; il solo recupero UI, con driver `96f7598`, passa in 15,571 s. Seguono due eliminazioni host dei soli record adottati, con confronto dei valori originali. Il coordinatore originale conserva `passed=false`; il risultato finale certifica il perimetro Finance e il ripristino QA.
+
+Passano **558 JVM per variante**, **34 guardie host**, **37/37 Finance e 13/13 navigazione su ciascuna API 31/35** sul test APK `e4e96d21…`, più dieci controlli delle condizioni del recupero. Lint senza errori. Sono gruppi Android selezionati, non una nuova suite completa dell'app. Alle **20:01:17,787380 UTC del 13 ottobre 2026** le proiezioni QA e i record baseline sono ripristinati: 33 categorie, zero transazioni/budget/sessioni/fattori. Gli AVD QA31/QA35 sono spenti. **Nove criteri chiusi localmente, 24 aperti**; nessuna CI o pubblicazione. `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati.
+
+Prossimo blocco autonomo: **V04, Ricorrenze**.
 
 La [qualifica V02](NAVIGATION_FORM_QUALIFICATION.md) passa sulla candidata locale **0.1.13-alpha/code 14**: tutte le destinazioni mappate nei ruoli Admin/A/B, Back, «Altro» via azione nativa e revoca/ripristino FIRE, con quindici checkpoint nello stesso percorso firmato API 31/EN. Le fixture coprono IT/chiaro ed EN/scuro, 320dp/font 200%, sette dinieghi, cambio UID/SID e cache TCG come caso rappresentativo. Passano 552 JVM per variante e 13 navigazione più 33 sicurezza su ciascuna API 31/35. QA ripristinati e AVD di qualifica spenti. **Otto righe chiuse localmente, 25 aperte**; CRUD interni, servizi e parità globale mantengono i propri criteri aperti. Nessuna CI o pubblicazione.
 

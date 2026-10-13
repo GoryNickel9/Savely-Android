@@ -1,8 +1,10 @@
 # Roadmap Savely Android
 
-## Stato corrente — qualifica Finance in corso, candidata locale 0.1.14-alpha
+## Stato corrente — Finance V03 conclusa localmente, candidata 0.1.14-alpha
 
-[V03](docs/FINANCE_FORM_QUALIFICATION.md) resta aperta. Repository e form restano vincolati alla sessione iniziale, comprese paginazione e letture accessorie; la transazione valida gli input prima dell'HTTP. Passano 558 JVM per variante, 34 guardie host e 36 casi Finance e 13 di navigazione su API 31. Le fixture attendono composizione asincrona e chiusura effettiva del selettore date. Finance e navigazione passano 36/36 e 13/13 anche su API 35; segue il percorso CRUD firmato con rilettura e pulizia dei soli nuovi record. Otto righe chiuse localmente, 25 aperte; nessuna CI o pubblicazione.
+[V03 è PASS LOCALE](docs/FINANCE_FORM_QUALIFICATION.md) nel perimetro Finance: 18 verifiche dai form API 31/EN e 14 CRUD con riletture sul server. Corretti i confini della sessione per letture/salvataggi e la validazione prima dell'HTTP. Il logout originale resta fallito per timeout; il recupero UI separato passa in 15,571 s, poi due cleanup host esatti ripristinano il baseline. Passano 558 JVM per variante, 34 guardie host, 37/37 Finance e 13/13 navigazione per ciascuna API 31/35; lint senza errori. QA originali, sessioni/fattori zero e AVD di qualifica spenti.
+
+**V01/V02/V03/R01/C01/C02/A04/A05/D01: nove righe chiuse localmente, 24 aperte.** Parità globale non qualificata, nessuna CI o pubblicazione. Prossimo blocco autonomo: **V04, Ricorrenze**.
 
 Consuntivo V02 sulla precedente candidata locale 0.1.13-alpha:
 
@@ -12,7 +14,7 @@ Il ritorno a Dashboard non ripristina più il child salvato. Il callback Back de
 
 Snapshot finale **13:54:57,827055 UTC del 13 ottobre 2026**: permessi/proiezioni dei tre QA originali, sessioni/fattori zero e registrazioni disabilitate. AVD QA31/QA35 spenti. **V01/V02/R01/C01/C02/A04/A05/D01: otto righe chiuse localmente, 25 aperte.** La candidata resta alpha e locale; nessuna CI o pubblicazione, parità globale non qualificata. I gruppi selezionati non sono una nuova suite completa dell'app.
 
-Prossimo blocco autonomo: **V03**, form e filtri delle transazioni, con scritture isolate QA e rilettura dei risultati.
+Alla chiusura di V02 il blocco successivo era **V03**, ora concluso nel perimetro descritto sopra.
 
 ## Consuntivo precedente — qualifica Admin locale 0.1.12-alpha
 
