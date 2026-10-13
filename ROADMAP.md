@@ -1,6 +1,10 @@
 # Roadmap Savely Android
 
-## Stato corrente — navigazione qualificata sulla candidata locale 0.1.13-alpha
+## Stato corrente — qualifica Finance in corso, candidata locale 0.1.14-alpha
+
+[V03](docs/FINANCE_FORM_QUALIFICATION.md) resta aperta. Repository e form restano vincolati alla sessione iniziale, comprese paginazione e letture accessorie; la transazione valida gli input prima dell'HTTP. Passano 558 JVM per variante, 34 guardie host e 36 casi Finance e 13 di navigazione su API 31. Le fixture attendono composizione asincrona e chiusura effettiva del selettore date. Finance e navigazione passano 36/36 e 13/13 anche su API 35; segue il percorso CRUD firmato con rilettura e pulizia dei soli nuovi record. Otto righe chiuse localmente, 25 aperte; nessuna CI o pubblicazione.
+
+Consuntivo V02 sulla precedente candidata locale 0.1.13-alpha:
 
 [V02](docs/NAVIGATION_FORM_QUALIFICATION.md) è **PASS LOCALE**. Produzione `3ae685f`, release firmato code 14/SHA-256 `38fb4b33a8db74912c0c294d486db4310a4e2b5eb4756492ad662d4471f138d5`. Il run finale conclude tutti i quindici checkpoint, con tre account QA, quattro sessioni distinte e i soli cambi autorizzati di B.Fire. Le destinazioni Admin/A/B, Indietro, azione nativa «Altro», diniego, revoca e ripristino sono osservati; il client Admin secondario tiene i token in RAM.
 

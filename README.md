@@ -1,5 +1,9 @@
 # Savely Android
 
+È in corso la [qualifica Finance V03](docs/FINANCE_FORM_QUALIFICATION.md) sulla candidata locale **0.1.14-alpha/code 15**. Letture e salvataggi restano vincolati alla sessione iniziale; la transazione valida gli input prima dell'HTTP. Passano 558 JVM per variante, 34 guardie host e 36 casi Finance e 13 di navigazione su API 31. Finance e navigazione passano 36/36 e 13/13 anche su API 35. Resta il percorso firmato completo: **otto righe chiuse localmente, 25 aperte**.
+
+Consuntivo V02:
+
 La [qualifica navigazione V02](docs/NAVIGATION_FORM_QUALIFICATION.md) passa sulla candidata locale **0.1.13-alpha/code 14**: quindici checkpoint server nello stesso percorso firmato API 31/EN, con 19 destinazioni Admin, 18 A e 17 B, revoca/ripristino FIRE e logout. Corretti ritorno alla Dashboard, priorità di Indietro nel menu, azione «Altro» e separazione dello stato dopo un nuovo login. Passano **552 JVM per variante, 13/13 fixture di navigazione e 33/33 di sicurezza su ciascuna API 31/35**; lint senza errori. Permessi QA originali, fattori/sessioni zero, AVD di qualifica spenti. **Otto righe chiuse localmente, 25 verifiche aperte**; nessuna CI o pubblicazione e parità globale ancora aperta.
 
 Consuntivo precedente:

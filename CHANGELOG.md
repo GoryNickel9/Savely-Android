@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.14-alpha candidata locale — Finance V03 in qualifica, 13 ottobre 2026
+
+Vincolati repository e dialoghi Finance alla sessione che ha caricato i dati; una vecchia callback non può salvare dopo un cambio account o un nuovo login dello stesso utente. Anche paginazione e letture accessorie rifiutano la sessione sostitutiva. Importo, data e cambio manuale vengono validati prima dell'HTTP. Aggiunti sei test JVM e otto fixture UI, più il registro host e un driver esterno per i form del release firmato. Passano 558 JVM per variante, 34 guardie host e 36 casi Finance e 13 di navigazione API 31; build locale e fixture compilate. Finance e navigazione passano 36/36 e 13/13 anche su API 35. V03 resta aperta fino al percorso firmato e alla pulizia verificata; [stato e limiti](docs/FINANCE_FORM_QUALIFICATION.md). Nessuna CI o pubblicazione.
+
 ## 0.1.13-alpha candidata locale — qualifica navigazione V02, 13 ottobre 2026
 
 Separato lo stato accettato del login dalla rotazione dei token; logout in primo piano vincolato a UID e revisione. Un nuovo login rimuove i dati del precedente prima delle letture MFA/profilo e ricrea navigazione/cache. Le revoche rimuovono route salvate; attesa l'installazione del grafo prima dei controlli. Corretti Back che navigava lasciando aperto il menu, «Altro» selezionato privo dell'azione nativa e Dashboard che poteva ripristinare Settings.

@@ -1,5 +1,9 @@
 # Parità fra Savely web e Android
 
+## Qualifica Finance V03 — candidata locale 0.1.14-alpha in corso
+
+[V03](FINANCE_FORM_QUALIFICATION.md) resta aperta. Produzione Finance `8b86ff2`, release firmato code 15/SHA-256 `3844b1717d194fe4bfacb4fe57ea2932056d1d0bbf2d2bb93584defd9c589b2f`. Passano 558 JVM per variante, 34 guardie host e, sullo stesso test APK `5c15a7da…`, 36/36 Finance e 13/13 navigazione su API 31/35; lint senza errori. I run componenti sono `d116849b` e `3fea0853`, con checksum identici dell'app e delle fixture. I tentativi firmati falliti e i recuperi restano separati: il percorso completo con scritture, riletture e pulizia è ancora da concludere. **Otto criteri chiusi localmente, 25 aperti**; nessuna CI o pubblicazione, parità globale non qualificata.
+
 La [qualifica V02](NAVIGATION_FORM_QUALIFICATION.md) passa sulla candidata locale **0.1.13-alpha/code 14**: tutte le destinazioni mappate nei ruoli Admin/A/B, Back, «Altro» via azione nativa e revoca/ripristino FIRE, con quindici checkpoint nello stesso percorso firmato API 31/EN. Le fixture coprono IT/chiaro ed EN/scuro, 320dp/font 200%, sette dinieghi, cambio UID/SID e cache TCG come caso rappresentativo. Passano 552 JVM per variante e 13 navigazione più 33 sicurezza su ciascuna API 31/35. QA ripristinati e AVD di qualifica spenti. **Otto righe chiuse localmente, 25 aperte**; CRUD interni, servizi e parità globale mantengono i propri criteri aperti. Nessuna CI o pubblicazione.
 
 Consuntivo precedente:

@@ -1,5 +1,9 @@
 # Piano di completamento della stabile
 
+## Qualifica Finance V03 — candidata locale 0.1.14-alpha in corso
+
+[V03](FINANCE_FORM_QUALIFICATION.md) resta aperta. Produzione Finance `8b86ff2`, release firmato code 15/SHA-256 `3844b1717d194fe4bfacb4fe57ea2932056d1d0bbf2d2bb93584defd9c589b2f`. Passano 558 JVM per variante, 34 guardie host e, sullo stesso test APK `5c15a7da…`, 36/36 Finance e 13/13 navigazione su API 31/35; lint senza errori. I run componenti sono `d116849b` e `3fea0853`, con checksum identici dell'app e delle fixture. I tentativi firmati falliti e i recuperi restano separati: il percorso completo con scritture, riletture e pulizia è ancora da concludere. **Otto criteri chiusi localmente, 25 aperti**; nessuna CI o pubblicazione, parità globale non qualificata.
+
 ## Consuntivo V02 — 13 ottobre 2026
 
 [V02 è chiusa localmente](NAVIGATION_FORM_QUALIFICATION.md): quindici checkpoint sul nuovo release firmato, gruppi selezionati su API 31/35 e pulizia QA verificata. La matrice conta ora **otto criteri chiusi e 25 aperti**. La tabella seguente conserva la base storica di sette/26 all'avvio: le 2–4 ore previste per V02 non sono un tempo residuo e i tentativi/correzioni sono documentati nel rapporto. Il budget iniziale di 50–76 ore non è una promessa di uscita; il residuo va ristimato sui prossimi blocchi, senza sottrarre meccanicamente i successi parziali. Restano i prerequisiti esterni già elencati.

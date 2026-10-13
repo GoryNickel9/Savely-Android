@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Qualifica Finance V03 — candidata locale 0.1.14-alpha in corso
+
+[V03](FINANCE_FORM_QUALIFICATION.md) resta aperta. Produzione Finance `8b86ff2`, release firmato code 15/SHA-256 `3844b1717d194fe4bfacb4fe57ea2932056d1d0bbf2d2bb93584defd9c589b2f`. Passano 558 JVM per variante, 34 guardie host e, sullo stesso test APK `5c15a7da…`, 36/36 Finance e 13/13 navigazione su API 31/35; lint senza errori. I run componenti sono `d116849b` e `3fea0853`, con checksum identici dell'app e delle fixture. I tentativi firmati falliti e i recuperi restano separati: il percorso completo con scritture, riletture e pulizia è ancora da concludere. **Otto criteri chiusi localmente, 25 aperti**; nessuna CI o pubblicazione, parità globale non qualificata.
+
 ## Navigazione e permessi — V02, candidata locale 0.1.13-alpha
 
 [Rapporto completo](NAVIGATION_FORM_QUALIFICATION.md). Produzione `3ae685f`, release firmato code 14/SHA-256 `38fb4b33a8db74912c0c294d486db4310a4e2b5eb4756492ad662d4471f138d5`, driver `8efe24f`, ledger `fec23fd`. Nel run `179e6e49-c86a-4bd2-a045-942781d7dd06` passano quindici checkpoint con Admin/A/B e host Admin: 19/18/17 destinazioni, Back, azione nativa «Altro», concessione/revoca/ripristino FIRE, identità e logout. Sono dieci metodi nativi, inclusi setup/cleanup, non quindici test JUnit.
