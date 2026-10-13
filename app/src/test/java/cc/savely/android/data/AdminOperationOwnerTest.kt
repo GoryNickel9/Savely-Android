@@ -8,6 +8,7 @@ import okhttp3.mockwebserver.RecordedRequest
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import java.util.Base64
 
 /** Session races against a local server only; no Admin, email or account mutation is real. */
 class AdminOperationOwnerTest {
@@ -75,11 +76,65 @@ class AdminOperationOwnerTest {
         assertEquals(original, store.load())
     }
 
-    private fun fixture(block: suspend (MockWebServer, MemorySessionStore, SupabaseApi) -> Unit) = runBlocking {
+    @Test fun stalePermissionSaveCannotDispatchAfterSameUserStartsAnotherAuthSession() =
+        fixture(original.copy(accessToken = jwt(SESSION_ID))) { server, store, api ->
+            val displayed = requireNotNull(api.session())
+            val revision = requireNotNull(api.sessionOwnerRevision())
+            val nextLogin = displayed.copy(accessToken = jwt(REPLACEMENT_SESSION_ID), refreshToken = "replacement-refresh")
+            store.save(nextLogin)
+            try {
+                api.update("profiles", PROFILE_ID, JSONObject().put("permissions", JSONObject().put("poker", false)),
+                    "user_id=eq.${replacement.userId}", expectedOwner = displayed.userId, expectedRevision = revision)
+                fail("Stale permission save accepted")
+            } catch (failure: ApiException) { assertEquals(ApiError.PERMISSION, failure.kind) }
+            assertEquals(0, server.requestCount)
+            assertEquals(nextLogin, store.load())
+            assertNull(api.sessionInvalidation.value)
+        }
+
+    @Test fun latePermissionSaveSuccessCannotPublishIntoAnotherAuthSessionOfTheSameUser() =
+        fixture(original.copy(accessToken = jwt(SESSION_ID))) { server, store, api ->
+            val displayed = requireNotNull(api.session())
+            val revision = requireNotNull(api.sessionOwnerRevision())
+            val nextLogin = displayed.copy(accessToken = jwt(REPLACEMENT_SESSION_ID), refreshToken = "replacement-refresh")
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    store.save(nextLogin)
+                    return MockResponse().setHeader("Content-Type", "application/json")
+                        .setBody("""[{"id":"$PROFILE_ID","permissions":{"poker":false}}]""")
+                }
+            }
+            try {
+                api.update("profiles", PROFILE_ID, JSONObject().put("permissions", JSONObject().put("poker", false)),
+                    "user_id=eq.${replacement.userId}", expectedOwner = displayed.userId, expectedRevision = revision)
+                fail("Late permission save accepted")
+            } catch (failure: ApiException) { assertEquals(ApiError.PERMISSION, failure.kind) }
+            val request = server.takeRequest()
+            assertEquals("PATCH", request.method)
+            assertEquals("/rest/v1/profiles", request.requestUrl?.encodedPath)
+            assertEquals("eq.$PROFILE_ID", request.requestUrl?.queryParameter("id"))
+            assertEquals("eq.${replacement.userId}", request.requestUrl?.queryParameter("user_id"))
+            assertEquals("Bearer ${displayed.accessToken}", request.getHeader("Authorization"))
+            assertEquals(false, JSONObject(request.body.readUtf8()).getJSONObject("permissions").getBoolean("poker"))
+            assertEquals(1, server.requestCount)
+            assertEquals(nextLogin, store.load())
+            assertNull(api.sessionInvalidation.value)
+        }
+
+    private fun fixture(initial: Session = original, block: suspend (MockWebServer, MemorySessionStore, SupabaseApi) -> Unit) = runBlocking {
         val server = MockWebServer().apply { start() }
-        val store = MemorySessionStore(original)
+        val store = MemorySessionStore(initial)
         val api = SupabaseApi(BackendConfig(server.url("/").toString(), "fixture-public", server.url("/").toString()), store)
         try { block(server, store, api) }
         finally { api.close(); server.shutdown() }
+    }
+
+    private fun jwt(id: String) = "header.${Base64.getUrlEncoder().withoutPadding().encodeToString(
+        JSONObject().put("session_id", id).toString().toByteArray(Charsets.UTF_8))}.signature"
+
+    private companion object {
+        const val SESSION_ID = "20000000-0000-4000-8000-000000000071"
+        const val REPLACEMENT_SESSION_ID = "20000000-0000-4000-8000-000000000072"
+        const val PROFILE_ID = "30000000-0000-4000-8000-000000000072"
     }
 }
