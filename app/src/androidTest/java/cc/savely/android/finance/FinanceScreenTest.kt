@@ -1,20 +1,30 @@
 package cc.savely.android.finance
 
 import android.content.Context
+import android.view.View
+import android.widget.DatePicker
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.UiController
+import androidx.test.espresso.ViewAction
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
+import androidx.test.espresso.matcher.ViewMatchers.withId
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
 import cc.savely.android.data.SupabaseApi
 import cc.savely.android.ui.SavelyTheme
 import java.time.LocalDate
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicBoolean
@@ -30,6 +40,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.hamcrest.Matcher
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -69,6 +81,10 @@ class FinanceScreenTest {
     private val positionClosureFixture = AtomicBoolean(false)
     private val failPositionRefresh = AtomicBoolean(false)
     private val positionRefreshRequests = AtomicInteger()
+    private val transactionFilterFixture = AtomicBoolean(false)
+    private val failTransactionInsert = AtomicBoolean(false)
+    private val failTransactionReload = AtomicBoolean(false)
+    private val transactionReloadFailures = AtomicInteger()
 
     @Before fun setup() {
         val certificate = HeldCertificate.Builder().commonName("Savely finance UI fixture")
@@ -159,6 +175,154 @@ class FinanceScreenTest {
         waitForText("2 transazioni")
         assertEquals(1, deletes.get())
         assertEquals("Every API call must use this synthetic owner's credentials and filters", 0, rejectedRequests.get())
+    }
+
+    @Test fun transactionsCombineCategorySearchTypeAndInclusiveDatesAndRejectInvalidPeriodsWithoutWrites() {
+        transactionFilterFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "transactions", Modifier.fillMaxSize(), accountKey = USER_ID,
+                today = LocalDate.of(2026, 6, 15)) }
+        }
+        waitForText("4 transazioni")
+        scrollFinanceNode(hasText("4 transazioni"))
+        scrollFinanceNode(hasText("Cerca descrizione o categoria")).performTextInput("ALIMENTARI")
+        scrollFinanceNode(hasText("3 transazioni"))
+        scrollFinanceNode(hasText("Uscite", substring = false)).performClick()
+        scrollFinanceNode(hasText("2 transazioni"))
+        scrollFinanceNode(hasText("Categoria: Tutte")).performClick()
+        compose.onNodeWithText("Trasporti", substring = false).performClick()
+        scrollFinanceNode(hasText("0 transazioni"))
+        scrollFinanceNode(hasText("Nessuna transazione corrisponde ai filtri"))
+        scrollFinanceNode(hasText("Categoria: Trasporti")).performClick()
+        compose.onNodeWithText("Alimentari", substring = false).performClick()
+        scrollFinanceNode(hasText("2 transazioni"))
+        scrollFinanceNode(hasText("Pranzo sintetico"))
+        scrollFinanceNode(hasText("−12,50", substring = true))
+        scrollFinanceNode(hasText("Spesa USD sintetica"))
+        scrollFinanceNode(hasText("−8,50", substring = true))
+
+        scrollFinanceNode(hasText("Periodo: Questo mese")).performClick()
+        compose.onNodeWithText("Personalizzato", substring = false).performClick()
+        selectTransactionDate("Da", LocalDate.of(2026, 6, 15))
+        selectTransactionDate("A", LocalDate.of(2026, 6, 1))
+        scrollFinanceNode(hasText("Periodo non valido: controlla le date e l’anno."))
+        compose.onNodeWithText("2 transazioni").assertDoesNotExist()
+        assertEquals(0, posts.get() + patches.get() + deletes.get())
+        selectTransactionDate("A", LocalDate.of(2026, 6, 15))
+        scrollFinanceNode(hasText("1 transazioni"))
+        scrollFinanceNode(hasText("Pranzo sintetico"))
+        compose.onNodeWithText("Spesa USD sintetica").assertDoesNotExist()
+        scrollFinanceNode(hasText("Entrate", substring = false)).performClick()
+        scrollFinanceNode(hasText("0 transazioni"))
+        scrollFinanceNode(hasText("Categoria: Alimentari")).performClick()
+        compose.onNodeWithText("Tutte", substring = false).performClick()
+        scrollFinanceNode(hasText("1 transazioni"))
+        scrollFinanceNode(hasText("Entrata sintetica"))
+        scrollFinanceNode(hasText("+100,00", substring = true))
+
+        scrollFinanceNode(hasText("Periodo: Personalizzato")).performClick()
+        compose.onNodeWithText("Anno", substring = false).performClick()
+        scrollFinanceNode(hasText("Anno", substring = false) and hasSetTextAction()).performTextReplacement("invalid")
+        scrollFinanceNode(hasText("Periodo non valido: controlla le date e l’anno."))
+        scrollFinanceNode(hasText("Anno", substring = false) and hasSetTextAction()).performTextReplacement("2026")
+        scrollFinanceNode(hasText("1 transazioni"))
+        scrollFinanceNode(hasText("Periodo: Anno")).performClick()
+        compose.onNodeWithText("Tutte", substring = false).performClick()
+        scrollFinanceNode(hasText("Tutti i tipi", substring = false)).performClick()
+        scrollFinanceNode(hasText("Cerca descrizione o categoria")).performTextClearance()
+        scrollFinanceNode(hasText("5 transazioni"))
+        scrollFinanceNode(hasText("Spesa precedente sintetica"))
+        assertEquals("Filters are local: no synthetic record may be mutated", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(0, rejectedRequests.get())
+    }
+
+    @Test fun transactionManualFxValidationMakesNoHttpAndCorrectedSavePreservesNativeUuidAndPrecision() {
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "transactions", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("2 transazioni")
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Nuova transazione").performClick()
+        val loadedRequestCount = server.requestCount
+        compose.onNodeWithText("Importo").performScrollTo().performTextInput("0")
+        compose.onNodeWithText("Salva").performClick()
+        compose.onNodeWithText("Inserisci un importo maggiore di zero").performScrollTo().assertIsDisplayed()
+        assertEquals(loadedRequestCount, server.requestCount)
+        compose.onNodeWithText("Importo").performScrollTo().performTextReplacement("0,015")
+        compose.onNodeWithText("Valuta: EUR").performScrollTo().performClick()
+        compose.onNodeWithText("USD", substring = false).performClick()
+        compose.onNodeWithContentDescription("Cambio automatico al salvataggio").performScrollTo().assertIsOn().performClick()
+        compose.onNodeWithText("Valore di 1 USD in EUR").performScrollTo().performTextInput("0")
+        compose.onNodeWithText("Salva").performClick()
+        compose.onNodeWithText("Cambio EUR fuori intervallo").performScrollTo().assertIsDisplayed()
+        assertEquals(loadedRequestCount, server.requestCount)
+        assertEquals(0, posts.get() + patches.get() + deletes.get())
+        compose.onNodeWithText("Valore di 1 USD in EUR").performScrollTo().performTextReplacement("0,1234567")
+        compose.onNodeWithText("Descrizione facoltativa").performScrollTo().performTextInput("Cambio manuale sintetico")
+        compose.onNodeWithText("Salva").performClick()
+        compose.waitUntil(15_000) {
+            posts.get() == 1 && compose.onAllNodesWithText("Nuovo elemento").fetchSemanticsNodes().isEmpty()
+        }
+        transactionList().performScrollToIndex(0)
+        waitForText("3 transazioni")
+        val body = JSONObject(postedBody.get())
+        UUID.fromString(body.getString("id"))
+        assertEquals(USER_ID, body.getString("user_id"))
+        assertEquals("0.02", body.getString("amount"))
+        assertEquals("0.123457", body.getString("exchange_rate_eur"))
+        assertEquals("USD", body.getString("currency"))
+        assertEquals(LocalDate.now().toString(), body.getString("date"))
+        assertTrue(body.isNull("category_id"))
+        assertEquals("expense", body.getString("type"))
+        assertEquals("Cambio manuale sintetico", body.getString("description"))
+        scrollFinanceNode(hasText("Cambio manuale sintetico"))
+        scrollFinanceNode(hasText("−0,02", substring = true))
+        assertEquals(0, patches.get() + deletes.get() + rejectedRequests.get())
+    }
+
+    @Test fun privateInsertCommittedWith503ClosesFormBlocksWritesAndReloadsWithoutReplayingDoubleTap() {
+        failTransactionInsert.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "transactions", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("2 transazioni")
+        transactionList().performScrollToIndex(0)
+        compose.onNodeWithText("Nuova transazione").performClick()
+        compose.onNodeWithText("Importo").performScrollTo().performTextInput("8,40")
+        compose.onNodeWithText("Descrizione facoltativa").performScrollTo().performTextInput("Inserimento incerto sintetico")
+        compose.onNodeWithText("Salva").performTouchInput { doubleClick() }
+        waitForFinanceCondition("one delayed insert is busy") {
+            posts.get() == 1 && compose.onAllNodesWithText("Salvataggio…").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Salvataggio…").assertIsNotEnabled()
+        waitForFinanceCondition("ambiguous insert closes the original form") {
+            compose.onAllNodesWithText("Nuovo elemento").fetchSemanticsNodes().isEmpty()
+        }
+        transactionList().performScrollToIndex(0)
+        waitForText("Salvataggio non confermato. Aggiorna i dati e verifica la riga prima di creare un nuovo elemento.")
+        compose.onNodeWithText("Nuova transazione").assertIsNotEnabled()
+        waitForText("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce.")
+        val body = JSONObject(postedBody.get())
+        UUID.fromString(body.getString("id"))
+        assertEquals(USER_ID, body.getString("user_id"))
+        assertEquals("8.40", body.getString("amount"))
+        compose.onNodeWithText("Riprova").performClick()
+        waitForFinanceCondition("failed read completes without releasing the write block") {
+            transactionReloadFailures.get() == 1 &&
+                compose.onAllNodes(hasContentDescription("Aggiorna i dati") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Nuova transazione").assertIsNotEnabled()
+        compose.onNodeWithText("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce.").assertExists()
+        assertEquals("A failed read must not repeat an uncertain POST", 1, posts.get())
+        failTransactionReload.set(false)
+        compose.onNodeWithText("Riprova").performClick()
+        waitForText("3 transazioni")
+        compose.onNodeWithText("Nuova transazione").assertIsEnabled()
+        compose.onNodeWithText("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce.").assertDoesNotExist()
+        scrollFinanceNode(hasText("Inserimento incerto sintetico"))
+        scrollFinanceNode(hasText("−8,40", substring = true))
+        assertEquals("Successful reconciliation reads the committed row instead of replaying the form", 1, posts.get())
+        assertEquals(0, patches.get() + deletes.get() + rejectedRequests.get())
     }
 
     @Test fun recurringSuggestionPrefillsCancelPreservesAndSaveCreatesOnlyOnce() {
@@ -690,6 +854,43 @@ class FinanceScreenTest {
     }
 
     private fun transactionList() = compose.onNode(hasScrollToIndexAction())
+
+    private fun scrollFinanceNode(matcher: SemanticsMatcher): SemanticsNodeInteraction {
+        transactionList().performScrollToNode(matcher)
+        repeat(16) {
+            compose.waitForIdle()
+            val node = compose.onAllNodes(matcher).fetchSemanticsNodes().singleOrNull()
+            if (node == null) {
+                transactionList().performScrollToNode(matcher)
+                return@repeat
+            }
+            val viewport = transactionList().fetchSemanticsNode().boundsInRoot
+            val position = node.positionInRoot
+            val bounds = Rect(position.x, position.y, position.x + node.size.width, position.y + node.size.height)
+            if (bounds.top >= viewport.top && bounds.bottom <= viewport.bottom && bounds.left >= viewport.left && bounds.right <= viewport.right)
+                return compose.onNode(matcher).assertIsDisplayed()
+            // Filters share one tall lazy item. Move by a bounded delta rather than flinging past it.
+            val delta = (bounds.center.y - viewport.center.y).coerceIn(-viewport.height / 2f, viewport.height / 2f)
+            transactionList().performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, delta) }
+        }
+        throw AssertionError("Financial fixture target never became fully visible: $matcher")
+    }
+
+    private fun selectTransactionDate(label: String, date: LocalDate) {
+        scrollFinanceNode(hasText("$label: ", substring = true)).performClick()
+        onView(isAssignableFrom(DatePicker::class.java)).perform(object : ViewAction {
+            override fun getConstraints(): Matcher<View> = isAssignableFrom(DatePicker::class.java)
+            override fun getDescription() = "Select the exact synthetic transaction boundary $date"
+            override fun perform(controller: UiController, view: View) {
+                (view as DatePicker).updateDate(date.year, date.monthValue - 1, date.dayOfMonth)
+                controller.loopMainThreadUntilIdle()
+            }
+        })
+        onView(withId(android.R.id.button1)).perform(click())
+        compose.waitForIdle()
+        scrollFinanceNode(hasText("$label: $date"))
+    }
+
     private fun waitForText(text: String) = waitForFinanceCondition("text: $text") {
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     }
@@ -747,7 +948,7 @@ class FinanceScreenTest {
         return object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val url = request.requestUrl ?: return reject()
-                if ((anomalyInsightsFixture.get() || trendInsightsFixture.get() || milestoneInsightsFixture.get() || dashboardComparisonFixture.get() || calendarFixture.get()) && request.method != "GET") return reject()
+                if ((anomalyInsightsFixture.get() || trendInsightsFixture.get() || milestoneInsightsFixture.get() || dashboardComparisonFixture.get() || calendarFixture.get() || transactionFilterFixture.get()) && request.method != "GET") return reject()
                 if (request.getHeader("Authorization") != "Bearer finance-device-access" ||
                     request.getHeader("apikey") != "public-test-key") return reject()
                 if (request.method != "POST" && url.queryParameter("user_id") != "eq.$USER_ID") return reject()
@@ -758,7 +959,9 @@ class FinanceScreenTest {
                 val response = when (url.encodedPath) {
                     "/rest/v1/categories" -> {
                         val id = url.queryParameter("id")?.removePrefix("eq.")
-                        json(JSONArray(categories.filter { id == null || it.getString("id") == id }).toString())
+                        val available = if (transactionFilterFixture.get()) categories + JSONObject().put("id", INCOME_CATEGORY_ID)
+                            .put("user_id", USER_ID).put("name", "Alimentari entrate").put("type", "income") else categories
+                        json(JSONArray(available.filter { id == null || it.getString("id") == id }).toString())
                     }
                     "/rest/v1/profiles" -> json("""[{"default_currency":"EUR"}]""")
                     "/rest/v1/budgets" -> if (dashboardComparisonFixture.get() && request.method == "GET") json(JSONArray()
@@ -875,7 +1078,17 @@ class FinanceScreenTest {
                         else -> reject()
                     }
                     "/rest/v1/transactions" -> when (request.method) {
-                        "GET" -> if (dashboardComparisonFixture.get()) json(JSONArray()
+                        "GET" -> if (failTransactionReload.get()) {
+                            transactionReloadFailures.incrementAndGet()
+                            MockResponse().setResponseCode(503).setHeader("Content-Type", "application/json").setBody("{}")
+                        } else if (transactionFilterFixture.get()) json(JSONArray()
+                            .put(transaction(LUNCH_ID, "12.50", "Pranzo sintetico", FOOD_ID).put("date", "2026-06-15"))
+                            .put(transaction(TRAIN_ID, "30.00", "Biglietto treno", TRANSPORT_ID).put("date", "2026-06-14"))
+                            .put(transaction(FILTER_DOLLAR_ID, "8.50", "Spesa USD sintetica", FOOD_ID).put("currency", "USD")
+                                .put("exchange_rate_eur", "0.90").put("date", "2026-06-01"))
+                            .put(transaction(FILTER_INCOME_ID, "100.00", "Entrata sintetica", INCOME_CATEGORY_ID).put("type", "income").put("date", "2026-06-15"))
+                            .put(transaction(FILTER_PREVIOUS_ID, "50.00", "Spesa precedente sintetica", FOOD_ID).put("date", "2026-05-31"))
+                            .toString()) else if (dashboardComparisonFixture.get()) json(JSONArray()
                             .put(transaction("dashboard-opening", "30.00", "Saldo iniziale", FOOD_ID).put("type", "income").put("date", "2024-04-01"))
                             .put(transaction("dashboard-previous-income", "100.00", "Entrata precedente", FOOD_ID).put("type", "income").put("date", "2024-05-17"))
                             .put(transaction("dashboard-previous-expense", "40.00", "Spesa precedente", FOOD_ID).put("date", "2024-05-31"))
@@ -981,8 +1194,13 @@ class FinanceScreenTest {
                             if (body.getString("user_id") != USER_ID) return reject()
                             postedBody.set(raw)
                             posts.incrementAndGet()
-                            transactions[CREATED_ID] = body.put("id", CREATED_ID).put("deleted_at", JSONObject.NULL)
-                            json(JSONArray().put(body).toString())
+                            val storedId = if (failTransactionInsert.get()) body.getString("id") else CREATED_ID
+                            transactions[storedId] = body.put("id", storedId).put("deleted_at", JSONObject.NULL)
+                            if (failTransactionInsert.get()) {
+                                failTransactionReload.set(true)
+                                MockResponse().setResponseCode(503).setHeader("Content-Type", "application/json").setBody("{}")
+                                    .setBodyDelay(1200, TimeUnit.MILLISECONDS)
+                            } else json(JSONArray().put(body).toString())
                         }
                         "PATCH" -> {
                             if (url.queryParameter("id") != "eq.$LUNCH_ID") return reject()
@@ -1039,5 +1257,9 @@ class FinanceScreenTest {
         const val PROCESS_NAME = "Ricorrenza sintetica da elaborare"
         const val POSITION_FIRST_ID = "10000000-0000-4000-8000-000000000008"
         const val POSITION_SECOND_ID = "10000000-0000-4000-8000-000000000009"
+        const val INCOME_CATEGORY_ID = "10000000-0000-4000-8000-000000000010"
+        const val FILTER_DOLLAR_ID = "10000000-0000-4000-8000-000000000011"
+        const val FILTER_INCOME_ID = "10000000-0000-4000-8000-000000000012"
+        const val FILTER_PREVIOUS_ID = "10000000-0000-4000-8000-000000000013"
     }
 }

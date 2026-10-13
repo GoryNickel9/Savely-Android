@@ -121,13 +121,13 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    var editorOpen by rememberSaveable(section) { mutableStateOf(false) }
-    var editingId by rememberSaveable(section) { mutableStateOf<String?>(null) }
-    var suggestionKey by rememberSaveable(section) { mutableStateOf<String?>(null) }
-    var deleteRequest by remember { mutableStateOf<DeleteRequest?>(null) }
-    var closingId by rememberSaveable { mutableStateOf<String?>(null) }
-    var closingGroup by remember { mutableStateOf<PortfolioPositionGroup?>(null) }
-    var removingShare by remember { mutableStateOf<FinanceSharedExpense?>(null) }
+    var editorOpen by rememberSaveable(section, accountKey, model) { mutableStateOf(false) }
+    var editingId by rememberSaveable(section, accountKey, model) { mutableStateOf<String?>(null) }
+    var suggestionKey by rememberSaveable(section, accountKey, model) { mutableStateOf<String?>(null) }
+    var deleteRequest by remember(model) { mutableStateOf<DeleteRequest?>(null) }
+    var closingId by rememberSaveable(accountKey, model) { mutableStateOf<String?>(null) }
+    var closingGroup by remember(model) { mutableStateOf<PortfolioPositionGroup?>(null) }
+    var removingShare by remember(model) { mutableStateOf<FinanceSharedExpense?>(null) }
     var showClosedAssets by rememberSaveable { mutableStateOf(false) }
     var insightFilter by rememberSaveable(section) { mutableStateOf("all") }
     val data = state.data

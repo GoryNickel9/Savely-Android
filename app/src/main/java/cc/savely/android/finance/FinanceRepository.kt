@@ -35,6 +35,7 @@ class FinancePendingRefreshException(message: String, cause: Exception) : Illega
 class FinanceRepository(private val api: SupabaseApi, private val dismissals: RecurringDismissals = MemoryRecurringDismissals(),
     private val exchangeRates: FinanceExchangeRates = FinanceExchangeRates()) {
     private var loadedUserId: String? = null
+    private var loadedOwner: FinanceOwner? = null
     private suspend fun userId(): String = UUID.fromString(
         api.session()?.userId ?: error("Sessione scaduta. Accedi nuovamente."),
     ).toString()
@@ -43,7 +44,10 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
     private suspend fun ownerSnapshot(): FinanceOwner {
         val session = api.session() ?: error("Sessione scaduta. Accedi nuovamente.")
         val revision = api.sessionOwnerRevision(session) ?: error("Account cambiato. Aggiorna i dati prima di continuare.")
-        return FinanceOwner(UUID.fromString(session.userId).toString(), revision)
+        val owner = FinanceOwner(UUID.fromString(session.userId).toString(), revision)
+        // A form belongs to the accepted session that supplied its data, including a new login by the same user.
+        check(loadedOwner == null || loadedOwner == owner) { "Account cambiato. Aggiorna i dati prima di continuare." }
+        return owner
     }
     private suspend fun checkOwner(owner: FinanceOwner) {
         check(userId() == owner.id && api.isSessionOwnerCurrent(owner.revision)) { "Account cambiato. Aggiorna i dati prima di continuare." }
@@ -69,8 +73,9 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
     }
 
     suspend fun load(section: String): FinanceData {
-        val user = userId()
-        val ownerRevision = api.sessionOwnerRevision()
+        val owner = ownerSnapshot()
+        val user = owner.id
+        val ownerRevision = owner.revision
         val own = "user_id=eq.$user"
         val categories = rows("categories", "select=*&$own&deleted_at=is.null&order=name.asc,id.asc").map(::categoryFromJson)
         val profileFields = if (section == "transactions") "default_currency,permissions" else "default_currency"
@@ -118,6 +123,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         }
         check(userId() == user && api.sessionOwnerRevision() == ownerRevision) { "Account cambiato durante il caricamento. Aggiorna i dati." }
         loadedUserId = user
+        loadedOwner = owner
         return FinanceData(transactions, categories, budgets, recurring, currency, assets, snapshots, lastUpdate, ignored, tcgCards, history,
             user, connection, shares)
     }
@@ -142,11 +148,13 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         rate: String, categoryId: String?, description: String, date: String,
         share: TransactionShareRequest? = null,
     ) {
-        val identity = ownerSnapshot()
         require(currency in supportedCurrencies) { "Valuta non supportata" }
+        val parsedAmount = parseMoney(amount)
+        val parsedDate = LocalDate.parse(date)
+        val manualRate = if (currency != "EUR" && rate.isNotBlank()) parseExchangeRate(rate) else null
+        val identity = ownerSnapshot()
         val owner = identity.id
         val revision = identity.revision
-        val parsedAmount = parseMoney(amount)
         if (share != null) {
             require(id == null && type == TransactionType.EXPENSE) { "Solo una nuova uscita può essere condivisa dal form" }
             coupleSplit(parsedAmount, share.customPartner?.let(::couplePartnerAmount))
@@ -157,8 +165,8 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         }
         validateCategory(categoryId, type, identity)
         val body = transactionPayload(type, parsedAmount, currency,
-            if (currency == "EUR") BigDecimal.ONE else if (rate.isBlank()) exchangeRates.toEuro(currency) else parseExchangeRate(rate),
-            categoryId, description.trim(), LocalDate.parse(date))
+            if (currency == "EUR") BigDecimal.ONE else manualRate ?: exchangeRates.toEuro(currency),
+            categoryId, description.trim(), parsedDate)
         check(userId() == owner && api.sessionOwnerRevision() == revision) { "Account cambiato prima del salvataggio. Aggiorna i dati." }
         if (share == null) save("transactions", id, body, identity)
         else {

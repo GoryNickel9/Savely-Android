@@ -1126,7 +1126,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun loginDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13, 14), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14, 15), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val report = baseReport(run, code, "couple-login").put("user_id", user)
@@ -1161,7 +1161,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun logoutDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13, 14), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14, 15), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
@@ -1187,6 +1187,283 @@ class ReleaseApkBlackBoxTest {
             report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("cleanup_pending", true)
             throw AssertionError(safeFailure(failure))
         } finally { writeReport(run, "couple-logout", report) }
+    }
+
+    /** One reserved operation per invocation; the host reads the owner ledger before and after every write. */
+    @Test fun qualifyReservedFinanceForm() {
+        val run = preflight(15)
+        requireCode(dedicatedQaAccount().first == QA_USER, "FINANCE_ACCOUNT_INVALID")
+        val args = InstrumentationRegistry.getArguments()
+        val op = args.getString("financeOperation").orEmpty()
+        val allowed = setOf("expense-category-create", "income-category-create", "expense-create", "income-create",
+            "expense-update", "income-update", "budget-create", "budget-update", "expense-category-rename",
+            "expense-category-soft-delete", "expense-delete", "income-delete", "budget-delete",
+            "income-category-soft-delete", "cancel-category", "cancel-expense-delete", "dashboard-check", "filter-check")
+        requireCode(op in allowed, "FINANCE_OPERATION_INVALID")
+        val phase = "finance-$op"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val inputName = "release-qualification-$run-$phase-input.json"
+        val input = readJson(inputName, 4_096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id", "day", "renamed") &&
+            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("operation") == op,
+            "FINANCE_INPUT_INVALID")
+        val loginRun = input.optString("login_run_id")
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false) && loginRun != run,
+            "FINANCE_LOGIN_REFERENCE_INVALID")
+        val login = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(login.optString("run_id") == loginRun && login.optString("user_id") == QA_USER &&
+            login.optInt("target_code") == 15 && login.optString("stage") == "passed" &&
+            login.optString("target_package") == TARGET && login.optBoolean("settings_identity"), "FINANCE_LOGIN_INVALID")
+        val day = input.optString("day")
+        requireCode(runCatching { java.time.LocalDate.parse(day).toString() == day }.getOrDefault(false), "FINANCE_DAY_INVALID")
+        requireCode(java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")).toString() == day &&
+            java.time.LocalDate.now().toString() == day, "FINANCE_DEVICE_DAY_MISMATCH")
+        requireCode(input.get("renamed") is Boolean, "FINANCE_RENAMED_INVALID")
+        val marker = "android-finance-form-$run"
+        val expense = "$marker-expense"
+        val income = "$marker-income"
+        val expenseCategory = expense + if (input.getBoolean("renamed")) "-renamed" else ""
+        writeReport(run, "$phase-reservation", input.put("stage", "reserved"))
+        requireCode(privateFile(inputName).delete(), "FINANCE_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 15, phase).put("login_run_id", loginRun).put("operation", op)
+            .put("day", day).put("mutation_attempted", false).put("cleanup_pending", true)
+        try {
+            report.put("pid", launch())
+            openSettings(englishOnly = true)
+            requireEmail(QA_EMAIL)
+            awaitProfileRead()
+            awaitDashboard()
+            when {
+                op == "dashboard-check" -> {
+                    await("FINANCE_DASHBOARD_MISSING") { hasDashboardContent() }
+                    report.put("dashboard_content", true)
+                    // Both isolated descriptions must be visible among the refreshed recent transactions.
+                    seekLabel(setOf(income), "FINANCE_DASHBOARD_INCOME_MISSING", true).recycle()
+                    seekLabel(setOf(expense), "FINANCE_DASHBOARD_EXPENSE_MISSING", true).recycle()
+                    report.put("recent_expense", true).put("recent_income", true)
+                }
+                op.contains("category") -> {
+                    navigationEnter("Categories")
+                    await("FINANCE_CATEGORIES_MISSING") { hasText("Expense categories") }
+                    if (op.endsWith("create") || op == "cancel-category") {
+                        clickLabel(setOf("New category"), "FINANCE_CREATE_CONTROL_MISSING", true)
+                        await("FINANCE_EDITOR_MISSING") { hasText("New item") }
+                        if (op == "cancel-category") {
+                            financeSetField("Name", "$marker-cancelled")
+                            hideKeyboardIfShown()
+                            clickLabel(setOf("Cancel"), "FINANCE_CANCEL_MISSING")
+                        } else {
+                            val name = if (op.startsWith("income")) income else expense
+                            financeSetField("Name", name)
+                            hideKeyboardIfShown()
+                            if (op.startsWith("income")) financeSelect("Type: Expense", "Income")
+                            financeSubmit(run, phase, report)
+                            seekLabel(setOf(name), "FINANCE_CREATED_CATEGORY_MISSING", true).recycle()
+                        }
+                    } else if (op == "expense-category-rename") {
+                        clickLabel(setOf("Edit $expense"), "FINANCE_EDIT_CONTROL_MISSING", true)
+                        await("FINANCE_EDITOR_MISSING") { hasText("Edit item") }
+                        financeSetField("Name", "$expense-renamed")
+                        financeSubmit(run, phase, report)
+                        seekLabel(setOf("$expense-renamed"), "FINANCE_UPDATED_CATEGORY_MISSING", true).recycle()
+                    } else {
+                        val name = if (op.startsWith("income")) income else expenseCategory
+                        clickLabel(setOf("Delete $name"), "FINANCE_DELETE_CONTROL_MISSING", true)
+                        await("FINANCE_DELETE_CONFIRMATION_MISSING") { hasText("Delete $name?") }
+                        financeDelete(run, phase, report)
+                    }
+                }
+                op.startsWith("budget") -> {
+                    navigationEnter("Budget")
+                    seekLabel(setOf("New budget"), "FINANCE_BUDGET_MISSING", true).recycle()
+                    if (op == "budget-create") {
+                        clickLabel(setOf("New budget"), "FINANCE_CREATE_CONTROL_MISSING")
+                        await("FINANCE_EDITOR_MISSING") { hasText("New item") }
+                        financeSelect("Category: Select", expenseCategory)
+                        financeSetField("Amount", "3.00")
+                        financeSubmit(run, phase, report)
+                    } else if (op == "budget-update") {
+                        clickLabel(setOf("Edit $expenseCategory"), "FINANCE_EDIT_CONTROL_MISSING", true)
+                        await("FINANCE_EDITOR_MISSING") { hasText("Edit item") }
+                        financeSetField("Amount", "4.00")
+                        financeSubmit(run, phase, report)
+                    } else {
+                        // This category was soft deleted while its budget still existed.
+                        seekLabel(setOf("Removed category"), "FINANCE_REMOVED_CATEGORY_MISSING", true).recycle()
+                        clickLabel(setOf("Delete Removed category"), "FINANCE_DELETE_CONTROL_MISSING")
+                        await("FINANCE_DELETE_CONFIRMATION_MISSING") { hasText("Delete budget?") }
+                        financeDelete(run, phase, report)
+                        report.put("removed_category_display", true)
+                    }
+                }
+                else -> {
+                    clickNavigation(setOf("Transactions"), "FINANCE_TRANSACTIONS_NAVIGATION_MISSING")
+                    await("FINANCE_TRANSACTIONS_MISSING") { hasText("New transaction") }
+                    if (op == "filter-check") {
+                        financeSetField("Search description or category", marker)
+                        hideKeyboardIfShown()
+                        financeSelect("Category: All", expenseCategory)
+                        clickLabel(setOf("Expenses"), "FINANCE_TYPE_FILTER_MISSING", true)
+                        seekLabel(setOf("1 transactions"), "FINANCE_COMBINED_FILTER_MISSING", true).recycle()
+                        seekLabel(setOf(expense), "FINANCE_FILTERED_EXPENSE_MISSING", true).recycle()
+                        requireCode(!hasText(income), "FINANCE_FILTERED_INCOME_VISIBLE")
+                        report.put("search_type_category_combined", true)
+                        // Restore filters before later phases; no write is performed.
+                        financeTop()
+                        financeSetField("Search description or category", "")
+                        hideKeyboardIfShown()
+                        financeSelect("Category: $expenseCategory", "All")
+                        clickLabel(setOf("All types"), "FINANCE_TYPE_FILTER_MISSING", true)
+                    } else if (op.endsWith("create")) {
+                        clickLabel(setOf("New transaction"), "FINANCE_CREATE_CONTROL_MISSING")
+                        await("FINANCE_EDITOR_MISSING") { hasText("New item") }
+                        val isIncome = op.startsWith("income")
+                        financeSetField("Amount", if (isIncome) "0.05" else "0.01")
+                        hideKeyboardIfShown()
+                        if (isIncome) financeSelect("Type: Expense", "Income")
+                        financeSelect("Category: Uncategorized", if (isIncome) income else expenseCategory)
+                        financeSetField("Optional description", if (isIncome) income else expense)
+                        hideKeyboardIfShown()
+                        seekLabel(setOf("Date: $day"), "FINANCE_DATE_MISSING", true).recycle()
+                        financeSubmit(run, phase, report)
+                    } else if (op.endsWith("update")) {
+                        val isIncome = op.startsWith("income")
+                        clickLabel(setOf("Edit ${if (isIncome) income else expense}"), "FINANCE_EDIT_CONTROL_MISSING", true)
+                        await("FINANCE_EDITOR_MISSING") { hasText("Edit item") }
+                        financeSetField("Amount", if (isIncome) "0.06" else "0.02")
+                        financeSubmit(run, phase, report)
+                    } else {
+                        val name = if (op.startsWith("income")) income else expense
+                        clickLabel(setOf("Delete $name"), "FINANCE_DELETE_CONTROL_MISSING", true)
+                        await("FINANCE_DELETE_CONFIRMATION_MISSING") { hasText("Delete $name?") }
+                        if (op == "cancel-expense-delete") clickLabel(setOf("Cancel"), "FINANCE_CANCEL_MISSING")
+                        else financeDelete(run, phase, report)
+                    }
+                }
+            }
+            await("FINANCE_DIALOG_NOT_CLOSED") { !hasText("New item") && !hasText("Edit item") &&
+                !hasText("Delete $expense?") && !hasText("Delete $income?") &&
+                !hasText("Delete $expenseCategory?") && !hasText("Delete budget?") &&
+                !exists { it.isPassword && visible(it) } }
+            report.put("stage", "passed").put("identity_preserved", true)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, phase, report) }
+    }
+
+    private fun financeSubmit(run: String, phase: String, report: JSONObject) {
+        hideKeyboardIfShown()
+        writeReport(run, "$phase-before-submit", JSONObject().put("run_id", run).put("user_id", QA_USER).put("stage", "before-submit"))
+        report.put("mutation_attempted", true)
+        clickLabel(setOf("Save"), "FINANCE_SAVE_MISSING")
+        await("FINANCE_SAVE_NOT_CONFIRMED") { !hasText("New item") && !hasText("Edit item") && !hasText("Saving…") }
+    }
+
+    @Test fun recoverFailedFinanceFormLogout() {
+        val run = preflight(15)
+        requireCode(dedicatedQaAccount().first == QA_USER, "FINANCE_ACCOUNT_INVALID")
+        val args = InstrumentationRegistry.getArguments()
+        val failedRun = args.getString("financeFailedRun").orEmpty()
+        val op = args.getString("financeOperation").orEmpty()
+        requireCode(runCatching { UUID.fromString(failedRun).toString() == failedRun }.getOrDefault(false) && run != failedRun &&
+            op.matches(Regex("[a-z-]{4,40}")), "FINANCE_RECOVERY_REFERENCE_INVALID")
+        val failedPhase = when (op) { "login" -> "couple-login"; "logout" -> "couple-logout"; else -> "finance-$op" }
+        val failure = readJson("release-qualification-$failedRun-$failedPhase.json", 16_384)
+        requireCode(failure.optString("stage") == "failed" && failure.optString("run_id") == failedRun &&
+            failure.optString("user_id") == QA_USER && failure.optInt("target_code") == 15 &&
+            failure.optString("target_package") == TARGET && failure.optString("phase") == failedPhase &&
+            (op in setOf("login", "logout") || failure.optString("operation") == op) &&
+            failure.optBoolean("cleanup_pending"), "FINANCE_RECOVERY_FAILURE_INVALID")
+        if (op == "login") {
+            requireCode(failure.optBoolean("input_consumed") && failure.optBoolean("login_form_submitted"), "FINANCE_LOGIN_INVALID")
+        } else {
+            val loginRun = if (op == "logout") failedRun else failure.optString("login_run_id")
+            val login = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+            requireCode(login.optString("stage") == "passed" && login.optInt("target_code") == 15 &&
+                login.optString("user_id") == QA_USER && login.optBoolean("settings_identity"), "FINANCE_LOGIN_INVALID")
+        }
+        requireNewNavigationReport(run, "finance-recovery")
+        requireNewNavigationReport(run, "finance-recovery-reservation")
+        writeReport(run, "finance-recovery-reservation", JSONObject().put("run_id", run).put("failed_run_id", failedRun)
+            .put("operation", op).put("user_id", QA_USER).put("stage", "reserved"))
+        val report = baseReport(run, 15, "finance-recovery").put("failed_run_id", failedRun)
+        try {
+            report.put("pid", launch())
+            hideKeyboardIfShown()
+            if (hasText("New item") || hasText("Edit item") || hasText("Delete budget?") ||
+                exists { it.text?.toString()?.startsWith("Delete android-finance-form-$failedRun-") == true && visible(it) }) {
+                clickLabel(setOf("Cancel"), "FINANCE_RECOVERY_CANCEL_MISSING")
+            }
+            if (navigationDrawerOpen()) navigationBack()
+            openSettings(englishOnly = true)
+            requireEmail(QA_EMAIL)
+            awaitProfileRead()
+            requireCode(logoutQa(report, QA_EMAIL), "FINANCE_RECOVERY_LOGOUT_FAILED")
+            report.put("stage", "passed").put("cleanup_pending", false)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("cleanup_pending", true)
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "finance-recovery", report) }
+    }
+
+    private fun financeDelete(run: String, phase: String, report: JSONObject) {
+        writeReport(run, "$phase-before-submit", JSONObject().put("run_id", run).put("user_id", QA_USER).put("stage", "before-submit"))
+        report.put("mutation_attempted", true)
+        clickLabel(setOf("Delete"), "FINANCE_DELETE_CONFIRM_MISSING")
+        await("FINANCE_DELETE_NOT_CONFIRMED") { !hasText("Delete") && !hasText("Deleting…") }
+    }
+
+    private fun financeTop() {
+        hideKeyboardIfShown()
+        repeat(24) {
+            if (hasText("Search description or category") || hasText("New category") || hasText("New budget")) return
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+            val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+            val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } } ?: false
+            if (!moved) swipe(true, bounds)
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("FINANCE_TOP_MISSING")
+    }
+
+    private fun financeSelect(control: String, option: String) {
+        hideKeyboardIfShown()
+        clickLabel(setOf(control), "FINANCE_SELECTOR_MISSING", true)
+        clickLabel(setOf(option), "FINANCE_OPTION_MISSING", true)
+    }
+
+    private fun financeSetField(field: String, value: String) {
+        val direct = find { it.isEditable && it.isEnabled && visible(it) && it.hintText?.toString() == field }
+        val labelNode = direct ?: seekLabel(setOf(field), "FINANCE_FIELD_LABEL_MISSING", true)
+        var candidate: AccessibilityNodeInfo? = null
+        try {
+            // Compose exposes the floating label inside its editable semantics node.
+            var ancestor: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(labelNode)
+            repeat(4) {
+                val current = ancestor ?: return@repeat
+                if (current.isEditable && current.isEnabled && visible(current)) {
+                    candidate = AccessibilityNodeInfo.obtain(current)
+                    current.recycle(); ancestor = null
+                } else {
+                    ancestor = current.parent
+                    current.recycle()
+                }
+            }
+            ancestor?.recycle()
+        } finally { labelNode.recycle() }
+        val node = candidate ?: find { it.isEditable && it.isEnabled && visible(it) &&
+            (it.hintText?.toString() == field || it.text?.toString() == field || it.contentDescription?.toString() == field) }
+            ?: throw IllegalStateException("FINANCE_FIELD_MISSING")
+        try {
+            requireCode(node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,
+                Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value) }), "FINANCE_FIELD_INPUT_REJECTED")
+            await("FINANCE_FIELD_VALUE_MISMATCH") {
+                node.refresh() && node.isEditable && (node.text?.toString().orEmpty() == value ||
+                    value.isEmpty() && node.text?.toString() == field)
+            }
+        } finally { node.recycle() }
     }
 
     private fun dedicatedQaAccount(): Pair<String, String> = when (InstrumentationRegistry.getArguments().getString("releaseQualificationAccount")) {

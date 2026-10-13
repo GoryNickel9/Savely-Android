@@ -175,4 +175,56 @@ class FinanceSharingRepositoryTest {
         assertTrue(runCatching { repository.saveTransaction(null, TransactionType.EXPENSE, "1.01", "USD", "", null, "Synthetic", "2026-01-01") }.isFailure)
         assertEquals(1, server.requestCount); assertEquals("GET", server.takeRequest().method)
     }
+
+    @Test fun `invalid date or manual rate fails before expired authentication category reads sharing or quotes`() = runBlocking {
+        val expiredApi = SupabaseApi(BackendConfig(server.url("/").toString(), "public-key", server.url("/").toString()),
+            MemorySessionStore(Session("expired-access", "expired-refresh", 1, owner, "qa@example.test")))
+        val expiredRepository = FinanceRepository(expiredApi, exchangeRates = FinanceExchangeRates(publicClient, server.url("/latest")))
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = response("{}", 503)
+        }
+        try {
+            for (shared in listOf(null, TransactionShareRequest(connection, "Casa", "0.50"))) {
+                for (date in listOf("2026-02-30", "not-a-date")) {
+                    val error = runCatching { expiredRepository.saveTransaction(null, TransactionType.EXPENSE,
+                        "1.01", "USD", "", txId, "Synthetic", date, shared) }.exceptionOrNull()
+                    assertTrue(error is java.time.format.DateTimeParseException)
+                }
+                for (rate in listOf("NaN", "0", "1000000000", "-1")) {
+                    val error = runCatching { expiredRepository.saveTransaction(null, TransactionType.EXPENSE,
+                        "1.01", "USD", rate, txId, "Synthetic", "2026-01-01", shared) }.exceptionOrNull()
+                    assertTrue(error is IllegalArgumentException)
+                }
+            }
+            assertEquals("Invalid local input must not refresh, read a category/connection, quote or write", 0, server.requestCount)
+        } finally { expiredApi.close() }
+    }
+
+    @Test fun `valid explicit rate and EUR identity need no quote and keep exact dates owner and distinct native ids`() = runBlocking {
+        repeat(2) { server.enqueue(response("""[{"id":"$txId"}]""")) }
+        repository.saveTransaction(null, TransactionType.EXPENSE, "0.015", "USD", "0,1234567", null,
+            "  Explicit FX  ", "2024-02-29")
+        repository.saveTransaction(null, TransactionType.INCOME, "0.01", "EUR", "not-used-for-EUR", null,
+            "EUR identity", "2026-01-01")
+        val first = server.takeRequest()
+        val second = server.takeRequest()
+        val dollar = JSONObject(first.body.readUtf8())
+        val euro = JSONObject(second.body.readUtf8())
+        for (request in listOf(first, second)) {
+            assertEquals("POST", request.method)
+            assertEquals("/rest/v1/transactions", request.requestUrl!!.encodedPath)
+            assertEquals("Bearer access", request.getHeader("Authorization"))
+            assertEquals("public-key", request.getHeader("apikey"))
+        }
+        assertEquals(owner, dollar.getString("user_id"))
+        assertEquals(owner, euro.getString("user_id"))
+        assertEquals("0.02", dollar.getString("amount"))
+        assertEquals("0.123457", dollar.getString("exchange_rate_eur"))
+        assertEquals("2024-02-29", dollar.getString("date"))
+        assertEquals("Explicit FX", dollar.getString("description"))
+        assertEquals("1", euro.getString("exchange_rate_eur"))
+        assertEquals("2026-01-01", euro.getString("date"))
+        assertEquals(2, setOf(UUID.fromString(dollar.getString("id")), UUID.fromString(euro.getString("id"))).size)
+        assertEquals(2, server.requestCount)
+    }
 }
