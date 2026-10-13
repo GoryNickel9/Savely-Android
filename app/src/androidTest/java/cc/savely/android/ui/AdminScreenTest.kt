@@ -61,6 +61,7 @@ class AdminScreenTest {
     private val resetRequests = AtomicInteger()
     private val changeOwnerOnTargetRead = AtomicBoolean(false)
     private val revokeRoleOnTargetRead = AtomicBoolean(false)
+    private val revokeRoleOnUserListRead = AtomicBoolean(false)
     private val permissionWrites = AtomicInteger()
     private val targetProfileReads = AtomicInteger()
     private val permissionStatus = AtomicInteger(200)
@@ -125,11 +126,11 @@ class AdminScreenTest {
         compose.onNodeWithText("Aggiorna utenti").performScrollTo().performClick()
         awaitError("Sono necessari i permessi di amministratore.")
         assertNoAdminDataOrDialogs()
-        assertEquals(2, profileReads.get())
+        assertEquals(3, profileReads.get())
         assertEquals(1, userListReads.get()) // The denied profile stops before calling the web Admin API.
         assertEquals(1, registrationReads.get())
         assertEquals(0, deleteAttempts.get())
-        assertEquals(4, server.requestCount)
+        assertEquals(5, server.requestCount)
         assertSessionAndLocalRequestsPreserved()
     }
 
@@ -146,7 +147,7 @@ class AdminScreenTest {
         compose.onNodeWithText("Elimina definitivamente").assertIsEnabled()
         assertEquals(session, store.load())
         assertEquals(1, deleteAttempts.get()) // No automatic retry of the failed local POST.
-        assertEquals(5, server.requestCount)
+        assertEquals(6, server.requestCount)
 
         deleteStatus.set(403)
         compose.onNodeWithText("Elimina definitivamente").performClick()
@@ -155,15 +156,19 @@ class AdminScreenTest {
         assertEquals(2, deleteAttempts.get()) // Both fixture attempts were denied; no account was removed.
         assertEquals(1, userListReads.get())
         assertEquals(1, registrationReads.get())
-        assertEquals(7, server.requestCount)
+        assertEquals(8, server.requestCount)
         assertSessionAndLocalRequestsPreserved()
     }
 
-    private fun renderAndAwaitLoaded() {
+    private fun render() {
         mounted = true
         compose.setContent {
             if (visible.value) LocalizationProvider(languagePreferences) { SavelyTheme("light") { AdminScreen(api) } }
         }
+    }
+
+    private fun renderAndAwaitLoaded() {
+        render()
         val registrations = if (languagePreferences.read() == AppLanguage.ENGLISH) "Registration enabled" else "Registrazioni abilitate"
         val refresh = if (languagePreferences.read() == AppLanguage.ENGLISH) "Refresh users" else "Aggiorna utenti"
         compose.waitUntil(15_000) {
@@ -204,7 +209,7 @@ class AdminScreenTest {
         awaitError("La sessione è cambiata. Aggiorna la schermata prima di continuare.")
         assertNoAdminDataOrDialogs()
         assertEquals(0, permissionWrites.get())
-        assertEquals(5, server.requestCount)
+        assertEquals(6, server.requestCount)
         assertEquals(OTHER_ID, store.load()?.userId)
         assertNull(api.sessionInvalidation.value)
         assertEquals(0, unexpectedRequests.get())
@@ -281,10 +286,10 @@ class AdminScreenTest {
         compose.onNodeWithText("Salva permessi", substring = false).performClick()
         awaitError("Sono necessari i permessi di amministratore.")
         assertNoAdminDataOrDialogs()
-        assertEquals(2, profileReads.get())
+        assertEquals(3, profileReads.get())
         assertEquals(0, targetProfileReads.get())
         assertEquals(0, permissionWrites.get())
-        assertEquals(4, server.requestCount)
+        assertEquals(5, server.requestCount)
         assertSessionAndLocalRequestsPreserved()
     }
 
@@ -295,10 +300,25 @@ class AdminScreenTest {
         compose.onNodeWithText("Salva permessi", substring = false).performClick()
         awaitError("Sono necessari i permessi di amministratore.")
         assertNoAdminDataOrDialogs()
-        assertEquals(3, profileReads.get()) // Initial load, before target read, and after role changes during that read.
+        assertEquals(4, profileReads.get()) // Two initial checks, before target read, and after role changes during that read.
         assertEquals(1, targetProfileReads.get())
         assertEquals(0, permissionWrites.get())
-        assertEquals(6, server.requestCount)
+        assertEquals(7, server.requestCount)
+        assertSessionAndLocalRequestsPreserved()
+    }
+
+    @Test fun lostAdminRoleDuringUserListReadPreventsTheFirstAdminDataPublication() {
+        revokeRoleOnUserListRead.set(true)
+        render()
+        awaitError("Sono necessari i permessi di amministratore.")
+        assertNoAdminDataOrDialogs()
+        assertEquals(2, profileReads.get())
+        assertEquals(1, userListReads.get())
+        assertEquals(1, registrationReads.get())
+        assertEquals(0, targetProfileReads.get())
+        assertEquals(0, permissionWrites.get())
+        assertEquals(0, deleteAttempts.get())
+        assertEquals(4, server.requestCount)
         assertSessionAndLocalRequestsPreserved()
     }
 
@@ -439,6 +459,7 @@ class AdminScreenTest {
                     else when (action) {
                         "get-users" -> {
                             userListReads.incrementAndGet()
+                            if (revokeRoleOnUserListRead.get()) adminAllowed.set(false)
                             json("""{"users":[{"user_id":"$OTHER_ID","email":"$OTHER_EMAIL","full_name":"Synthetic account","permissions":${listedPermissions.get()}}]}""")
                         }
                         "delete-user" -> if (targetUser == OTHER_ID) {
