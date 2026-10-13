@@ -33,6 +33,194 @@ class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
+    @Test fun qualifyDedicatedQaNavigationRoutes() {
+        val run = preflight(14)
+        val (user, email) = dedicatedQaAccount()
+        val loginRun = navigationLogin(user)
+        val fire = InstrumentationRegistry.getArguments().getString("navigationFireAllowed")
+        requireCode(fire in setOf("true", "false") && (fire == "true" || user == QA_USER_B), "NAVIGATION_POLICY_INVALID")
+        val routes = listOf("dashboard" to "Dashboard", "transactions" to "Transactions", "budget" to "Budget",
+            "categories" to "Categories", "recurring" to "Recurring expenses", "charts" to "Charts",
+            "portfolio" to "Portfolio", "net-worth" to "Net worth", "insights" to "Insights",
+            "poker" to "Poker", "fire" to "FIRE", "fumo" to "Smoking", "tcg" to "TCG", "libreria" to "Library",
+            "couple" to "Couple", "admin" to "Admin", "settings" to "Settings", "app-release" to "Version and updates",
+            "modules" to "Modules").filter { (route, _) -> (route != "admin" || user == QA_ADMIN_USER) && (route != "fire" || fire == "true") }
+        val report = baseReport(run, 14, "navigation-routes").put("user_id", user).put("login_run_id", loginRun)
+        val covered = org.json.JSONArray()
+        try {
+            report.put("pid", launch())
+            openSettings(englishOnly = true); requireEmail(email); awaitProfileRead()
+            navigationDrawer()
+            requireCode(navigationDrawerExists("Admin") == (user == QA_ADMIN_USER) && navigationDrawerExists("FIRE") == (fire == "true"),
+                "NAVIGATION_DENIED_ROUTE_VISIBLE")
+            navigationBack()
+            await("NAVIGATION_DRAWER_BACK_FAILED") { !navigationDrawerExists("Modules") && navigationTitle("Settings") }
+            report.put("drawer_back", true)
+            for ((route, title) in routes) {
+                navigationEnter(title)
+                requireCode(!editable(password = true), "NAVIGATION_LOGIN_FALLBACK")
+                covered.put(route)
+                if (route != "dashboard") {
+                    navigationBack()
+                    await("NAVIGATION_DESTINATION_BACK_FAILED") { navigationTitle("Dashboard") }
+                }
+            }
+            report.put("covered_routes", covered).put("destination_back", true)
+            openSettings(englishOnly = true); requireEmail(email); awaitProfileRead()
+            report.put("identity_preserved", true).put("stage", "passed").put("cleanup_pending", true)
+        } catch (failure: Throwable) {
+            report.put("covered_routes", covered).put("stage", "failed").put("failure_code", safeFailure(failure)).put("cleanup_pending", true)
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "navigation-routes", report) }
+    }
+
+    @Test fun qualifyDedicatedQaNavigationRoleChanges() {
+        val run = preflight(14)
+        requireCode(dedicatedQaAccount().first == QA_USER_B, "NAVIGATION_ROLE_OWNER_INVALID")
+        val loginRun = navigationLogin(QA_USER_B)
+        val report = baseReport(run, 14, "navigation-role").put("user_id", QA_USER_B).put("login_run_id", loginRun)
+        var checkpoint = "started"
+        fun checked(stage: String) {
+            checkpoint = stage
+            val suffix = stage.replace('_', '-')
+            writeReport(run, "navigation-$suffix", JSONObject().put("run_id", run).put("user_id", QA_USER_B).put("stage", stage).put("status", "ready"))
+            val name = "release-qualification-$run-navigation-ack-$suffix.json"
+            val until = SystemClock.uptimeMillis() + 90_000
+            while (!privateFile(name).exists() && SystemClock.uptimeMillis() < until) SystemClock.sleep(250)
+            val ack = readJson(name, 1_024)
+            requireCode(ack.keys().asSequence().toSet() == setOf("run_id", "user_id", "stage", "status") &&
+                ack.optString("run_id") == run && ack.optString("user_id") == QA_USER_B && ack.optString("stage") == stage &&
+                ack.optString("status") == "observed", "NAVIGATION_ACK_INVALID")
+            requireCode(privateFile(name).delete(), "NAVIGATION_ACK_CONSUMPTION_FAILED")
+        }
+        try {
+            report.put("pid", launch())
+            openSettings(englishOnly = true); requireEmail(QA_EMAIL_B); awaitProfileRead()
+            checked("b_granted")
+            navigationResume()
+            navigationEnter("FIRE")
+            checked("b_revoked")
+            navigationResume()
+            await("NAVIGATION_REVOKED_ROUTE_REMAINED") { navigationTitle("Dashboard") }
+            navigationDrawer()
+            requireCode(!navigationDrawerExists("FIRE") && !navigationDrawerExists("Admin"), "NAVIGATION_REVOKED_DRAWER_REMAINED")
+            navigationBack()
+            await("NAVIGATION_REVOKED_BACK_FAILED") { navigationTitle("Dashboard") }
+            report.put("revoked_route_and_drawer_cleared", true)
+            checked("b_revocation_denied")
+            checked("b_restored")
+            navigationResume()
+            navigationEnter("FIRE")
+            report.put("regranted_route_visible", true)
+            checked("b_restoration_visible")
+            openSettings(englishOnly = true); requireEmail(QA_EMAIL_B); awaitProfileRead()
+            report.put("identity_preserved", true).put("stage", "passed").put("checkpoint_count", 5).put("cleanup_pending", true)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("last_checkpoint", checkpoint).put("cleanup_pending", true)
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "navigation-role", report) }
+    }
+
+    private fun navigationLogin(user: String): String {
+        val run = InstrumentationRegistry.getArguments().getString("releaseQualificationLoginRunId").orEmpty()
+        requireCode(runCatching { UUID.fromString(run).toString() == run }.getOrDefault(false), "NAVIGATION_LOGIN_RUN_INVALID")
+        val prior = readJson("release-qualification-$run-couple-login.json", 16_384)
+        requireCode(prior.optString("stage") == "passed" && prior.optString("user_id") == user && prior.optInt("target_code") == 14 &&
+            prior.optBoolean("settings_identity") && prior.optBoolean("english_selected"), "NAVIGATION_LOGIN_INVALID")
+        return run
+    }
+
+    private fun navigationTitle(title: String): Boolean {
+        val root = automation.rootInActiveWindow ?: return false
+        val window = try { Rect().also(root::getBoundsInScreen) } finally { root.recycle() }
+        return exists {
+            val bounds = Rect().also(it::getBoundsInScreen)
+            label(it, setOf(title)) && visible(it) && !hasClickableAncestor(it) && bounds.top < window.top + window.height() / 3
+        }
+    }
+
+    private fun navigationDrawerExists(title: String): Boolean = exists { label(it, setOf(title)) && navigationDrawerAncestor(it) }
+
+    private fun navigationDrawerAncestor(node: AccessibilityNodeInfo): Boolean {
+        var current = node.parent
+        try {
+            repeat(10) {
+                val parent = current ?: return false
+                if (parent.isScrollable) {
+                    val matches = parent.findAccessibilityNodeInfosByText("Sign out of your account")
+                    val drawer = try { matches.any { label(it, setOf("Sign out of your account")) } } finally { matches.forEach { it.recycle() } }
+                    if (drawer) return true
+                }
+                current = parent.parent
+                parent.recycle()
+            }
+            return false
+        } finally { current?.recycle() }
+    }
+
+    private fun navigationDrawer() {
+        hideKeyboardIfShown()
+        clickNavigation(setOf("More"), "NAVIGATION_MORE_MISSING")
+        await("NAVIGATION_DRAWER_MISSING") { navigationDrawerExists("Modules") }
+        repeat(64) {
+            if (exists { label(it, setOf("Modules")) && visible(it) && navigationDrawerAncestor(it) }) return
+            navigationDrawerScroll(backwards = true)
+        }
+        throw IllegalStateException("NAVIGATION_DRAWER_TOP_MISSING")
+    }
+
+    private fun navigationDrawerScroll(backwards: Boolean) {
+        val container = find {
+            if (!it.isScrollable || !visible(it)) false else {
+                val matches = it.findAccessibilityNodeInfosByText("Sign out of your account")
+                try { matches.any { node -> label(node, setOf("Sign out of your account")) } } finally { matches.forEach { node -> node.recycle() } }
+            }
+        } ?: throw IllegalStateException("NAVIGATION_DRAWER_SCROLL_MISSING")
+        val bounds = Rect().also(container::getBoundsInScreen)
+        val moved = try { container.performAction(if (backwards) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) } finally { container.recycle() }
+        if (!moved) swipe(backwards, bounds)
+        SystemClock.sleep(250)
+    }
+
+    private fun navigationEnter(title: String) {
+        navigationDrawer()
+        repeat(64) {
+            val candidate = find { label(it, setOf(title)) && visible(it) && hasClickableAncestor(it) && navigationDrawerAncestor(it) }
+            if (candidate != null) {
+                clickControl(candidate, "NAVIGATION_DRAWER_CLICK_FAILED")
+                await("NAVIGATION_TITLE_MISSING") { !navigationDrawerExists("Modules") && navigationTitle(title) }
+                return
+            }
+            val heading = find { label(it, setOf(title)) && navigationDrawerAncestor(it) }
+            if (heading != null) {
+                val moved = try { heading.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id) } finally { heading.recycle() }
+                if (!moved) navigationDrawerScroll(backwards = false)
+            }
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("NAVIGATION_DRAWER_ROUTE_NOT_VISIBLE")
+    }
+
+    private fun navigationBack() {
+        hideKeyboardIfShown()
+        val now = SystemClock.uptimeMillis()
+        requireCode(automation.injectInputEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0), true) &&
+            automation.injectInputEvent(KeyEvent(now, now + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK, 0), true), "NAVIGATION_BACK_REJECTED")
+    }
+
+    private fun navigationResume() {
+        readShell("input keyevent KEYCODE_HOME", 256)
+        SystemClock.sleep(250)
+        launch()
+        await("NAVIGATION_RESUME_MISSING") { hasText("Dashboard") && !editable(password = true) }
+        navigationDrawer()
+        await("NAVIGATION_RESTORE_NOT_SETTLED") {
+            exists { label(it, setOf("Sign out of your account")) && it.isEnabled && hasClickableAncestor(it) && navigationDrawerAncestor(it) }
+        }
+        navigationBack()
+    }
+
     @Test fun adminFixedTargetDiagnostic() {
         val run = preflight(13)
         val failedRun = InstrumentationRegistry.getArguments().getString("releaseQualificationLoginRunId").orEmpty()
@@ -737,7 +925,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun loginDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val report = baseReport(run, code, "couple-login").put("user_id", user)
@@ -772,7 +960,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun logoutDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
