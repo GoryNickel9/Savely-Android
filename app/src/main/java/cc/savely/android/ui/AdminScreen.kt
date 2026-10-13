@@ -60,6 +60,9 @@ fun AdminScreen(api: SupabaseApi) {
         if (owner?.userId != myId || revision == null || !api.isSessionOwnerCurrent(revision)) {
             throw ApiException(ApiError.PERMISSION, "La sessione è cambiata. Aggiorna la schermata prima di continuare.")
         }
+        if (api.permissions(expectedOwner = myId, expectedRevision = revision)["admin"] != true) {
+            throw ApiException(ApiError.PERMISSION, "Sono necessari i permessi di amministratore.")
+        }
         return myId to revision
     }
     fun run(block: suspend () -> Unit) {
@@ -120,6 +123,8 @@ fun AdminScreen(api: SupabaseApi) {
             val (owner, revision) = actionOwner()
             val userId = user.getString("user_id")
             val profiles = api.select("profiles", "select=id,permissions&user_id=eq.$userId")
+            // RLS may return [] rather than 403 if the role disappeared during the target read.
+            actionOwner()
             require(profiles.length() == 1) { "Profilo utente non disponibile." }
             val permissions = profiles.getJSONObject(0).optJSONObject("permissions") ?: JSONObject()
             editedPermissions.forEach { (key, value) -> permissions.put(key, value) }
