@@ -199,6 +199,9 @@ class NavigationLanguageTest {
                 compose.onNode(hasText(label, substring = false) and hasClickAction() and
                     hasAnyAncestor(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy))).performScrollTo().performClick()
                 title(label)
+                compose.onNodeWithContentDescription(catalog.translate(language, "Apri menu")).performClick()
+                compose.runOnIdle { back.onBackPressed() }
+                title(label)
                 if (destination.route != "dashboard" && destination.route != "modules") {
                     compose.runOnIdle { back.onBackPressed() }
                     title("Dashboard")
