@@ -33,6 +33,184 @@ class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
+    @Test fun qualifyDedicatedQaAdminPermissions() {
+        val run = preflight(13)
+        requireCode(InstrumentationRegistry.getArguments().getString("releaseQualificationAccount") == "admin", "ADMIN_QA_OWNER_INVALID")
+        val loginRun = InstrumentationRegistry.getArguments().getString("releaseQualificationLoginRunId").orEmpty()
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false), "LOGIN_RUN_INVALID")
+        val previous = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(previous.optString("stage") == "passed" && previous.optString("user_id") == QA_ADMIN_USER &&
+            previous.optBoolean("settings_identity") && previous.optBoolean("english_selected"), "QA_ADMIN_LOGIN_INVALID")
+        requireCode(!privateFile("release-qualification-$run-admin-forms.json").exists() &&
+            ADMIN_STAGES.none { privateFile("release-qualification-$run-admin-${it.replace('_', '-')}.json").exists() },
+            "ADMIN_REPORT_ALREADY_EXISTS")
+        val report = baseReport(run, 13, "admin-forms").put("user_id", QA_ADMIN_USER)
+        var checkpoint = "started"
+        fun checked(stage: String) {
+            checkpoint = stage
+            val suffix = stage.replace('_', '-')
+            writeReport(run, "admin-$suffix", JSONObject().put("run_id", run).put("user_id", QA_ADMIN_USER)
+                .put("stage", stage).put("status", "ready"))
+            val name = "release-qualification-$run-admin-ack-$suffix.json"
+            val until = SystemClock.uptimeMillis() + 90_000
+            while (!privateFile(name).exists() && SystemClock.uptimeMillis() < until) SystemClock.sleep(250)
+            val ack = readJson(name, 1_024)
+            requireCode(ack.keys().asSequence().toSet() == setOf("run_id", "user_id", "stage", "status") &&
+                ack.optString("run_id") == run && ack.optString("user_id") == QA_ADMIN_USER &&
+                ack.optString("stage") == stage && ack.optString("status") == "observed", "ADMIN_ACK_INVALID")
+            requireCode(privateFile(name).delete(), "ADMIN_ACK_CONSUMPTION_FAILED")
+        }
+        fun openTarget() {
+            val email = QA_EMAIL_B
+            scrollAdminToTop()
+            val heading = seekLabel(setOf(email), "ADMIN_QA_TARGET_MISSING", scroll = true)
+            adminSiblingControl(heading, "Manage", "ADMIN_QA_MANAGE_MISSING")
+            await("ADMIN_DIALOG_MISSING") { hasText("Save permissions") && hasText(email) }
+        }
+        fun saveTarget() {
+            clickLabel(setOf("Save permissions"), "ADMIN_SAVE_MISSING")
+            mfaAwaitMessage("Permissions updated.")
+            requireCode(!hasText("Save permissions"), "ADMIN_DIALOG_NOT_CLOSED")
+        }
+        try {
+            report.put("pid", launch())
+            openSettings(englishOnly = true)
+            requireEmail(QA_ADMIN_EMAIL)
+            awaitProfileRead()
+            clickNavigation(setOf("More"), "MORE_NAVIGATION_MISSING")
+            clickLabel(setOf("Admin"), "ADMIN_NAVIGATION_MISSING", scroll = true)
+            await("ADMIN_CONTENT_MISSING") { hasText("Administration") }
+            seekLabel(setOf("Refresh users"), "ADMIN_LOAD_NOT_SETTLED", scroll = true, clickable = true).recycle()
+            checked("admin_ready")
+            openTarget()
+            adminPermission("Fire", true, false)
+            clickLabel(setOf("Close"), "ADMIN_DIALOG_CLOSE_MISSING")
+            requireCode(!hasText("Save permissions"), "ADMIN_DIALOG_NOT_CLOSED")
+            checked("permission_cancelled")
+            openTarget()
+            adminPermission("Fire", true, false)
+            saveTarget()
+            checked("permission_changed")
+            openTarget()
+            adminPermission("Fire", false, true)
+            saveTarget()
+            checked("permission_restored")
+            openTarget()
+            adminPermission("Admin", false, true)
+            saveTarget()
+            checked("secondary_admin_ready")
+            // Keep a loaded dialog while the host's exact QA B session revokes only this QA Admin role.
+            openTarget()
+            checked("primary_role_revoked")
+            clickLabel(setOf("Save permissions"), "ADMIN_SAVE_MISSING")
+            mfaAwaitMessage("Administrator permissions are required.")
+            requireCode(!hasText(QA_EMAIL_B) && !hasText("Registrations enabled") && !hasText("Save permissions") &&
+                !exists { label(it, setOf("Manage")) }, "ADMIN_DENIED_CACHE_REMAINED")
+            report.put("denial_cleared_cache_and_dialog", true)
+            checked("primary_role_denied")
+            checked("primary_role_restored")
+            clickLabel(setOf("Refresh users"), "ADMIN_REFRESH_MISSING", scroll = true)
+            seekLabel(setOf("Refresh users"), "ADMIN_RELOAD_NOT_SETTLED", scroll = true, clickable = true).recycle()
+            scrollAdminToTop()
+            await("ADMIN_RESTORED_CONTROLS_MISSING") { hasText("Registrations enabled") }
+            checked("primary_reloaded")
+            openTarget()
+            adminPermission("Admin", true, false)
+            saveTarget()
+            checked("secondary_admin_removed")
+            openSettings(englishOnly = true)
+            requireEmail(QA_ADMIN_EMAIL)
+            awaitProfileRead()
+            requireCode(logoutQa(report, QA_ADMIN_EMAIL), "QA_ADMIN_LOGOUT_FAILED")
+            report.put("native_logout", true)
+            checked("completed")
+            report.put("stage", "passed").put("cleanup_pending", false).put("checkpoint_count", ADMIN_STAGES.size)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("last_checkpoint", checkpoint).put("cleanup_pending", true)
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "admin-forms", report) }
+    }
+
+    private fun scrollAdminToTop() {
+        repeat(64) {
+            if (hasText("Registrations enabled") || hasText("Administrator permissions are required.")) return
+            val container = find { it.isScrollable && visible(it) } ?: return
+            val bounds = Rect().also(container::getBoundsInScreen)
+            val moved = try { container.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { container.recycle() }
+            if (!moved) swipe(backwards = true, bounds = bounds)
+            SystemClock.sleep(250)
+        }
+    }
+
+    private fun adminSiblingControl(heading: AccessibilityNodeInfo, text: String, code: String) {
+        var container: AccessibilityNodeInfo? = heading
+        try {
+            repeat(8) {
+                val parent = container ?: throw IllegalStateException(code)
+                val queue = ArrayDeque<AccessibilityNodeInfo>()
+                queue.add(AccessibilityNodeInfo.obtain(parent))
+                var match: AccessibilityNodeInfo? = null
+                var count = 0
+                var visited = 0
+                try {
+                    while (queue.isNotEmpty() && visited++ < 256) {
+                        val node = queue.removeFirst()
+                        if (label(node, setOf(text))) {
+                            count++
+                            if (visible(node) && hasClickableAncestor(node) && match == null) match = AccessibilityNodeInfo.obtain(node)
+                        }
+                        for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
+                        node.recycle()
+                    }
+                    if (match != null) {
+                        requireCode(count == 1, "ADMIN_AMBIGUOUS_TARGET_CONTROL")
+                        val chosen = requireNotNull(match); match = null
+                        clickControl(chosen, code)
+                        return
+                    }
+                } finally { match?.recycle(); while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+                container = parent.parent
+                parent.recycle()
+            }
+            throw IllegalStateException(code)
+        } finally { container?.recycle() }
+    }
+
+    private fun adminPermission(label: String, before: Boolean, after: Boolean) {
+        requireCode(hasText("Save permissions") && hasText(QA_EMAIL_B), "ADMIN_TARGET_DIALOG_INVALID")
+        val heading = seekLabel(setOf(label), "ADMIN_PERMISSION_LABEL_MISSING", scroll = true)
+        var container: AccessibilityNodeInfo? = heading
+        try {
+            repeat(8) {
+                val parent = container ?: throw IllegalStateException("ADMIN_CHECKBOX_MISSING")
+                val queue = ArrayDeque<AccessibilityNodeInfo>()
+                queue.add(AccessibilityNodeInfo.obtain(parent))
+                var checkbox: AccessibilityNodeInfo? = null
+                var count = 0
+                var visited = 0
+                try {
+                    while (queue.isNotEmpty() && visited++ < 128) {
+                        val node = queue.removeFirst()
+                        if (node.isCheckable) { count++; if (checkbox == null) checkbox = AccessibilityNodeInfo.obtain(node) }
+                        for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
+                        node.recycle()
+                    }
+                    if (checkbox != null) {
+                        requireCode(count == 1 && checkbox!!.isChecked == before && visible(checkbox!!), "ADMIN_CHECKBOX_STATE_INVALID")
+                        val chosen = requireNotNull(checkbox); checkbox = null
+                        clickControl(chosen, "ADMIN_CHECKBOX_CLICK_REJECTED")
+                        // The server ledger after Save verifies persistence; this action never submits on its own.
+                        requireCode(before != after, "ADMIN_CHECKBOX_NO_CHANGE")
+                        return
+                    }
+                } finally { checkbox?.recycle(); while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+                container = parent.parent
+                parent.recycle()
+            }
+            throw IllegalStateException("ADMIN_CHECKBOX_MISSING")
+        } finally { container?.recycle() }
+    }
+
     @Test fun qualifyDedicatedQaSessionForms() {
         val run = preflight(12)
         val args = InstrumentationRegistry.getArguments()
@@ -475,7 +653,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun loginDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val report = baseReport(run, code, "couple-login").put("user_id", user)
@@ -510,7 +688,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun logoutDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
@@ -538,6 +716,7 @@ class ReleaseApkBlackBoxTest {
     private fun dedicatedQaAccount(): Pair<String, String> = when (InstrumentationRegistry.getArguments().getString("releaseQualificationAccount")) {
         "a" -> QA_USER to QA_EMAIL
         "b" -> QA_USER_B to QA_EMAIL_B
+        "admin" -> QA_ADMIN_USER to QA_ADMIN_EMAIL
         else -> throw IllegalStateException("QA_ACCOUNT_INVALID")
     }
 
@@ -722,7 +901,8 @@ class ReleaseApkBlackBoxTest {
 
     private fun scrollAccountToTop() {
         repeat(64) {
-            if (hasProfileContent() || hasText("Two-step verification") || hasText("Verifica in due passaggi") || hasDashboardContent()) return
+            if (hasProfileContent() || hasText("Two-step verification") || hasText("Verifica in due passaggi") || hasDashboardContent() ||
+                hasText("Registrations enabled") || hasText("Administrator permissions are required.")) return
             val container = find {
                 val bounds = Rect().also(it::getBoundsInScreen)
                 it.isScrollable && visible(it) && (it.className?.toString() == "android.widget.ScrollView" || bounds.height() > bounds.width())
@@ -1013,6 +1193,11 @@ class ReleaseApkBlackBoxTest {
     private fun safeFailure(failure: Throwable): String = failure.message?.takeIf { it.matches(Regex("[A-Z_]{3,80}")) } ?: "BLACK_BOX_FAILURE"
 
     companion object {
+        private val ADMIN_STAGES = listOf("admin_ready", "permission_cancelled", "permission_changed", "permission_restored",
+            "secondary_admin_ready", "primary_role_revoked", "primary_role_denied", "primary_role_restored",
+            "primary_reloaded", "secondary_admin_removed", "completed")
+        private const val QA_ADMIN_USER = "3afa4bc1-0910-4f18-81b3-9e9f69c65a6e"
+        private const val QA_ADMIN_EMAIL = "android-qa-5ef2838c-admin@example.invalid"
         private val SESSION_STAGES = listOf("primary_ready", "secondary_ready", "revocation_cancelled", "secondary_revoked",
             "secondary_refresh_rejected", "survivor_ready", "primary_revoked", "survivor_refreshed", "completed")
         private val MFA_STAGES = listOf("pending_cancel_ready", "pending_cancel_kept", "pending_persisted", "pending_removed",
