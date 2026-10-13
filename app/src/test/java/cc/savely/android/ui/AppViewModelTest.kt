@@ -78,6 +78,187 @@ class AppViewModelTest {
         assertEquals("Bearer ${liveSession().accessToken}", profileRequest.getHeader("Authorization"))
     }
 
+    @Test fun acceptedPermissionReloadRemovesDeniedRoutesWithoutReplacingTheSessionRevision() = runTest {
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        val previous = awaitIdle(model)
+        val revision = requireNotNull(previous.sessionRevision)
+        assertTrue(canNavigate("poker", previous.permissions))
+        assertTrue(canNavigate("fire", previous.permissions))
+        repeat(2) { takeRequest() }
+        server.enqueue(json("""{"factors":[]}"""))
+        server.enqueue(json("""[{"user_id":"user-1","permissions":{"poker":false,"fire":false,"admin":false,"couple_expenses":true}}]"""))
+
+        model.restore()
+        val reloaded = awaitIdle(model)
+        assertEquals(previous.session, reloaded.session)
+        assertEquals(revision, reloaded.sessionRevision)
+        assertEquals(revision, api.sessionOwnerRevision())
+        assertFalse(canNavigate("poker", reloaded.permissions))
+        assertFalse(canNavigate("fire", reloaded.permissions))
+        assertFalse(canNavigate("admin", reloaded.permissions))
+        assertTrue(canNavigate("couple", reloaded.permissions))
+        assertNull(reloaded.mfaFactor)
+        assertNull(reloaded.error)
+        assertEquals(4, server.requestCount)
+        assertEquals("/auth/v1/user", takeRequest().requestUrl?.encodedPath)
+        assertEquals("eq.user-1", takeRequest().requestUrl?.queryParameter("user_id"))
+    }
+
+    @Test fun sameUserReplacementSessionPublishesItsRevisionAndRemovesOldPermissionsAtTheMfaGate() = runTest {
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        val previous = awaitIdle(model)
+        val revision = requireNotNull(previous.sessionRevision)
+        repeat(2) { takeRequest() }
+        val replacement = liveSession("22222222-2222-4222-8222-222222222222").copy(refreshToken = "replacement-refresh")
+        store.save(replacement)
+        server.enqueue(json("""{"factors":[{"id":"replacement-factor","factor_type":"totp","status":"verified"}]}"""))
+
+        model.restore()
+        val gated = awaitIdle(model)
+        assertEquals(replacement, gated.session)
+        assertNotEquals(revision, gated.sessionRevision)
+        assertEquals(api.sessionOwnerRevision(replacement), gated.sessionRevision)
+        assertEquals("replacement-factor", gated.mfaFactor)
+        assertTrue(gated.permissions.isEmpty())
+        assertFalse(canNavigate("poker", gated.permissions))
+        assertFalse(canNavigate("fire", gated.permissions))
+        assertNull(gated.error)
+        assertEquals(replacement, store.load())
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(3, server.requestCount) // No new profile, logout or data request before MFA.
+        val factors = takeRequest()
+        assertEquals("/auth/v1/user", factors.requestUrl?.encodedPath)
+        assertEquals("Bearer ${replacement.accessToken}", factors.getHeader("Authorization"))
+    }
+
+    @Test fun repeatedLegacyLoginPublishesANewRevisionEvenWhenTheSessionPayloadIsIdentical() = runTest {
+        val legacy = liveSession().copy(accessToken = "synthetic-legacy-access")
+        assertNull(legacy.authSessionId())
+        store.save(legacy)
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        val previous = awaitIdle(model)
+        val revision = requireNotNull(previous.sessionRevision)
+        repeat(2) { takeRequest() }
+        server.enqueue(json(legacy.toJson().toString()))
+        server.enqueue(json("""{"factors":[]}"""))
+        server.enqueue(json("""[{"user_id":"user-1","permissions":{"poker":false,"fire":true}}]"""))
+
+        model.signIn(legacy.email, "legacy-password")
+        val accepted = awaitIdle(model)
+        assertEquals(previous.session, accepted.session)
+        assertNotEquals(revision, accepted.sessionRevision)
+        assertEquals(api.sessionOwnerRevision(legacy), accepted.sessionRevision)
+        assertFalse(canNavigate("poker", accepted.permissions))
+        assertTrue(canNavigate("fire", accepted.permissions))
+        assertNull(accepted.mfaFactor)
+        assertNull(accepted.error)
+        assertEquals(legacy, store.load())
+        assertEquals(5, server.requestCount)
+        val login = takeRequest()
+        assertEquals("password", login.requestUrl?.queryParameter("grant_type"))
+        assertEquals("legacy-password", JSONObject(login.body.readUtf8()).getString("password"))
+        assertEquals("/auth/v1/user", takeRequest().requestUrl?.encodedPath)
+        assertEquals("/rest/v1/profiles", takeRequest().requestUrl?.encodedPath)
+    }
+
+    @Test fun acceptedTokenRefreshOfTheSameAuthSessionKeepsItsRevision() = runTest {
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        val previous = awaitIdle(model)
+        val revision = requireNotNull(previous.sessionRevision)
+        repeat(2) { takeRequest() }
+        val rotated = previous.session!!.copy(accessToken = previous.session.accessToken + "-rotated", refreshToken = "rotated-refresh")
+        store.save(previous.session.copy(expiresAt = 1))
+        server.enqueue(json(rotated.toJson().toString()))
+        enqueueAcceptedAccount()
+
+        model.restore()
+        val accepted = awaitIdle(model)
+        assertEquals(rotated, accepted.session)
+        assertEquals(previous.session.authSessionId(), accepted.session?.authSessionId())
+        assertEquals(revision, accepted.sessionRevision)
+        assertEquals(revision, api.sessionOwnerRevision(rotated))
+        assertEquals(previous.permissions, accepted.permissions)
+        assertNull(accepted.error)
+        assertEquals(rotated, store.load())
+        assertEquals(5, server.requestCount)
+        val refresh = takeRequest()
+        assertEquals("refresh_token", refresh.requestUrl?.queryParameter("grant_type"))
+        assertEquals(previous.session.refreshToken, JSONObject(refresh.body.readUtf8()).getString("refresh_token"))
+        repeat(2) { assertEquals("Bearer ${rotated.accessToken}", takeRequest().getHeader("Authorization")) }
+    }
+
+    @Test fun replacementReadFailureCannotRetainOldAcceptedAccountDataEvenBeforeTheResponse() = runTest {
+        for (replacementUser in listOf("user-1", "user-2")) {
+            for (failedPath in listOf("/auth/v1/user", "/rest/v1/profiles")) {
+                store.save(liveSession())
+                server.dispatcher = object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse = when (request.requestUrl?.encodedPath) {
+                        "/auth/v1/user" -> json("""{"factors":[]}""")
+                        "/rest/v1/profiles" -> json("""[{"user_id":"user-1","permissions":{"poker":true,"admin":true}}]""")
+                        else -> json("{}", 404)
+                    }
+                }
+                val origin = server.url("/").toString()
+                val caseApi = SupabaseApi(BackendConfig(origin, "public-test-key", origin), store)
+                val model = AppViewModel(caseApi).also { viewModels.put("replacement-$replacementUser-$failedPath", it) }
+                val previous = awaitIdle(model)
+                assertTrue(previous.permissions.getValue("poker"))
+                assertTrue(previous.permissions.getValue("admin"))
+                repeat(2) { takeRequest() }
+                val requestCount = server.requestCount
+                val replacement = liveSession("22222222-2222-4222-8222-222222222222")
+                    .copy(userId = replacementUser, refreshToken = "replacement-refresh")
+                val readEntered = CountDownLatch(1)
+                val releaseRead = CountDownLatch(1)
+                val readTimedOut = AtomicBoolean(false)
+                server.dispatcher = object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        if (request.requestUrl?.encodedPath == failedPath) {
+                            readEntered.countDown()
+                            if (!releaseRead.await(5, TimeUnit.SECONDS)) readTimedOut.set(true)
+                            return json("{}", 503)
+                        }
+                        return if (request.requestUrl?.encodedPath == "/auth/v1/user") json("""{"factors":[]}""") else json("{}", 404)
+                    }
+                }
+                store.save(replacement)
+                model.restore()
+                try {
+                    assertTrue(withContext(Dispatchers.IO) { readEntered.await(5, TimeUnit.SECONDS) })
+                    val pending = model.state.value
+                    assertTrue(pending.busy)
+                    assertNull(pending.session)
+                    assertNull(pending.sessionRevision)
+                    assertTrue(pending.permissions.isEmpty())
+                    assertNull(pending.mfaFactor)
+                } finally {
+                    releaseRead.countDown()
+                    awaitIdle(model)
+                }
+                val refused = model.state.value
+                assertFalse(readTimedOut.get())
+                assertNull(refused.session)
+                assertNull(refused.sessionRevision)
+                assertTrue(refused.permissions.isEmpty())
+                assertNull(refused.mfaFactor)
+                assertNotNull(refused.error)
+                assertEquals(replacement, store.load())
+                assertNull(caseApi.sessionInvalidation.value)
+                val reads = if (failedPath == "/auth/v1/user") 1 else 2
+                assertEquals(requestCount + reads, server.requestCount)
+                repeat(reads) {
+                    val request = takeRequest()
+                    assertEquals("GET", request.method)
+                    assertEquals("Bearer ${replacement.accessToken}", request.getHeader("Authorization"))
+                }
+            }
+        }
+    }
+
     @Test fun revokedRefreshClearsPreviousSessionPermissionsAndMfaFromAppState() = runTest {
         enqueueAcceptedAccount()
         val model = createViewModel()
