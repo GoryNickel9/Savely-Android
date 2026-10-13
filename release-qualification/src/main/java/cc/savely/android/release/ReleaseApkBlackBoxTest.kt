@@ -1549,7 +1549,26 @@ class ReleaseApkBlackBoxTest {
     }
 
     private fun financeDashboardTotals(report: JSONObject): Boolean {
-        val card = find { label(it, setOf("Statistics EUR")) && visible(it) } ?: return false
+        val labelNode = find { label(it, setOf("Statistics EUR")) && visible(it) } ?: return false
+        val labelBounds = Rect().also(labelNode::getBoundsInScreen)
+        val parent = labelNode.parent
+        // Compose can expose the content description as a leaf inside the actual card.
+        val useParent = labelNode.childCount == 0 && labelNode.text.isNullOrEmpty() && parent != null &&
+            parent.packageName?.toString() == TARGET && parent.windowId == labelNode.windowId &&
+            Rect().also(parent::getBoundsInScreen) == labelBounds
+        report.put("dashboard_description_leaf", useParent)
+        val card = if (useParent) {
+            labelNode.recycle()
+            requireNotNull(parent)
+        } else {
+            parent?.recycle()
+            labelNode
+        }
+        report.put("dashboard_container_child_count", card.childCount)
+        if (card.actionList.any { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id }) {
+            card.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
+            card.refresh()
+        }
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(card)
         val text = StringBuilder()
