@@ -178,6 +178,7 @@ private fun MainShellSession(model: AppViewModel, state: AppState, theme: String
     }
     fun navigate(target: String) {
         if (!canNavigate(target, state.permissions)) return
+        // A saved child can be aliased to Dashboard; returning home must not restore that child.
         nav.navigate(target) { popUpTo("dashboard") { saveState = true }; launchSingleTop = true; restoreState = target != "dashboard" }
     }
     LaunchedEffect(backStack?.destination?.route, state.permissions) {

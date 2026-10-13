@@ -148,6 +148,35 @@ class NavigationPermissionBoundaryTest {
         assertReadOnlyGuards()
     }
 
+    @Test fun nonAdminCanReturnFromSettingsAccountToDashboardTwiceWithoutRestoringTheChildRoute() {
+        permissions[OWNER_A] = JSONObject().put("admin", false)
+        mount(AppLanguage.ENGLISH)
+        val accepted = model.state.value
+        val acceptedSession = requireNotNull(accepted.session)
+        val acceptedRevision = requireNotNull(accepted.sessionRevision)
+        assertEquals(false, accepted.permissions["admin"])
+        repeat(2) {
+            compose.onNodeWithTag("nav-settings").assertIsDisplayed().performClick()
+            title("Settings")
+            compose.onNodeWithTag("settings-pane-account").assertIsSelected()
+            compose.waitUntil(15_000) {
+                compose.onAllNodes(hasText("Save profile") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithText("Profile", substring = false).assertIsDisplayed()
+            compose.onNodeWithTag("nav-dashboard").assertIsDisplayed().performClick()
+            title("Dashboard")
+            awaitText("Your finances")
+            compose.onNodeWithText("Your finances", substring = false).assertIsDisplayed()
+            compose.onNodeWithTag("nav-dashboard").assertIsSelected()
+            compose.onNodeWithTag("nav-settings").assertIsNotSelected()
+            assertEquals(acceptedSession, model.state.value.session)
+            assertEquals(acceptedRevision, model.state.value.sessionRevision)
+            assertEquals(acceptedSession, store.load())
+            assertEquals(1, releaseChecks.get())
+        }
+        assertReadOnlyGuards()
+    }
+
     @Test fun revokedTcgEntryCannotReturnViaBackAndRegrantReloadsInsteadOfRestoringItsFilter() {
         permissions[OWNER_A] = JSONObject().put("tcg", true)
         mount()
