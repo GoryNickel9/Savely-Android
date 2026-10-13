@@ -180,7 +180,6 @@ private fun MainShellSession(model: AppViewModel, state: AppState, theme: String
         if (!canNavigate(target, state.permissions)) return
         nav.navigate(target) { popUpTo("dashboard") { saveState = true }; launchSingleTop = true; restoreState = true }
     }
-    BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
     LaunchedEffect(backStack?.destination?.route, state.permissions) {
         // NavHost installs its graph after the shell's first composition.
         if (backStack == null) return@LaunchedEffect
@@ -255,6 +254,8 @@ private fun MainShellSession(model: AppViewModel, state: AppState, theme: String
             }
         }
     }
+    // The last enabled callback takes priority over NavHost while the drawer is open.
+    BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
 }
 
 @Composable
