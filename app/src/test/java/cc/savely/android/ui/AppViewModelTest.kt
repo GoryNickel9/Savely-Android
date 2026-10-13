@@ -191,6 +191,89 @@ class AppViewModelTest {
         repeat(2) { assertEquals("Bearer ${rotated.accessToken}", takeRequest().getHeader("Authorization")) }
     }
 
+    @Test fun staleLogoutNeverDispatchesForAnotherAcceptedSessionOrRepeatedLegacyLogin() = runTest {
+        for (kind in listOf("other-user", "same-user-new-sid", "same-user-legacy-login")) {
+            val displayed = if (kind == "same-user-legacy-login") liveSession().copy(accessToken = "synthetic-legacy-access") else liveSession()
+            store.save(displayed)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse = when (request.requestUrl?.encodedPath) {
+                    "/auth/v1/user" -> json("""{"factors":[]}""")
+                    "/rest/v1/profiles" -> json("""[{"user_id":"user-1","permissions":{"poker":true,"admin":true}}]""")
+                    "/auth/v1/token" -> json(displayed.toJson().toString())
+                    "/auth/v1/logout" -> json("", 204)
+                    else -> json("{}", 404)
+                }
+            }
+            val origin = server.url("/").toString()
+            val caseApi = SupabaseApi(BackendConfig(origin, "public-test-key", origin), store)
+            val model = AppViewModel(caseApi).also { viewModels.put("stale-logout-$kind", it) }
+            val previous = awaitIdle(model)
+            val revision = requireNotNull(previous.sessionRevision)
+            assertTrue(previous.permissions.getValue("admin"))
+            repeat(2) { takeRequest() }
+            val replacement = if (kind == "same-user-legacy-login") {
+                assertEquals(displayed, caseApi.signIn(displayed.email, "legacy-password"))
+                val login = takeRequest()
+                assertEquals("password", login.requestUrl?.queryParameter("grant_type"))
+                displayed // Same payload; only the new-login revision distinguishes the owner.
+            } else {
+                liveSession("22222222-2222-4222-8222-222222222222").copy(
+                    userId = if (kind == "other-user") "user-2" else displayed.userId,
+                    refreshToken = "replacement-refresh",
+                ).also(store::save)
+            }
+            val requestsBeforeClick = server.requestCount
+            val warningBeforeClick = caseApi.accessAuditWarning.value
+            if (kind == "same-user-legacy-login") assertNotNull(warningBeforeClick)
+            model.signOut()
+            val refused = awaitIdle(model)
+            assertEquals(requestsBeforeClick, server.requestCount) // No logout, profile, refresh or retry.
+            assertEquals(replacement, store.load())
+            assertEquals(warningBeforeClick, caseApi.accessAuditWarning.value)
+            assertNull(caseApi.sessionInvalidation.value)
+            assertFalse(caseApi.isSessionOwnerCurrent(revision))
+            assertNull(refused.session)
+            assertNull(refused.sessionRevision)
+            assertTrue(refused.permissions.isEmpty())
+            assertNull(refused.mfaFactor)
+            assertNotNull(refused.error)
+        }
+    }
+
+    @Test fun logoutFromAcceptedSnapshotAfterTransparentRefreshUsesTheCurrentTokenOfTheSameSession() = runTest {
+        enqueueAcceptedAccount()
+        val model = createViewModel()
+        val previous = awaitIdle(model)
+        val revision = requireNotNull(previous.sessionRevision)
+        repeat(2) { takeRequest() }
+        val rotated = previous.session!!.copy(accessToken = previous.session.accessToken + "-rotated", refreshToken = "rotated-refresh")
+        store.save(previous.session.copy(expiresAt = 1))
+        server.enqueue(json(rotated.toJson().toString()))
+        assertEquals(rotated, api.session())
+        assertEquals(previous.session, model.state.value.session)
+        assertEquals(revision, api.sessionOwnerRevision(rotated))
+        server.enqueue(json("", 204))
+
+        model.signOut()
+        val signedOut = awaitIdle(model)
+        assertNull(signedOut.session)
+        assertNull(signedOut.sessionRevision)
+        assertTrue(signedOut.permissions.isEmpty())
+        assertNull(signedOut.mfaFactor)
+        assertNull(signedOut.error)
+        assertNull(store.load())
+        val event = requireNotNull(api.sessionInvalidation.value)
+        assertEquals(revision, event.ownerRevision)
+        assertTrue(api.isSessionInvalidationCurrent(event))
+        assertEquals(4, server.requestCount)
+        assertEquals("refresh_token", takeRequest().requestUrl?.queryParameter("grant_type"))
+        val logout = takeRequest()
+        assertEquals("POST", logout.method)
+        assertEquals("/auth/v1/logout?scope=local", logout.path)
+        assertEquals("Bearer ${rotated.accessToken}", logout.getHeader("Authorization"))
+        assertEquals("{}", logout.body.readUtf8())
+    }
+
     @Test fun replacementReadFailureCannotRetainOldAcceptedAccountDataEvenBeforeTheResponse() = runTest {
         for (replacementUser in listOf("user-1", "user-2")) {
             for (failedPath in listOf("/auth/v1/user", "/rest/v1/profiles")) {
