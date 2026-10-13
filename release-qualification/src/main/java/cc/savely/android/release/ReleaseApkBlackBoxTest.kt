@@ -121,7 +121,7 @@ class ReleaseApkBlackBoxTest {
         val loginRun = navigationLogin(user)
         val failedRun = InstrumentationRegistry.getArguments().getString("releaseQualificationFailureRunId").orEmpty()
         val failedPhase = InstrumentationRegistry.getArguments().getString("releaseQualificationFailurePhase") ?: "navigation-routes"
-        requireCode(failedPhase in setOf("navigation-routes", "couple-logout"), "NAVIGATION_RECOVERY_PHASE_INVALID")
+        requireCode(failedPhase in setOf("navigation-routes", "navigation-role", "couple-logout"), "NAVIGATION_RECOVERY_PHASE_INVALID")
         requireCode(runCatching { UUID.fromString(failedRun).toString() == failedRun }.getOrDefault(false) &&
             run != loginRun && run != failedRun &&
             (if (failedPhase == "couple-logout") failedRun == loginRun else failedRun != loginRun),
