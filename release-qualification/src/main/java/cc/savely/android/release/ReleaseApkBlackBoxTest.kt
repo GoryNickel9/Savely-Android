@@ -1253,7 +1253,7 @@ class ReleaseApkBlackBoxTest {
                     await("FINANCE_DASHBOARD_MISSING") { hasDashboardContent() }
                     report.put("dashboard_content", true)
                     seekLabel(setOf("Statistics EUR"), "FINANCE_DASHBOARD_STATISTICS_MISSING", true).recycle()
-                    await("FINANCE_DASHBOARD_TOTALS_MISMATCH") { financeDashboardTotals() }
+                    await("FINANCE_DASHBOARD_TOTALS_MISMATCH") { financeDashboardTotals(report) }
                     report.put("eur_income", "0.06").put("eur_expense", "0.02").put("eur_balance", "0.04")
                     // Both isolated descriptions must be visible among the refreshed recent transactions.
                     seekLabel(setOf(income), "FINANCE_DASHBOARD_INCOME_MISSING", true).recycle()
@@ -1519,7 +1519,7 @@ class ReleaseApkBlackBoxTest {
         throw IllegalStateException("FINANCE_CURRENCY_MISSING")
     }
 
-    private fun financeDashboardTotals(): Boolean {
+    private fun financeDashboardTotals(report: JSONObject): Boolean {
         val card = find { label(it, setOf("Statistics EUR")) && visible(it) } ?: return false
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(card)
@@ -1527,12 +1527,19 @@ class ReleaseApkBlackBoxTest {
         var visited = 0
         try {
             while (queue.isNotEmpty() && visited++ < 200) {
-                val node = queue.removeFirst()
+                val node = queue.removeLast()
                 text.append(node.text?.toString().orEmpty()).append('\n')
-                for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
+                for (index in node.childCount - 1 downTo 0) node.getChild(index)?.let(queue::addLast)
                 node.recycle()
             }
         } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+        val normalized = text.toString().replace('\u00a0', ' ').replace('\u202f', ' ').replace(Regex("\\s+"), " ")
+        val positions = JSONObject()
+        for (token in listOf("EUR", "Total balance", "Income", "Expenses", "Savings", "0,04 €", "0,06 €", "0,02 €", "0,00 €")) {
+            positions.put(token, normalized.indexOf(token))
+        }
+        // Fixed tokens and offsets only; never persist raw accessibility text.
+        report.put("dashboard_token_offsets", positions).put("dashboard_nodes_read", visited)
         return financeDashboardAmountsMatch(text.toString())
     }
 
