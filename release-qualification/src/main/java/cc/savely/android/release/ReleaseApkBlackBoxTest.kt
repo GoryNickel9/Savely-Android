@@ -386,6 +386,10 @@ class ReleaseApkBlackBoxTest {
 
     private fun navigationEnter(title: String) {
         navigationDrawer()
+        navigationChooseDrawerRoute(title)
+    }
+
+    private fun navigationChooseDrawerRoute(title: String) {
         repeat(64) {
             val candidate = find { label(it, setOf(title)) && visible(it) && hasClickableAncestor(it) && navigationDrawerAncestor(it) }
             if (candidate != null) {
@@ -1231,14 +1235,17 @@ class ReleaseApkBlackBoxTest {
         try {
             report.put("pid", launch())
             report.put("keyboard_before_settings", automation.windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD })
-            hideKeyboardIfShown()
-            openSettings(englishOnly = true)
+            financeEnter("Settings")
+            scrollAccountToTop()
+            if (!hasProfileContent()) clickLabel(setOf("Account"), "ACCOUNT_PANE_MISSING")
+            await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
             requireEmail(QA_EMAIL)
             report.put("settings_identity", true)
             awaitProfileRead()
             report.put("profile_read", true)
-            hideKeyboardIfShown()
-            awaitDashboard()
+            financeEnter("Dashboard")
+            financeTop()
+            await("FINANCE_DASHBOARD_MISSING") { hasDashboardContent() }
             report.put("dashboard_returned", true)
             when {
                 op == "dashboard-check" -> {
@@ -1253,7 +1260,7 @@ class ReleaseApkBlackBoxTest {
                     report.put("recent_expense", true).put("recent_income", true)
                 }
                 op.contains("category") -> {
-                    navigationEnter("Categories")
+                    financeEnter("Categories")
                     financeTop()
                     await("FINANCE_CATEGORIES_MISSING") { hasText("Expense categories") }
                     if (op.endsWith("create") || op == "cancel-category") {
@@ -1285,7 +1292,7 @@ class ReleaseApkBlackBoxTest {
                     }
                 }
                 op.startsWith("budget") -> {
-                    navigationEnter("Budget")
+                    financeEnter("Budget")
                     financeTop()
                     seekLabel(setOf("New budget"), "FINANCE_BUDGET_MISSING", true).recycle()
                     if (op == "budget-create") {
@@ -1309,7 +1316,7 @@ class ReleaseApkBlackBoxTest {
                     }
                 }
                 else -> {
-                    clickNavigation(setOf("Transactions"), "FINANCE_TRANSACTIONS_NAVIGATION_MISSING")
+                    financeEnter("Transactions")
                     financeTop()
                     await("FINANCE_TRANSACTIONS_MISSING") { hasText("New transaction") }
                     if (op == "filter-check") {
@@ -1456,6 +1463,14 @@ class ReleaseApkBlackBoxTest {
         hideKeyboardIfShown()
         clickLabel(setOf(control), "FINANCE_SELECTOR_MISSING", true)
         clickLabel(setOf(option), "FINANCE_OPTION_MISSING", true)
+    }
+
+    private fun financeEnter(title: String) {
+        hideKeyboardIfShown()
+        clickLabel(setOf("Open menu"), "FINANCE_MENU_MISSING")
+        await("NAVIGATION_DRAWER_MISSING") { navigationDrawerOpen() }
+        navigationDrawerToTop()
+        navigationChooseDrawerRoute(title)
     }
 
     private fun financeCurrencyEur() {
