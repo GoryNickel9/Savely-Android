@@ -1385,8 +1385,9 @@ class ReleaseApkBlackBoxTest {
                         val refreshed = current.refresh()
                         chain.put(JSONObject().put("refresh", refreshed).put("clickable_before_refresh", clickableBefore)
                             .put("clickable", current.isClickable).put("enabled", current.isEnabled)
+                            .put("selected", current.isSelected || current.isCheckable && current.isChecked)
                             .put("click_action", current.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK })
-                            .put("visible", visible(current)).put("drawer_pane", current.paneTitle?.toString() == "Navigation menu")
+                            .put("visible", visible(current)).put("drawer_pane", Build.VERSION.SDK_INT >= 28 && current.paneTitle?.toString() == "Navigation menu")
                             .put("bounds", Rect().also(current::getBoundsInScreen).toShortString()))
                         parent = current.parent
                         current.recycle()
@@ -1490,6 +1491,8 @@ class ReleaseApkBlackBoxTest {
 
     private fun financeEnter(title: String) {
         hideKeyboardIfShown()
+        // An already selected tab can omit ACTION_CLICK; the verified toolbar title permits staying on that route.
+        if (!navigationDrawerOpen() && navigationTitle(title)) return
         clickLabel(setOf("Open menu"), "FINANCE_MENU_MISSING")
         await("NAVIGATION_DRAWER_MISSING") { navigationDrawerOpen() }
         navigationDrawerToTop()
