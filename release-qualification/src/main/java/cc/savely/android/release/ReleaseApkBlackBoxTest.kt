@@ -245,6 +245,8 @@ class ReleaseApkBlackBoxTest {
             navigationEnter("FIRE")
             report.put("regranted_route_visible", true)
             checked("b_restoration_visible")
+            launch()
+            await("NAVIGATION_FINAL_TARGET_NOT_READY") { navigationBottomReady() }
             openSettings(englishOnly = true); requireEmail(QA_EMAIL_B); awaitProfileRead()
             report.put("identity_preserved", true).put("stage", "passed").put("checkpoint_count", 5).put("cleanup_pending", true)
         } catch (failure: Throwable) {
