@@ -35,8 +35,9 @@ def permissions(value):
              for key, flag in value.items()), "PERMISSIONS_INVALID")
 
 
-def validate_snapshot(value):
+def validate_snapshot(value, *, allow_user_a=False):
     # MFA validation fixes owner A/admin=false and cannot validate these states.
+    need(type(allow_user_a) is bool, "AUTH_SCOPE_OPTION_INVALID")
     need(isinstance(value, dict) and set(value) == SNAPSHOT_FIELDS | {"qa_profile_rows"},
          "SNAPSHOT_FIELDS_INVALID")
     now = instant(value["now"])
@@ -83,7 +84,7 @@ def validate_snapshot(value):
         identifier = canonical(row["id"])
         need(identifier not in ids, "AUTH_ID_DUPLICATED")
         ids.add(identifier)
-        need(row["user_id"] in (ADMIN, B), "FOREIGN_QA_AUTH_STATE")
+        need(row["user_id"] in ((ADMIN, A, B) if allow_user_a else (ADMIN, B)), "FOREIGN_QA_AUTH_STATE")
         need(row["user_id"] not in owners, "SESSION_OWNER_DUPLICATED")
         owners.add(row["user_id"])
         need(instant(row["created_at"]) <= instant(row["updated_at"]) <= now, "AUTH_TIMESTAMP_INVALID")
