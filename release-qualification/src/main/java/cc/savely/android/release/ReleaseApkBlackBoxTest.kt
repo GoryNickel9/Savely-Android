@@ -1178,7 +1178,7 @@ class ReleaseApkBlackBoxTest {
         val report = baseReport(run, code, "couple-logout").put("user_id", user)
         try {
             report.put("pid", launch())
-            openSettings()
+            if (code == 15) financeOpenProfile() else openSettings()
             scrollAccountToTop()
             await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
             requireEmail(email)
@@ -1236,10 +1236,7 @@ class ReleaseApkBlackBoxTest {
         try {
             report.put("pid", launch())
             report.put("keyboard_before_settings", automation.windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD })
-            financeEnter("Settings")
-            scrollAccountToTop()
-            if (!hasProfileContent()) clickLabel(setOf("Account"), "ACCOUNT_PANE_MISSING")
-            await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
+            financeOpenProfile()
             requireEmail(QA_EMAIL)
             report.put("settings_identity", true)
             awaitProfileRead()
@@ -1455,7 +1452,7 @@ class ReleaseApkBlackBoxTest {
                 clickLabel(setOf("Cancel"), "FINANCE_RECOVERY_CANCEL_MISSING")
             }
             if (navigationDrawerOpen()) navigationBack()
-            openSettings(englishOnly = true)
+            financeOpenProfile()
             requireEmail(QA_EMAIL)
             awaitProfileRead()
             requireCode(logoutQa(report, QA_EMAIL), "FINANCE_RECOVERY_LOGOUT_FAILED")
@@ -1471,6 +1468,13 @@ class ReleaseApkBlackBoxTest {
         report.put("mutation_attempted", true)
         clickLabel(setOf("Delete"), "FINANCE_DELETE_CONFIRM_MISSING")
         await("FINANCE_DELETE_NOT_CONFIRMED") { !hasText("Delete") && !hasText("Deleting…") }
+    }
+
+    private fun financeOpenProfile() {
+        financeEnter("Settings")
+        scrollAccountToTop()
+        if (!hasProfileContent()) clickLabel(setOf("Account"), "ACCOUNT_PANE_MISSING")
+        await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
     }
 
     private fun financeTop() {
