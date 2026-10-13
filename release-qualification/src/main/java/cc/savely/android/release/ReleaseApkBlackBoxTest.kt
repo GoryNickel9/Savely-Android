@@ -1352,6 +1352,7 @@ class ReleaseApkBlackBoxTest {
                         financeSubmit(run, phase, report)
                     } else if (op.endsWith("update")) {
                         val isIncome = op.startsWith("income")
+                        financeTransactionsReady(report)
                         clickLabel(setOf("Edit ${if (isIncome) income else expense}"), "FINANCE_EDIT_CONTROL_MISSING", true)
                         await("FINANCE_EDITOR_MISSING") { hasText("Edit item") }
                         financeSetField("Amount", if (isIncome) "0.06" else "0.02")
@@ -1483,6 +1484,34 @@ class ReleaseApkBlackBoxTest {
             SystemClock.sleep(250)
         }
         throw IllegalStateException("FINANCE_TOP_MISSING")
+    }
+
+    private fun financeTransactionsReady(report: JSONObject) {
+        fun header() {
+            repeat(24) {
+                if (hasText("Refresh data")) return
+                val container = find {
+                    val bounds = Rect().also(it::getBoundsInScreen)
+                    it.isScrollable && visible(it) && bounds.height() > bounds.width()
+                }
+                val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+                val moved = container?.let {
+                    try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() }
+                } ?: false
+                if (!moved) swipe(true, bounds)
+                SystemClock.sleep(250)
+            }
+            throw IllegalStateException("FINANCE_REFRESH_CONTROL_MISSING")
+        }
+        header()
+        // New transaction is available during reload; Refresh is enabled only after the read completes.
+        await("FINANCE_TRANSACTIONS_NOT_READY") {
+            exists { label(it, setOf("Refresh data")) && visible(it) && hasClickableAncestor(it) }
+        }
+        report.put("transaction_read_ready", true)
+        seekLabel(setOf("2 transactions"), "FINANCE_EXPECTED_TRANSACTION_COUNT_MISSING", true).recycle()
+        report.put("expected_transaction_count", 2)
+        header()
     }
 
     private fun financeSelect(control: String, option: String) {
