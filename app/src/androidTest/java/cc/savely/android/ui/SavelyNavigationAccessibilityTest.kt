@@ -3,6 +3,8 @@ package cc.savely.android.ui
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
+import android.graphics.Rect
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +25,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.core.graphics.ColorUtils
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -67,6 +70,9 @@ class SavelyNavigationAccessibilityTest {
         compose.runOnIdle { assertEquals("budget", route); assertEquals(1, moreOpened); route = "fire" }
         compose.onNodeWithTag("nav-more").assertIsSelected()
         compose.onNodeWithTag("nav-budget").assertIsNotSelected()
+        clickNativeMoreButton()
+        compose.waitUntil(10_000) { compose.runOnIdle { moreOpened == 2 } }
+        compose.runOnIdle { assertEquals("fire", route); assertEquals(2, moreOpened) }
         compose.runOnIdle { route = "budget"; theme = "dark" }
         compose.onNodeWithTag("nav-budget").assertIsSelected()
         compose.onNodeWithTag("screen-title").assertTextEquals("Budget")
@@ -149,6 +155,53 @@ class SavelyNavigationAccessibilityTest {
             .filterToOne(hasClickAction()).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action -> action(layouts) }
         assertTrue("drawer text layout available", layouts.isNotEmpty())
         layouts.forEach { assertFalse("drawer label must reflow", it.hasVisualOverflow) }
+    }
+
+    /** Selected Role.Tab can expose Compose click semantics while hiding native ACTION_CLICK. */
+    private fun clickNativeMoreButton() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val expectedPackage = "cc.savely.android"
+        assertEquals(expectedPackage, instrumentation.targetContext.packageName)
+        var button: AccessibilityNodeInfo? = null
+        try {
+            compose.waitUntil(10_000) {
+                val root = instrumentation.uiAutomation.rootInActiveWindow ?: return@waitUntil false
+                try {
+                    if (root.packageName?.toString() != expectedPackage) return@waitUntil false
+                    val matches = root.findAccessibilityNodeInfosByText("Altro")
+                    try {
+                        for (label in matches) {
+                            if (label.text?.toString() != "Altro" && label.contentDescription?.toString() != "Altro") continue
+                            var current: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(label)
+                            try {
+                                for (depth in 0..8) {
+                                    val node = current ?: break
+                                    if (node.packageName?.toString() != expectedPackage) break
+                                    val bounds = Rect().also(node::getBoundsInScreen)
+                                    if (node.className?.toString() == "android.widget.Button" && node.isClickable &&
+                                        node.isEnabled && node.isVisibleToUser && !bounds.isEmpty &&
+                                        node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK }) {
+                                        button = AccessibilityNodeInfo.obtain(node)
+                                        break
+                                    }
+                                    if (depth == 8) break
+                                    current = node.parent
+                                    node.recycle()
+                                }
+                            } finally { current?.recycle() }
+                            if (button != null) break
+                        }
+                        button != null
+                    } finally { matches.forEach { it.recycle() } }
+                } finally { root.recycle() }
+            }
+            val node = requireNotNull(button)
+            assertEquals(expectedPackage, node.packageName?.toString())
+            assertEquals("android.widget.Button", node.className?.toString())
+            assertTrue(node.isClickable && node.isEnabled && node.isVisibleToUser)
+            assertTrue(node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK })
+            assertTrue("Selected More must accept the native accessibility click", node.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        } finally { button?.recycle() }
     }
 
     private fun assertTextHasNoOverflow(tag: String) {
