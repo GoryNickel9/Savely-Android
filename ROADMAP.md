@@ -1,12 +1,20 @@
 # Roadmap Savely Android
 
-## Stato corrente — qualifica MFA locale 0.1.11-alpha
+## Stato corrente — qualifica sessioni locale 0.1.11-alpha
+
+[A05](docs/SESSION_FORM_QUALIFICATION.md) è **PASS LOCALE**: sul release firmato invariato code 12, un metodo nativo API 31/EN conclude nove checkpoint in 253,075 s. Annulla conserva entrambe le sessioni; la revoca singola dal form elimina il bersaglio e il suo refresh restituisce HTTP 400 `refresh_token_not_found`. La revoca corrente riporta l'app al login; una terza sessione host distinta continua a rinnovarsi con lo stesso UUID, poi il logout locale lascia zero fattori/sessioni QA. Proiezioni selezionate d'identità/profili invariate, registrazioni disabilitate e attività QA zero nelle tabelle controllate.
+
+Passano 543 JVM per variante debug/release e 7/7 fixture SettingsSecurity per API 31/35 in 32,511/56,665 s; lint zero errori, 32 warning e sei hint. Conservati il primo fallimento JVM, corretto nel teardown, e il crash Compose API 31 durante distruzione dell'Activity, con isolato e suite successiva sullo stesso APK superati. La causa definitiva del crash Compose resta non dimostrata. I client secondari sono host in RAM, non telefoni; il refresh diretto della sessione corrente già cancellata dallo store non viene esercitato. Nessuna nuova suite completa dell'app o parità globale.
+
+**Sei righe chiuse nei rispettivi perimetri locali, 27 aperte.** Produzione e versione 0.1.11-alpha invariate; nessuna CI o pubblicazione. Prossimo blocco autonomo: D01, permessi Admin sui soli utenti QA con rilettura e ripristino dei valori modificati.
+
+## Consuntivo precedente — qualifica MFA locale 0.1.11-alpha
 
 [A04](docs/MFA_FORM_QUALIFICATION.md) è **PASS LOCALE nel criterio dei form con setup manuale e QR nelle fixture**. Produzione `44274e7`, release code 12/hash `5cdaca53d41d67d42cb05c0d2753f2611d6ba4d2f830067cde094d3355c757cd`: un metodo nativo API 31/EN passa 14 checkpoint in 207,03 s, con due fattori e due sessioni QA distinti. Codice errato, pending riaperto senza segreto, annulla, attivazione AAL2, nuovo login con gate e rimozione sono osservati. Dopo la rimozione il server riporta AAL1; dopo logout fattori/sessioni zero, registrazioni disabilitate e proiezioni QA invariate. Entrambi gli AVD sono spenti.
 
 Passano 540 JVM per variante debug/release; lint zero errori, 32 warning e sei hint. Le 14 fixture mirate `ced3a93` passano su API 31/35 in 41,232/96,471 s: non sono una nuova suite completa da 184 casi. I fallimenti iniziali Compose e i tentativi del driver restano nel rapporto. Il campione reale usa la chiave manuale: QR del provider non visualizzato, decodifica dei pixel e scanner esterno non qualificati. **Cinque righe chiuse nei rispettivi perimetri locali, 28 aperte**; nessuna CI, nuova pubblicazione o parità globale.
 
-Il prossimo blocco è A05: revoca individuale dai form e verifica del refresh della sessione bersaglio con account QA isolati. La qualifica completa della candidata code 12 e i gate esterni della stabile restano distinti.
+Il successivo blocco A05 è consuntivato sopra. La qualifica completa della candidata code 12 e i gate esterni della stabile restano distinti.
 
 ## Consuntivo precedente — qualifica locale 0.1.10-alpha
 

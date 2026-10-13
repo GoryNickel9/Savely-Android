@@ -1,5 +1,13 @@
 # Verifica Savely Android
 
+## Form sessioni — A05, release locale 0.1.11-alpha invariato
+
+[Rapporto](SESSION_FORM_QUALIFICATION.md), produzione `44274e7` e release SHA-256 `5cdaca53d41d67d42cb05c0d2753f2611d6ba4d2f830067cde094d3355c757cd`. Run `4e4acd74`, harness `15ae1fe`: un metodo nativo API 31/EN passa nove checkpoint in 253,075 s. Annulla, revoca singola e corrente azionati dai form; client secondario host refresh 200 prima e 400 `refresh_token_not_found` dopo revoca; terzo client host distinto refresh 200 con stesso UUID prima e dopo revoca corrente, poi logout locale 204. UI corrente al login e snapshot finali zero sessioni/fattori QA, proiezioni selezionate invariate, registrazioni disabilitate e attività QA zero.
+
+Fixture `b3a4d7d`, test APK SHA-256 `19383fcb1c85dba893e77aa34e403d207401411c76c82d1eb25f71fef89a888e`: 7/7 SettingsSecurity su API 31 in 32,511 s e API 35 in 56,665 s, zero failure/skip. Primo API 31: tre casi conclusi e crash nel quarto durante dispose Compose; isolato 1/1 in 7,44 s e successiva intera suite mirata passano sullo stesso APK, senza edit. Causa definitiva del crash non dimostrata; nessuna nuova suite completa dell'app.
+
+JVM: primo release 543 con una failure `UncaughtExceptionsBeforeTest`, errore precedente già in TransferExportSession. Il secondo debug/release passa senza edit; corretto il teardown `30266d2` attendendo i job prima di chiudere fixture e resettare Main. Isolati 11/11; finali **543 per variante, zero failure/error/skip**, lint zero errori/32 warning/6 hint. Ledger readonly `95daeb3`: 20 test Python offline, 49,624 s. Il primo login del driver per rete assente è conservato; successivo login e metodo nativo passano. Nessuna modifica di produzione, CI, configurazione globale o pubblicazione.
+
 ## Form MFA — A04, candidata locale 0.1.11-alpha
 
 [Rapporto](MFA_FORM_QUALIFICATION.md), produzione `44274e7`, release firmato SHA-256 `5cdaca53d41d67d42cb05c0d2753f2611d6ba4d2f830067cde094d3355c757cd`. Passano 540 JVM per variante debug/release e lint senza errori (32 warning, sei hint per variante). Il run nativo API 31/EN `3233e55b` passa **un metodo con 14 checkpoint**, 207,03 s: enrollment manuale, pending e annulla, codice errato, attivazione, gate del nuovo login e rimozione. Due fattori e due sessioni distinti adottati dal ledger; controlli finali zero fattori/sessioni QA, registrazioni disabilitate, proiezioni d'identità/profili e attività QA invariate. QR del provider non visualizzato; nessuna qualifica scanner.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Qualifica sessioni A05 — 13 ottobre 2026
+
+Sul release 0.1.11-alpha/code 12 invariato passano nove checkpoint dai form QA: annulla, revoca della sessione secondaria e refresh respinto, revoca corrente con ritorno al login e rinnovo della sessione superstite. Client secondari host con token in RAM, non un secondo smartphone. Fattori/sessioni QA zero dopo logout e fixture. Passano 543 JVM per variante e 7/7 fixture su ciascuna API 31/35; lint senza errori. Aggiunte tre regressioni JVM e tre Android, oltre al ledger readonly con 20 test offline. Corretto il teardown JVM prima di `resetMain`; conservato il crash iniziale Compose API 31 con isolato e suite successiva sullo stesso APK superati, senza causa definitiva attribuita. [Rapporto](docs/SESSION_FORM_QUALIFICATION.md); sei righe chiuse localmente, 27 verifiche aperte. Nessuna CI, nuova produzione o pubblicazione.
+
 ## 0.1.11-alpha candidata locale — 12 ottobre 2026
 
 Il gate MFA verifica UID, identità della sessione e revisione iniziale prima del challenge: un vecchio form non può elevare un login sostitutivo dello stesso utente. Enrollment malformati restituiscono un errore esplicito, con limiti per secret/URI; QR opzionale e setup manuale conservato. Input OTP e apertura dell'autenticatore sono disabilitati durante le operazioni busy.
