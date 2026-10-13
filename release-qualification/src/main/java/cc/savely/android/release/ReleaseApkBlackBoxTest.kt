@@ -33,6 +33,134 @@ class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
+    @Test fun qualifyDedicatedQaSessionForms() {
+        val run = preflight(12)
+        val args = InstrumentationRegistry.getArguments()
+        requireCode(args.getString("releaseQualificationAccount") == "a", "SESSION_QA_OWNER_INVALID")
+        val loginRun = args.getString("releaseQualificationLoginRunId").orEmpty()
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false), "LOGIN_RUN_INVALID")
+        val previous = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(previous.optString("stage") == "passed" && previous.optString("user_id") == QA_USER &&
+            previous.optBoolean("settings_identity") && previous.optBoolean("english_selected"), "QA_LOGIN_CHECKPOINT_INVALID")
+        requireCode(!privateFile("release-qualification-$run-session-forms.json").exists() &&
+            SESSION_STAGES.none { privateFile("release-qualification-$run-session-${it.replace('_', '-')}.json").exists() },
+            "SESSION_REPORT_ALREADY_EXISTS")
+        val report = baseReport(run, 12, "session-forms")
+        var checkpoint = "started"
+        fun checked(stage: String): JSONObject {
+            checkpoint = stage
+            val suffix = stage.replace('_', '-')
+            writeReport(run, "session-$suffix", JSONObject().put("run_id", run).put("user_id", QA_USER)
+                .put("stage", stage).put("status", "ready"))
+            val name = "release-qualification-$run-session-ack-$suffix.json"
+            val until = SystemClock.uptimeMillis() + 90_000
+            while (!privateFile(name).exists() && SystemClock.uptimeMillis() < until) SystemClock.sleep(250)
+            val ack = readJson(name, 2_048)
+            val keys = ack.keys().asSequence().toSet()
+            requireCode(keys == setOf("run_id", "user_id", "stage", "status", "session_id") &&
+                ack.optString("run_id") == run && ack.optString("user_id") == QA_USER &&
+                ack.optString("stage") == stage && ack.optString("status") == "observed", "SESSION_ACK_INVALID")
+            val id = ack.optString("session_id")
+            requireCode(id.isEmpty() || runCatching { UUID.fromString(id).toString() == id }.getOrDefault(false), "SESSION_ACK_ID_INVALID")
+            requireCode(privateFile(name).delete(), "SESSION_ACK_CONSUMPTION_FAILED")
+            return ack
+        }
+        fun refreshSecurity() {
+            mfaTopClick("Refresh security")
+            // This enabled control is restored only after the asynchronous refresh finishes.
+            await("SESSION_REFRESH_BUSY") {
+                exists { label(it, setOf("Refresh security")) && visible(it) && hasClickableAncestor(it) }
+            }
+        }
+        try {
+            report.put("pid", launch())
+            openSettings(englishOnly = true)
+            requireQaEmail()
+            awaitProfileRead()
+            mfaOpenSecurity()
+            val primary = checked("primary_ready").getString("session_id")
+            val secondary = checked("secondary_ready").getString("session_id")
+            requireCode(primary != secondary && primary.isNotEmpty() && secondary.isNotEmpty(), "SESSION_IDS_NOT_DISTINCT")
+            refreshSecurity()
+            sessionRevoke(primary = false, id = secondary)
+            await("SESSION_CONFIRMATION_MISSING") { hasText("Revoke this session?") }
+            clickLabel(setOf("Cancel"), "SESSION_CANCEL_MISSING")
+            requireCode(!hasText("Revoke this session?"), "SESSION_CANCEL_NOT_CLOSED")
+            checked("revocation_cancelled")
+            sessionRevoke(primary = false, id = secondary)
+            clickLabel(setOf("Confirm"), "SESSION_CONFIRM_MISSING")
+            mfaAwaitMessage("Access revoked.")
+            report.put("secondary_revoked_from_form", true)
+            checked("secondary_revoked")
+            checked("secondary_refresh_rejected")
+            // Returning to Account observes the current authenticated identity after revocation.
+            scrollAccountToTop()
+            clickLabel(setOf("Account"), "ACCOUNT_PANE_MISSING")
+            requireQaEmail()
+            awaitProfileRead()
+            report.put("primary_identity_preserved", true)
+            val survivor = checked("survivor_ready").getString("session_id")
+            requireCode(survivor !in setOf(primary, secondary) && survivor.isNotEmpty(), "SESSION_SURVIVOR_NOT_DISTINCT")
+            mfaOpenSecurity()
+            refreshSecurity()
+            sessionRevoke(primary = true, id = primary)
+            await("SESSION_CONFIRMATION_MISSING") { hasText("Revoke this session?") }
+            clickLabel(setOf("Confirm"), "SESSION_CONFIRM_MISSING")
+            await("SESSION_CURRENT_NOT_SIGNED_OUT") { editable(password = false) && editable(password = true) && !hasDashboardContent() }
+            report.put("current_revoked_from_form", true).put("login_form_after_current_revocation", true)
+            checked("primary_revoked")
+            checked("survivor_refreshed")
+            checked("completed")
+            report.put("stage", "passed").put("cleanup_pending", false).put("checkpoint_count", SESSION_STAGES.size)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("last_checkpoint", checkpoint).put("cleanup_pending", true)
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "session-forms", report) }
+    }
+
+    private fun sessionRevoke(primary: Boolean, id: String) {
+        val agent = (if (primary) "Savely Android" else "Savely QA A05") + " · session $id"
+        scrollAccountToTop()
+        val labelNode = seekLabel(setOf(agent), "SESSION_DEVICE_MISSING", scroll = true)
+        var container: AccessibilityNodeInfo? = labelNode
+        try {
+            repeat(8) {
+                val current = container ?: throw IllegalStateException("SESSION_CARD_MISSING")
+                val queue = ArrayDeque<AccessibilityNodeInfo>()
+                queue.add(AccessibilityNodeInfo.obtain(current))
+                var button: AccessibilityNodeInfo? = null
+                var deviceCount = 0
+                var thisDevice = false
+                var visited = 0
+                try {
+                    while (queue.isNotEmpty() && visited++ < 256) {
+                        val node = queue.removeFirst()
+                        val text = node.text?.toString().orEmpty()
+                        if (text.contains(" · session ")) deviceCount++
+                        if (label(node, setOf("This device"))) thisDevice = true
+                        if (label(node, setOf("Revoke")) && visible(node) && hasClickableAncestor(node) && button == null)
+                            button = AccessibilityNodeInfo.obtain(node)
+                        for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
+                        node.recycle()
+                    }
+                    if (button != null) {
+                        requireCode(deviceCount == 1 && thisDevice == primary, "SESSION_CARD_OWNER_INVALID")
+                        val selected = requireNotNull(button)
+                        button = null
+                        clickControl(selected, "SESSION_REVOKE_REJECTED")
+                        return
+                    }
+                } finally {
+                    button?.recycle()
+                    while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                }
+                container = current.parent
+                current.recycle()
+            }
+            throw IllegalStateException("SESSION_REVOKE_MISSING")
+        } finally { container?.recycle() }
+    }
+
     @Test fun mfaTotpReferenceVector() {
         val run = preflight(12)
         requireCode(qaTotp("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 59) == "287082", "RFC6238_VECTOR_FAILED")
@@ -885,6 +1013,8 @@ class ReleaseApkBlackBoxTest {
     private fun safeFailure(failure: Throwable): String = failure.message?.takeIf { it.matches(Regex("[A-Z_]{3,80}")) } ?: "BLACK_BOX_FAILURE"
 
     companion object {
+        private val SESSION_STAGES = listOf("primary_ready", "secondary_ready", "revocation_cancelled", "secondary_revoked",
+            "secondary_refresh_rejected", "survivor_ready", "primary_revoked", "survivor_refreshed", "completed")
         private val MFA_STAGES = listOf("pending_cancel_ready", "pending_cancel_kept", "pending_persisted", "pending_removed",
             "enrollment_ready", "enrollment_wrong", "enrollment_verified", "logged_out", "login_gate_wrong",
             "login_gate_verified", "removal_cancelled", "removal_wrong", "removal_completed", "completed")
