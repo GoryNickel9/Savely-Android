@@ -299,7 +299,8 @@ internal fun SavelyBottomNavigation(route: String, onNavigate: (String) -> Unit,
                 val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 Column(Modifier.weight(1f).fillMaxHeight().heightIn(min = 64.dp)
                     .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
-                    .selectable(selected, role = Role.Tab, onClick = { if (target == "more") onMore() else onNavigate(target) })
+                    .selectable(selected, role = if (target == "more") Role.Button else Role.Tab,
+                        onClick = { if (target == "more") onMore() else onNavigate(target) })
                     .testTag("nav-$target").padding(horizontal = 4.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(icon, contentDescription = null, tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else color,
