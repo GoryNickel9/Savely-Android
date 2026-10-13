@@ -388,7 +388,17 @@ class FinanceCategoryBudgetCrudTest {
         await("composed target $matcher") {
             if (absent(matcher)) {
                 val list = compose.onAllNodes(hasScrollToIndexAction()).fetchSemanticsNodes().singleOrNull()
-                if (list != null) compose.onNode(hasScrollToIndexAction()).performScrollToNode(matcher)
+                if (list != null) {
+                    try {
+                        compose.onNode(hasScrollToIndexAction()).performScrollToNode(matcher)
+                    } catch (failure: AssertionError) {
+                        // A loaded lazy list can exist before its asynchronous rows arrive. Retry
+                        // only Compose's exact missing-descendant result under the same deadline;
+                        // layout, ambiguous matches and other assertions still fail immediately.
+                        val expected = "No node found that matches ${matcher.description} in scrollable container"
+                        if (failure.message?.substringBefore('\n') != expected) throw failure
+                    }
+                }
             }
             !absent(matcher)
         }
