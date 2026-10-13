@@ -34,13 +34,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-import kotlinx.coroutines.test.StandardTestDispatcher
 
 /** Synthetic Admin UI against a guarded local TLS server; never contacts production or deletes an account. */
 @RunWith(AndroidJUnit4::class)
-@OptIn(ExperimentalTestApi::class)
 class AdminScreenTest {
-    @get:Rule val compose = createComposeRule(StandardTestDispatcher())
+    @get:Rule val compose = createComposeRule()
     private val visible = mutableStateOf(true)
     private var mounted = false
     private lateinit var languageStorage: SharedPreferences
