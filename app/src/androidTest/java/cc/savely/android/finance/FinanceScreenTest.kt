@@ -2,6 +2,7 @@ package cc.savely.android.finance
 
 import android.content.Context
 import android.view.View
+import android.view.WindowManager
 import android.widget.DatePicker
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
@@ -22,6 +23,7 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
@@ -884,6 +886,26 @@ class FinanceScreenTest {
     }
 
     private fun selectTransactionDate(label: String, date: LocalDate) {
+        val focusedApplication = object : TypeSafeMatcher<Root>() {
+            override fun describeTo(description: Description) {
+                description.appendText("application window with actual focus and completed layout")
+            }
+            override fun matchesSafely(root: Root): Boolean = root.windowLayoutParams.isPresent &&
+                root.windowLayoutParams.get().type == WindowManager.LayoutParams.TYPE_BASE_APPLICATION &&
+                root.decorView.hasWindowFocus() && !root.decorView.isLayoutRequested
+        }
+        fun awaitApplicationFocus(dismissedPicker: View? = null) {
+            compose.waitUntil(15_000) {
+                val pickerDetached = compose.runOnUiThread { dismissedPicker == null || !dismissedPicker.isAttachedToWindow }
+                if (!pickerDetached) false else try {
+                    onView(isRoot()).inRoot(focusedApplication).check(matches(isDisplayed()))
+                    true
+                } catch (_: NoMatchingRootException) {
+                    false
+                }
+            }
+        }
+        awaitApplicationFocus()
         scrollFinanceNode(hasText("$label: ", substring = true)).performClick()
         compose.waitForIdle()
         val focusedDialog = object : TypeSafeMatcher<Root>() {
@@ -905,11 +927,13 @@ class FinanceScreenTest {
             }
         }
         val picker = isAssignableFrom(DatePicker::class.java)
+        var pickerDecor: View? = null
         awaitFocusedDialog(picker)
         onView(picker).inRoot(focusedDialog).perform(object : ViewAction {
             override fun getConstraints(): Matcher<View> = isAssignableFrom(DatePicker::class.java)
             override fun getDescription() = "Select the exact synthetic transaction boundary $date"
             override fun perform(controller: UiController, view: View) {
+                pickerDecor = view.rootView
                 (view as DatePicker).updateDate(date.year, date.monthValue - 1, date.dayOfMonth)
                 controller.loopMainThreadUntilIdle()
             }
@@ -917,6 +941,8 @@ class FinanceScreenTest {
         val confirmation = withId(android.R.id.button1)
         awaitFocusedDialog(confirmation)
         onView(confirmation).inRoot(focusedDialog).perform(click())
+        // The date callback runs before dialog dismissal finishes; require that exact window to be removed.
+        awaitApplicationFocus(checkNotNull(pickerDecor))
         compose.waitForIdle()
         scrollFinanceNode(hasText("$label: $date"))
     }
