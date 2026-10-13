@@ -87,8 +87,9 @@ class ReleaseApkBlackBoxTest {
             .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("stage", "reserved"))
         try {
             report.put("pid", launch())
-            requireTargetActiveWindow()
-            navigationBack()
+            await("NAVIGATION_RECOVERY_UI_NOT_READY") { navigationDrawerOpen() || navigationBottomReady() }
+            if (navigationDrawerOpen()) navigationBack()
+            await("NAVIGATION_RECOVERY_DRAWER_NOT_CLOSED") { !navigationDrawerOpen() && navigationBottomReady() }
             openSettings(englishOnly = true)
             requireEmail(QA_ADMIN_EMAIL)
             awaitProfileRead()
@@ -146,10 +147,10 @@ class ReleaseApkBlackBoxTest {
             report.put("pid", launch())
             openSettings(englishOnly = true); requireEmail(email); awaitProfileRead()
             navigationDrawer()
-            requireCode(navigationDrawerExists("Admin") == (user == QA_ADMIN_USER) && navigationDrawerExists("FIRE") == (fire == "true"),
+            requireCode(navigationScanDrawer() == routes.map { it.second }.toSet() + "Sign out of your account",
                 "NAVIGATION_DENIED_ROUTE_VISIBLE")
             navigationBack()
-            await("NAVIGATION_DRAWER_BACK_FAILED") { !navigationDrawerExists("Modules") && navigationTitle("Settings") }
+            await("NAVIGATION_DRAWER_BACK_FAILED") { !navigationDrawerOpen() && navigationTitle("Settings") }
             report.put("drawer_back", true)
             for ((route, title) in routes) {
                 navigationEnter(title)
@@ -198,7 +199,7 @@ class ReleaseApkBlackBoxTest {
             navigationResume()
             await("NAVIGATION_REVOKED_ROUTE_REMAINED") { navigationTitle("Dashboard") }
             navigationDrawer()
-            requireCode(!navigationDrawerExists("FIRE") && !navigationDrawerExists("Admin"), "NAVIGATION_REVOKED_DRAWER_REMAINED")
+            requireCode(navigationScanDrawer() == navigationDrawerLabels - setOf("FIRE", "Admin"), "NAVIGATION_REVOKED_DRAWER_REMAINED")
             navigationBack()
             await("NAVIGATION_REVOKED_BACK_FAILED") { navigationTitle("Dashboard") }
             report.put("revoked_route_and_drawer_cleared", true)
@@ -234,18 +235,30 @@ class ReleaseApkBlackBoxTest {
         }
     }
 
-    private fun navigationDrawerExists(title: String): Boolean = exists { label(it, setOf(title)) && navigationDrawerAncestor(it) }
+    private val navigationDrawerLabels = setOf("Modules", "Dashboard", "Transactions", "Budget", "Categories",
+        "Recurring expenses", "Charts", "Portfolio", "Net worth", "Insights", "Poker", "FIRE", "Smoking",
+        "TCG", "Library", "Couple", "Admin", "Settings", "Version and updates", "Sign out of your account")
+
+    private fun navigationDrawerOpen(): Boolean = exists { visible(it) && navigationDrawerAncestor(it) }
+
+    private fun navigationBottomReady(): Boolean = exists {
+        navigationLabel(it, setOf("Dashboard")) && it.isEnabled && hasClickableAncestor(it)
+    }
 
     private fun navigationDrawerAncestor(node: AccessibilityNodeInfo): Boolean {
+        fun knownPane(candidate: AccessibilityNodeInfo): Boolean {
+            if (Build.VERSION.SDK_INT >= 28) return candidate.paneTitle?.toString() == "Navigation menu"
+            if (!candidate.isScrollable) return false
+            val matches = candidate.findAccessibilityNodeInfosByText("Sign out of your account")
+            return try { matches.any { label(it, setOf("Sign out of your account")) } }
+            finally { matches.forEach { it.recycle() } }
+        }
+        if (knownPane(node)) return true
         var current = node.parent
         try {
             repeat(10) {
                 val parent = current ?: return false
-                if (parent.isScrollable) {
-                    val matches = parent.findAccessibilityNodeInfosByText("Sign out of your account")
-                    val drawer = try { matches.any { label(it, setOf("Sign out of your account")) } } finally { matches.forEach { it.recycle() } }
-                    if (drawer) return true
-                }
+                if (knownPane(parent)) return true
                 current = parent.parent
                 parent.recycle()
             }
@@ -256,7 +269,11 @@ class ReleaseApkBlackBoxTest {
     private fun navigationDrawer() {
         hideKeyboardIfShown()
         clickNavigation(setOf("More"), "NAVIGATION_MORE_MISSING")
-        await("NAVIGATION_DRAWER_MISSING") { navigationDrawerExists("Modules") }
+        await("NAVIGATION_DRAWER_MISSING") { navigationDrawerOpen() }
+        navigationDrawerToTop()
+    }
+
+    private fun navigationDrawerToTop() {
         repeat(64) {
             if (exists { label(it, setOf("Modules")) && visible(it) && navigationDrawerAncestor(it) }) return
             navigationDrawerScroll(backwards = true)
@@ -265,17 +282,40 @@ class ReleaseApkBlackBoxTest {
     }
 
     private fun navigationDrawerScroll(backwards: Boolean) {
-        val container = find {
-            if (!it.isScrollable || !visible(it)) false else {
-                val matches = it.findAccessibilityNodeInfosByText("Sign out of your account")
-                try { matches.any { node -> label(node, setOf("Sign out of your account")) } } finally { matches.forEach { node -> node.recycle() } }
-            }
-        } ?: throw IllegalStateException("NAVIGATION_DRAWER_SCROLL_MISSING")
+        val container = find { it.isScrollable && visible(it) && navigationDrawerAncestor(it) }
+            ?: throw IllegalStateException("NAVIGATION_DRAWER_SCROLL_MISSING")
         val bounds = Rect().also(container::getBoundsInScreen)
         val moved = try { container.performAction(if (backwards) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
             else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) } finally { container.recycle() }
         if (!moved) swipe(backwards, bounds)
         SystemClock.sleep(250)
+    }
+
+    private fun navigationScanDrawer(): Set<String> {
+        val seen = mutableSetOf<String>()
+        repeat(64) {
+            // Only public, fixed route labels are collected; absence is judged after reaching the footer.
+            exists { node ->
+                if (visible(node) && navigationDrawerAncestor(node)) {
+                    navigationDrawerLabels.firstOrNull { label(node, setOf(it)) }?.let(seen::add)
+                }
+                false
+            }
+            if ("Sign out of your account" in seen) {
+                navigationDrawerToTop()
+                return seen
+            }
+            navigationDrawerScroll(backwards = false)
+        }
+        throw IllegalStateException("NAVIGATION_DRAWER_FOOTER_MISSING")
+    }
+
+    private fun navigationSeekFooter() {
+        repeat(64) {
+            if (exists { label(it, setOf("Sign out of your account")) && visible(it) && navigationDrawerAncestor(it) }) return
+            navigationDrawerScroll(backwards = false)
+        }
+        throw IllegalStateException("NAVIGATION_DRAWER_FOOTER_MISSING")
     }
 
     private fun navigationEnter(title: String) {
@@ -284,14 +324,14 @@ class ReleaseApkBlackBoxTest {
             val candidate = find { label(it, setOf(title)) && visible(it) && hasClickableAncestor(it) && navigationDrawerAncestor(it) }
             if (candidate != null) {
                 clickControl(candidate, "NAVIGATION_DRAWER_CLICK_FAILED")
-                await("NAVIGATION_TITLE_MISSING") { !navigationDrawerExists("Modules") && navigationTitle(title) }
+                await("NAVIGATION_TITLE_MISSING") { !navigationDrawerOpen() && navigationTitle(title) }
                 return
             }
             val heading = find { label(it, setOf(title)) && navigationDrawerAncestor(it) }
             if (heading != null) {
                 val moved = try { heading.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id) } finally { heading.recycle() }
                 if (!moved) navigationDrawerScroll(backwards = false)
-            }
+            } else navigationDrawerScroll(backwards = false)
             SystemClock.sleep(250)
         }
         throw IllegalStateException("NAVIGATION_DRAWER_ROUTE_NOT_VISIBLE")
@@ -299,9 +339,8 @@ class ReleaseApkBlackBoxTest {
 
     private fun navigationBack() {
         hideKeyboardIfShown()
-        val now = SystemClock.uptimeMillis()
-        requireCode(automation.injectInputEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0), true) &&
-            automation.injectInputEvent(KeyEvent(now, now + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK, 0), true), "NAVIGATION_BACK_REJECTED")
+        requireTargetActiveWindow()
+        readShell("input keyevent KEYCODE_BACK", 256)
     }
 
     private fun navigationResume() {
@@ -310,10 +349,12 @@ class ReleaseApkBlackBoxTest {
         launch()
         await("NAVIGATION_RESUME_MISSING") { hasText("Dashboard") && !editable(password = true) }
         navigationDrawer()
+        navigationSeekFooter()
         await("NAVIGATION_RESTORE_NOT_SETTLED") {
-            exists { label(it, setOf("Sign out of your account")) && it.isEnabled && hasClickableAncestor(it) && navigationDrawerAncestor(it) }
+            exists { label(it, setOf("Sign out of your account")) && visible(it) && it.isEnabled && hasClickableAncestor(it) && navigationDrawerAncestor(it) }
         }
         navigationBack()
+        await("NAVIGATION_RESUME_DRAWER_NOT_CLOSED") { !navigationDrawerOpen() && navigationBottomReady() }
     }
 
     @Test fun adminFixedTargetDiagnostic() {
