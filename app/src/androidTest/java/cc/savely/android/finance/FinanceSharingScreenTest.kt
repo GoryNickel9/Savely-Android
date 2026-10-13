@@ -183,7 +183,20 @@ class FinanceSharingScreenTest {
         }
         list().performScrollToIndex(2); waitText("3 transazioni")
         val original = exactExpense("10,01", "EUR")
-        list().performScrollToNode(original); compose.onNode(original).assertIsDisplayed()
+        compose.waitUntil(15_000) {
+            val found = try {
+                list().performScrollToNode(original)
+                true
+            } catch (failure: AssertionError) {
+                // The unchanged count and enabled Add button can precede the asynchronous share reload.
+                val expected = "No node found that matches ${original.description} in scrollable container"
+                if (failure.message?.substringBefore('\n') != expected) throw failure
+                false
+            }
+            found && compose.onAllNodes(original).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.waitForIdle()
+        compose.onNode(original).assertIsDisplayed()
         compose.onNodeWithText("Cena condivisa").assertExists()
         compose.onNodeWithContentDescription("Modifica Cena condivisa").assertExists()
         compose.onNodeWithContentDescription("Elimina Cena condivisa").assertExists()
