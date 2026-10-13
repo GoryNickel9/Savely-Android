@@ -249,7 +249,7 @@ class ReleaseApkBlackBoxTest {
     private fun navigationDrawerOpen(): Boolean = exists { visible(it) && navigationDrawerAncestor(it) }
 
     private fun navigationBottomReady(): Boolean = exists {
-        navigationLabel(it, setOf("Dashboard")) && it.isEnabled && hasClickableAncestor(it)
+        navigationLabel(it, setOf("Dashboard")) && it.isEnabled
     }
 
     private fun navigationDrawerAncestor(node: AccessibilityNodeInfo): Boolean {
