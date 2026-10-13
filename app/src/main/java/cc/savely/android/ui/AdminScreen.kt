@@ -49,6 +49,9 @@ fun AdminScreen(api: SupabaseApi) {
         val freshUsers = api.webPost("/api/admin", JSONObject().put("action", "get-users"),
             expectedOwner = owner.userId, expectedRevision = revision).getJSONArray("users")
         val freshRegistrations = api.rpc("get_registrations_enabled", expectedOwner = owner.userId, expectedRevision = revision) as? Boolean
+        if (api.permissions(expectedOwner = owner.userId, expectedRevision = revision)["admin"] != true) {
+            throw ApiException(ApiError.PERMISSION, "Sono necessari i permessi di amministratore.")
+        }
         api.withCurrentSessionOwner(revision) {
             myId = owner.userId; loadedRevision = revision
             users = freshUsers; registrations = freshRegistrations

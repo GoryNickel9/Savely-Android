@@ -33,6 +33,53 @@ class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
+    @Test fun adminFixedTargetDiagnostic() {
+        val run = preflight(13)
+        val failedRun = InstrumentationRegistry.getArguments().getString("releaseQualificationLoginRunId").orEmpty()
+        requireCode(runCatching { UUID.fromString(failedRun).toString() == failedRun }.getOrDefault(false), "ADMIN_DIAGNOSTIC_RUN_INVALID")
+        val failed = readJson("release-qualification-$failedRun-admin-forms.json", 16_384)
+        requireCode(failed.optString("stage") == "failed" && failed.optString("user_id") == QA_ADMIN_USER &&
+            failed.optInt("target_code") == 13 && hasText(QA_EMAIL_B) && hasText("Save permissions"), "ADMIN_DIAGNOSTIC_OWNER_INVALID")
+        val result = baseReport(run, 13, "admin-diagnostic").put("user_id", QA_ADMIN_USER)
+        val labels = JSONObject()
+        for (text in listOf("Admin", "Poker", "Fire", "Fumo", "Tcg", "Libreria", "Couple", "Save permissions", "Close")) {
+            val heading = find { label(it, setOf(text)) }
+            if (heading == null) { labels.put(text, JSONObject().put("found", false)); continue }
+            val parents = org.json.JSONArray()
+            var parent: AccessibilityNodeInfo? = heading
+            try {
+                repeat(5) {
+                    val current = parent ?: return@repeat
+                    val values = org.json.JSONArray()
+                    val queue = ArrayDeque<AccessibilityNodeInfo>()
+                    queue.add(AccessibilityNodeInfo.obtain(current))
+                    var visited = 0
+                    try {
+                        while (queue.isNotEmpty() && visited++ < 128) {
+                            val node = queue.removeFirst()
+                            if (node.isCheckable) values.put(JSONObject().put("checked", node.isChecked)
+                                .put("visible", visible(node)).put("enabled", node.isEnabled)
+                                .put("bounds", Rect().also(node::getBoundsInScreen).toShortString()))
+                            for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
+                            node.recycle()
+                        }
+                    } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+                    parents.put(values)
+                    parent = current.parent
+                    current.recycle()
+                }
+            } finally { parent?.recycle() }
+            labels.put(text, JSONObject().put("found", true).put("ancestors", parents))
+        }
+        result.put("labels", labels).put("stage", "observed")
+        if (InstrumentationRegistry.getArguments().getString("adminDiagnosticClose") == "true") {
+            clickLabel(setOf("Close"), "ADMIN_DIAGNOSTIC_CLOSE_MISSING")
+            requireCode(!hasText("Save permissions"), "ADMIN_DIAGNOSTIC_NOT_CLOSED")
+            result.put("dialog_closed", true)
+        }
+        writeReport(run, "admin-diagnostic", result)
+    }
+
     @Test fun qualifyDedicatedQaAdminPermissions() {
         val run = preflight(13)
         requireCode(InstrumentationRegistry.getArguments().getString("releaseQualificationAccount") == "admin", "ADMIN_QA_OWNER_INVALID")
