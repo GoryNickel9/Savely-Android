@@ -324,6 +324,7 @@ class ReleaseApkBlackBoxTest {
         try {
             repeat(10) {
                 val parent = current ?: return false
+                if (!parent.refresh()) return false
                 if (knownPane(parent)) return true
                 current = parent.parent
                 parent.recycle()
@@ -1372,6 +1373,28 @@ class ReleaseApkBlackBoxTest {
             throw AssertionError(safeFailure(failure))
         } finally {
             recordUiFlags(report)
+            val controls = JSONObject()
+            for (text in listOf("Dashboard", "Settings", "Open menu", "Modules")) {
+                val node = find { label(it, setOf(text)) && visible(it) }
+                var parent = node
+                val chain = org.json.JSONArray()
+                try {
+                    repeat(8) {
+                        val current = parent ?: return@repeat
+                        val clickableBefore = current.isClickable
+                        val refreshed = current.refresh()
+                        chain.put(JSONObject().put("refresh", refreshed).put("clickable_before_refresh", clickableBefore)
+                            .put("clickable", current.isClickable).put("enabled", current.isEnabled)
+                            .put("click_action", current.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK })
+                            .put("visible", visible(current)).put("drawer_pane", current.paneTitle?.toString() == "Navigation menu")
+                            .put("bounds", Rect().also(current::getBoundsInScreen).toShortString()))
+                        parent = current.parent
+                        current.recycle()
+                    }
+                } finally { parent?.recycle() }
+                controls.put(text, chain)
+            }
+            report.put("fixed_control_flags", controls)
             val root = automation.rootInActiveWindow
             val dashboard = find { label(it, setOf("Dashboard")) }
             try {
@@ -1840,6 +1863,7 @@ class ReleaseApkBlackBoxTest {
         var node = candidate
         try {
             for (depth in 0 until 8) {
+                requireCode(node.refresh(), code)
                 if (node.isClickable && node.isEnabled) {
                     requireCode(node.performAction(AccessibilityNodeInfo.ACTION_CLICK), code)
                     return
@@ -1894,6 +1918,7 @@ class ReleaseApkBlackBoxTest {
         var parent = node.parent
         repeat(8) {
             val current = parent ?: return false
+            if (!current.refresh()) { current.recycle(); return false }
             val clickable = current.isClickable && current.isEnabled
             parent = if (clickable) null else current.parent
             current.recycle()
