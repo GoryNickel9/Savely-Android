@@ -254,8 +254,8 @@ private fun MainShellSession(model: AppViewModel, state: AppState, theme: String
             }
         }
     }
-    // NavHost registers Back after its first entry; keep our callback after it on each entry.
-    key(backStack?.id) {
+    // Re-register when the drawer opens so Back closes it before popping the route.
+    key(backStack?.id, drawer.isOpen) {
         BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
     }
 }
