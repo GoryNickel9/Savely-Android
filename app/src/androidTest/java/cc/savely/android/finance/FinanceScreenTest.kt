@@ -13,6 +13,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.Root
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.action.ViewActions.click
@@ -45,6 +46,8 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.hamcrest.Matcher
+import org.hamcrest.Description
+import org.hamcrest.TypeSafeMatcher
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -882,7 +885,15 @@ class FinanceScreenTest {
     private fun selectTransactionDate(label: String, date: LocalDate) {
         scrollFinanceNode(hasText("$label: ", substring = true)).performClick()
         compose.waitForIdle()
-        onView(isAssignableFrom(DatePicker::class.java)).inRoot(isDialog()).check(matches(isDisplayed())).perform(object : ViewAction {
+        val focusedDialog = object : TypeSafeMatcher<Root>() {
+            override fun describeTo(description: Description) {
+                description.appendText("native dialog with actual window focus and completed layout")
+            }
+            override fun matchesSafely(root: Root): Boolean = isDialog().matches(root) &&
+                root.decorView.hasWindowFocus() && !root.decorView.isLayoutRequested
+        }
+        // Espresso waits for this root; a previously dismissed picker may still exist during its exit animation.
+        onView(isAssignableFrom(DatePicker::class.java)).inRoot(focusedDialog).check(matches(isDisplayed())).perform(object : ViewAction {
             override fun getConstraints(): Matcher<View> = isAssignableFrom(DatePicker::class.java)
             override fun getDescription() = "Select the exact synthetic transaction boundary $date"
             override fun perform(controller: UiController, view: View) {
@@ -890,7 +901,7 @@ class FinanceScreenTest {
                 controller.loopMainThreadUntilIdle()
             }
         })
-        onView(withId(android.R.id.button1)).inRoot(isDialog()).check(matches(isDisplayed())).perform(click())
+        onView(withId(android.R.id.button1)).inRoot(focusedDialog).check(matches(isDisplayed())).perform(click())
         compose.waitForIdle()
         scrollFinanceNode(hasText("$label: $date"))
     }

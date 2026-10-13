@@ -6,6 +6,14 @@ import cc.savely.android.data.Session
 import cc.savely.android.data.SupabaseApi
 import java.util.Base64
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
+import cc.savely.android.data.ApiException
+import cc.savely.android.data.ApiError
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
@@ -75,6 +83,42 @@ class FinanceFormOwnerTest {
             assertEquals(revision, api.sessionOwnerRevision())
             assertEquals(userA, repository.load("categories").userId)
             assertEquals(4, server.requestCount)
+        }
+    }
+
+    @Test fun `late first page is rejected before pagination or profile can use a replacement session`() = runBlocking {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        MockWebServer().use { server ->
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.requestUrl?.pathSegments?.last() == "categories" &&
+                        request.requestUrl?.queryParameter("offset") == "0") {
+                        entered.countDown()
+                        check(release.await(10, TimeUnit.SECONDS))
+                        return MockResponse().setBody("""[{"id":"$sidA","name":"Old owner category","type":"expense","icon":"📦","color":"#6b7280"}]""")
+                    }
+                    return MockResponse().setBody("[]")
+                }
+            }
+            server.start()
+            val store = MemorySessionStore(session(userA, sidA))
+            val url = server.url("/").toString()
+            val api = SupabaseApi(BackendConfig(url, "synthetic-public-key", url), store)
+            val repository = FinanceRepository(api)
+            val pending = async(Dispatchers.Default) { runCatching { repository.load("categories") } }
+            try {
+                assertTrue("The original read must be in flight", entered.await(10, TimeUnit.SECONDS))
+                store.save(session(userB, sidB))
+                assertEquals(userB, api.session()?.userId)
+                release.countDown()
+                val failure = pending.await().exceptionOrNull()
+                assertTrue(failure is ApiException)
+                assertEquals(ApiError.PERMISSION, (failure as ApiException).kind)
+                assertEquals("No second read may use B's credentials for A's query", 1, server.requestCount)
+                assertEquals("Bearer ${session(userA, sidA).accessToken}", server.takeRequest().getHeader("Authorization"))
+                assertEquals("A rejected old read must retain B's accepted session", userB, api.session()?.userId)
+            } finally { release.countDown() }
         }
     }
 }

@@ -53,12 +53,13 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         check(userId() == owner.id && api.isSessionOwnerCurrent(owner.revision)) { "Account cambiato. Aggiorna i dati prima di continuare." }
     }
 
-    private suspend fun rows(table: String, query: String): List<JSONObject> {
+    private suspend fun rows(table: String, query: String, owner: FinanceOwner): List<JSONObject> {
         val result = mutableListOf<JSONObject>()
         val identifiers = mutableSetOf<String>()
         var offset = 0
         while (true) {
-            val page: JSONArray = api.select(table, "$query&limit=500&offset=$offset")
+            val page: JSONArray = api.select(table, "$query&limit=500&offset=$offset",
+                expectedOwner = owner.id, expectedRevision = owner.revision)
             if (page.length() == 0) return result
             check(page.length() <= 500 && result.size + page.length() <= 100_000) {
                 "Archivio oltre il limite: caricamento interrotto senza mostrare totali parziali."
@@ -77,48 +78,50 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val user = owner.id
         val ownerRevision = owner.revision
         val own = "user_id=eq.$user"
-        val categories = rows("categories", "select=*&$own&deleted_at=is.null&order=name.asc,id.asc").map(::categoryFromJson)
+        val categories = rows("categories", "select=*&$own&deleted_at=is.null&order=name.asc,id.asc", owner).map(::categoryFromJson)
         val profileFields = if (section == "transactions") "default_currency,permissions" else "default_currency"
-        val profile = api.select("profiles", "select=$profileFields&$own&limit=1")
+        val profile = api.select("profiles", "select=$profileFields&$own&limit=1", expectedOwner = user, expectedRevision = ownerRevision)
         val currency = if (profile.length() == 0) "EUR" else profile.getJSONObject(0).nullableString("default_currency") ?: "EUR"
         val transactions = if (section in setOf("dashboard", "transactions", "budget", "charts", "net-worth", "insights", "recurring")) {
-            rows("transactions", "select=*&$own&deleted_at=is.null&order=date.desc,id.asc").map(::transactionFromJson)
+            rows("transactions", "select=*&$own&deleted_at=is.null&order=date.desc,id.asc", owner).map(::transactionFromJson)
         } else emptyList()
         val budgets = if (section in setOf("dashboard", "budget", "insights")) {
-            rows("budgets", "select=*&$own&order=id.asc").map(::budgetFromJson)
+            rows("budgets", "select=*&$own&order=id.asc", owner).map(::budgetFromJson)
         } else emptyList()
         val recurring = if (section in setOf("recurring", "insights")) {
-            rows("recurring_expenses", "select=*&$own&deleted_at=is.null&order=next_due_date.asc,id.asc").map(::recurringFromJson)
+            rows("recurring_expenses", "select=*&$own&deleted_at=is.null&order=next_due_date.asc,id.asc", owner).map(::recurringFromJson)
         } else emptyList()
         val assets = if (section in setOf("portfolio", "net-worth", "insights")) {
-            rows("portfolio_assets", "select=*&$own&order=created_at.desc,id.asc").map(::assetFromJson)
+            rows("portfolio_assets", "select=*&$own&order=created_at.desc,id.asc", owner).map(::assetFromJson)
         } else emptyList()
         val snapshots = if (section in setOf("net-worth", "insights")) {
             val order = if (section == "insights") "date.asc,id.asc" else "date.desc,id.asc"
-            rows("net_worth_snapshots", "select=id,date,net_worth,components&$own&order=$order").map(::snapshotFromJson)
+            rows("net_worth_snapshots", "select=id,date,net_worth,components&$own&order=$order", owner).map(::snapshotFromJson)
         } else emptyList()
         val lastUpdate = if (section == "portfolio") {
-            val logs = api.select("manual_price_updates", "select=updated_at&$own&order=updated_at.desc&limit=1")
+            val logs = api.select("manual_price_updates", "select=updated_at&$own&order=updated_at.desc&limit=1",
+                expectedOwner = user, expectedRevision = ownerRevision)
             if (logs.length() == 0) null else parseBackendInstant(logs.getJSONObject(0).getString("updated_at"))
         } else null
         val ignored = if (section in setOf("recurring", "insights")) withContext(Dispatchers.IO) { dismissals.keys(user) } else emptySet()
         // Portfolio web reads the owner's cards even when the TCG navigation permission is disabled.
         val tcgCards = if (section == "portfolio") {
-            rows("tgc_cards", "select=id,category,quantity,purchase_price,current_price,currency&$own&order=created_at.desc,id.asc")
+            rows("tgc_cards", "select=id,category,quantity,purchase_price,current_price,currency&$own&order=created_at.desc,id.asc", owner)
                 .map(::tcgCardFromJson)
         } else emptyList()
         val history = if (section == "portfolio") {
-            rows("asset_price_history", "select=id,asset_id,price,recorded_at&$own&order=recorded_at.asc,id.asc")
+            rows("asset_price_history", "select=id,asset_id,price,recorded_at&$own&order=recorded_at.asc,id.asc", owner)
                 .map(::priceHistoryFromJson)
         } else emptyList()
         val connection = if (section == "transactions" && profile.length() == 1 &&
             SupabaseApi.parsePermissions(profile.getJSONObject(0).optJSONObject("permissions"))["couple_expenses"] == true) {
-            val connections = api.select("couple_connections", "select=*&or=(user_a.eq.$user,user_b.eq.$user)&revoked_at=is.null&limit=2")
+            val connections = api.select("couple_connections", "select=*&or=(user_a.eq.$user,user_b.eq.$user)&revoked_at=is.null&limit=2",
+                expectedOwner = user, expectedRevision = ownerRevision)
             require(connections.length() <= 1) { "Più connessioni attive: verifica il tuo account." }
             connections.optJSONObject(0)?.let { financeConnectionFromJson(it, user) }
         } else null
         val shares = if (connection == null) emptyList() else {
-            rows("shared_expenses_view", "select=*&connection_id=eq.${connection.id}&order=date.desc,id.asc")
+            rows("shared_expenses_view", "select=*&connection_id=eq.${connection.id}&order=date.desc,id.asc", owner)
                 .filter { it.isNull("tx_deleted_at") }.map { financeSharedExpenseFromJson(it, connection) }
         }
         check(userId() == user && api.sessionOwnerRevision() == ownerRevision) { "Account cambiato durante il caricamento. Aggiorna i dati." }
@@ -137,7 +140,8 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
     private suspend fun validateCategory(id: String?, type: TransactionType, owner: FinanceOwner) {
         if (id == null) return
         val uuid = UUID.fromString(id)
-        val category = api.select("categories", "select=type&id=eq.$uuid&user_id=eq.${owner.id}&deleted_at=is.null")
+        val category = api.select("categories", "select=type&id=eq.$uuid&user_id=eq.${owner.id}&deleted_at=is.null",
+            expectedOwner = owner.id, expectedRevision = owner.revision)
         require(category.length() == 1 && category.getJSONObject(0).getString("type") == type.wire) {
             "La categoria non esiste o non corrisponde al tipo di transazione"
         }
@@ -159,7 +163,8 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
             require(id == null && type == TransactionType.EXPENSE) { "Solo una nuova uscita può essere condivisa dal form" }
             coupleSplit(parsedAmount, share.customPartner?.let(::couplePartnerAmount))
             val connection = UUID.fromString(share.connectionId).toString()
-            val active = api.select("couple_connections", "select=*&id=eq.$connection&or=(user_a.eq.$owner,user_b.eq.$owner)&revoked_at=is.null&limit=1")
+            val active = api.select("couple_connections", "select=*&id=eq.$connection&or=(user_a.eq.$owner,user_b.eq.$owner)&revoked_at=is.null&limit=1",
+                expectedOwner = owner, expectedRevision = revision)
             require(active.length() == 1) { "La connessione non è più attiva. Aggiorna la schermata." }
             financeConnectionFromJson(active.getJSONObject(0), owner)
         }
@@ -191,11 +196,13 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val owner = identity.id
         val revision = identity.revision
         val connectionId = UUID.fromString(expense.connectionId).toString()
-        val active = api.select("couple_connections", "select=*&id=eq.$connectionId&or=(user_a.eq.$owner,user_b.eq.$owner)&revoked_at=is.null&limit=1")
+        val active = api.select("couple_connections", "select=*&id=eq.$connectionId&or=(user_a.eq.$owner,user_b.eq.$owner)&revoked_at=is.null&limit=1",
+            expectedOwner = owner, expectedRevision = revision)
         require(active.length() == 1) { "La connessione non è più attiva. Aggiorna la schermata." }
         val connection = financeConnectionFromJson(active.getJSONObject(0), owner)
         val id = UUID.fromString(expense.id).toString()
-        val rows = api.select("shared_expenses_view", "select=*&id=eq.$id&connection_id=eq.$connectionId&limit=1")
+        val rows = api.select("shared_expenses_view", "select=*&id=eq.$id&connection_id=eq.$connectionId&limit=1",
+            expectedOwner = owner, expectedRevision = revision)
         require(rows.length() == 1 && rows.getJSONObject(0).isNull("tx_deleted_at")) { "La condivisione non è più disponibile" }
         val fresh = financeSharedExpenseFromJson(rows.getJSONObject(0), connection)
         require(fresh.createdBy == expense.createdBy && fresh.originalTransactionId == expense.originalTransactionId) { "La condivisione è cambiata. Aggiorna i dati." }
@@ -261,7 +268,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         var result = RecurringProcessingResult()
         var stage = "il caricamento delle ricorrenze"
         try {
-            val due = rows("recurring_expenses", "select=*&$own&deleted_at=is.null&is_active=eq.true&next_due_date=lte.$today&order=next_due_date.asc,id.asc")
+            val due = rows("recurring_expenses", "select=*&$own&deleted_at=is.null&is_active=eq.true&next_due_date=lte.$today&order=next_due_date.asc,id.asc", owner)
                 .map(::recurringFromJson)
             for (expense in due) {
                 // Defensive checks also protect against malformed imported data or stale fixture responses.
@@ -276,7 +283,8 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
                 val end = start.plusMonths(1)
                 val description = URLEncoder.encode("eq.${expense.name}", StandardCharsets.UTF_8.name())
                 // limit=1 treats multiple matching transactions as already present instead of a maybeSingle error.
-                val existing = api.select("transactions", "select=id&$own&deleted_at=is.null&description=$description&date=gte.$start&date=lt.$end&limit=1")
+                val existing = api.select("transactions", "select=id&$own&deleted_at=is.null&description=$description&date=gte.$start&date=lt.$end&limit=1",
+                    expectedOwner = user, expectedRevision = owner.revision)
                 if (existing.length() == 0) {
                     stage = "il salvataggio della transazione"
                     checkOwner(owner)
@@ -363,7 +371,8 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
             try {
                 checkOwner()
                 val id = UUID.fromString(expected.id).toString()
-                val rows = api.select("portfolio_assets", "select=*&id=eq.$id&user_id=eq.$owner&limit=1")
+                val rows = api.select("portfolio_assets", "select=*&id=eq.$id&user_id=eq.$owner&limit=1",
+                    expectedOwner = owner, expectedRevision = revision)
                 require(rows.length() == 1 && rows.getJSONObject(0).getString("user_id") == owner &&
                     samePositionPurchase(expected, assetFromJson(rows.getJSONObject(0)))) {
                     "Un acquisto è cambiato o non è più disponibile. Aggiorna i dati prima di chiudere la posizione."
@@ -407,7 +416,8 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val identity = ownerSnapshot()
         val user = identity.id
         val revision = identity.revision
-        val logs = api.select("manual_price_updates", "select=updated_at&user_id=eq.$user&order=updated_at.desc&limit=1")
+        val logs = api.select("manual_price_updates", "select=updated_at&user_id=eq.$user&order=updated_at.desc&limit=1",
+            expectedOwner = user, expectedRevision = revision)
         if (logs.length() > 0) require(parseBackendInstant(logs.getJSONObject(0).getString("updated_at")).plusSeconds(86_400) <= Instant.now()) {
             "L’aggiornamento prezzi è disponibile una volta ogni 24 ore"
         }
@@ -442,7 +452,7 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         val uuid = UUID.fromString(id).toString()
         if (table == "categories") {
             // The web detaches transaction categories before soft deletion. Keep the category on a partial failure.
-            val affected = rows("transactions", "select=id&user_id=eq.$user&category_id=eq.$uuid&order=id.asc")
+            val affected = rows("transactions", "select=id&user_id=eq.$user&category_id=eq.$uuid&order=id.asc", identity)
             val revision = identity.revision
             var detached = 0
             try {
