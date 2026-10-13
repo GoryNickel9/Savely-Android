@@ -116,7 +116,7 @@ class ReleaseApkBlackBoxTest {
         }
         fun saveTarget() {
             clickLabel(setOf("Save permissions"), "ADMIN_SAVE_MISSING")
-            mfaAwaitMessage("Permissions updated.")
+            adminAwaitMessage("Permissions updated.")
             requireCode(!hasText("Save permissions"), "ADMIN_DIALOG_NOT_CLOSED")
         }
         try {
@@ -150,8 +150,8 @@ class ReleaseApkBlackBoxTest {
             openTarget()
             checked("primary_role_revoked")
             clickLabel(setOf("Save permissions"), "ADMIN_SAVE_MISSING")
-            mfaAwaitMessage("Administrator permissions are required.")
-            requireCode(!hasText(QA_EMAIL_B) && !hasText("Registrations enabled") && !hasText("Save permissions") &&
+            adminAwaitMessage("Administrator permissions are required.")
+            requireCode(!hasText(QA_EMAIL_B) && !hasText("Registration enabled") && !hasText("Save permissions") &&
                 !exists { label(it, setOf("Manage")) }, "ADMIN_DENIED_CACHE_REMAINED")
             report.put("denial_cleared_cache_and_dialog", true)
             checked("primary_role_denied")
@@ -159,7 +159,7 @@ class ReleaseApkBlackBoxTest {
             clickLabel(setOf("Refresh users"), "ADMIN_REFRESH_MISSING", scroll = true)
             seekLabel(setOf("Refresh users"), "ADMIN_RELOAD_NOT_SETTLED", scroll = true, clickable = true).recycle()
             scrollAdminToTop()
-            await("ADMIN_RESTORED_CONTROLS_MISSING") { hasText("Registrations enabled") }
+            await("ADMIN_RESTORED_CONTROLS_MISSING") { hasText("Registration enabled") }
             checked("primary_reloaded")
             openTarget()
             adminPermission("Admin", true, false)
@@ -180,13 +180,44 @@ class ReleaseApkBlackBoxTest {
 
     private fun scrollAdminToTop() {
         repeat(64) {
-            if (hasText("Registrations enabled") || hasText("Administrator permissions are required.")) return
+            if (hasText("Registration enabled") || hasText("Administrator permissions are required.")) return
             val container = find { it.isScrollable && visible(it) } ?: return
             val bounds = Rect().also(container::getBoundsInScreen)
             val moved = try { container.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { container.recycle() }
             if (!moved) swipe(backwards = true, bounds = bounds)
             SystemClock.sleep(250)
         }
+    }
+
+    private fun adminAwaitMessage(message: String) {
+        requireCode(message in setOf("Permissions updated.", "Administrator permissions are required."), "ADMIN_MESSAGE_INVALID")
+        hideKeyboardIfShown()
+        val until = SystemClock.uptimeMillis() + 30_000
+        var scrolls = 0
+        while (SystemClock.uptimeMillis() < until) {
+            if (hasText(message)) return
+            // Admin feedback follows the whole user list; never rewind that list while seeking it.
+            val offscreen = find { label(it, setOf(message)) }
+            if (offscreen != null) {
+                try { offscreen.performAction(AccessibilityNodeInfo.ACTION_SHOW_ON_SCREEN) } finally { offscreen.recycle() }
+                SystemClock.sleep(250)
+                if (hasText(message)) return
+            }
+            if (scrolls < 64) {
+                val container = find {
+                    val bounds = Rect().also(it::getBoundsInScreen)
+                    it.isScrollable && visible(it) && (it.className?.toString() == "android.widget.ScrollView" || bounds.height() > bounds.width())
+                }
+                if (container != null) {
+                    val bounds = Rect().also(container::getBoundsInScreen)
+                    val moved = try { container.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) } finally { container.recycle() }
+                    if (!moved) swipe(backwards = false, bounds = bounds)
+                    scrolls++
+                }
+            }
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("ADMIN_MESSAGE_MISSING")
     }
 
     private fun adminSiblingControl(heading: AccessibilityNodeInfo, text: String, code: String) {
@@ -955,7 +986,7 @@ class ReleaseApkBlackBoxTest {
     private fun scrollAccountToTop() {
         repeat(64) {
             if (hasProfileContent() || hasText("Two-step verification") || hasText("Verifica in due passaggi") || hasDashboardContent() ||
-                hasText("Registrations enabled") || hasText("Administrator permissions are required.")) return
+                hasText("Registration enabled") || hasText("Administrator permissions are required.")) return
             val container = find {
                 val bounds = Rect().also(it::getBoundsInScreen)
                 it.isScrollable && visible(it) && (it.className?.toString() == "android.widget.ScrollView" || bounds.height() > bounds.width())
