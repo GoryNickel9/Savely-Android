@@ -1230,10 +1230,16 @@ class ReleaseApkBlackBoxTest {
             .put("day", day).put("mutation_attempted", false).put("cleanup_pending", true)
         try {
             report.put("pid", launch())
+            report.put("keyboard_before_settings", automation.windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD })
+            hideKeyboardIfShown()
             openSettings(englishOnly = true)
             requireEmail(QA_EMAIL)
+            report.put("settings_identity", true)
             awaitProfileRead()
+            report.put("profile_read", true)
+            hideKeyboardIfShown()
             awaitDashboard()
+            report.put("dashboard_returned", true)
             when {
                 op == "dashboard-check" -> {
                     await("FINANCE_DASHBOARD_MISSING") { hasDashboardContent() }
@@ -1357,7 +1363,18 @@ class ReleaseApkBlackBoxTest {
         } catch (failure: Throwable) {
             report.put("stage", "failed").put("failure_code", safeFailure(failure))
             throw AssertionError(safeFailure(failure))
-        } finally { writeReport(run, phase, report) }
+        } finally {
+            recordUiFlags(report)
+            val root = automation.rootInActiveWindow
+            val dashboard = find { label(it, setOf("Dashboard")) }
+            try {
+                report.put("active_root_is_target", root?.packageName?.toString() == TARGET)
+                    .put("active_root_bounds", root?.let { Rect().also(it::getBoundsInScreen).toShortString() } ?: JSONObject.NULL)
+                    .put("dashboard_label_bounds", dashboard?.let { Rect().also(it::getBoundsInScreen).toShortString() } ?: JSONObject.NULL)
+                    .put("keyboard_after_operation", automation.windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD })
+            } finally { root?.recycle(); dashboard?.recycle() }
+            writeReport(run, phase, report)
+        }
     }
 
     private fun financeSubmit(run: String, phase: String, report: JSONObject) {
