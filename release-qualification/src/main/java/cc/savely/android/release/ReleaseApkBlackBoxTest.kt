@@ -39,8 +39,13 @@ class ReleaseApkBlackBoxTest {
         requireNewNavigationReport(run, "navigation-diagnostic")
         val report = baseReport(run, 14, "navigation-diagnostic").put("user_id", QA_ADMIN_USER)
             .put("login_run_id", loginRun).put("failed_run_id", failedRun)
+        val activeRoot = automation.rootInActiveWindow
+        try {
+            report.put("active_root_is_target", activeRoot?.packageName?.toString() == TARGET)
+                .put("active_root_bounds", activeRoot?.let { Rect().also(it::getBoundsInScreen).toShortString() } ?: JSONObject.NULL)
+        } finally { activeRoot?.recycle() }
         val labels = JSONObject()
-        for (text in listOf("Modules", "Sign out of your account", "More", "Settings")) {
+        for (text in listOf("Modules", "Sign out of your account", "More", "Settings", "Dashboard", "Your finances", "Profile")) {
             val matches = org.json.JSONArray()
             val seen = mutableSetOf<String>()
             for (match in 0 until 8) {
@@ -97,6 +102,8 @@ class ReleaseApkBlackBoxTest {
             requireCode(logoutQa(report, QA_ADMIN_EMAIL), "NAVIGATION_RECOVERY_LOGOUT_FAILED")
             report.put("native_logout", true).put("stage", "passed").put("cleanup_pending", false)
         } catch (failure: Throwable) {
+            recordUiFlags(report)
+            report.put("admin_identity_seen", runCatching { hasText(QA_ADMIN_EMAIL) }.getOrDefault(false))
             report.put("stage", "failed").put("failure_code", safeFailure(failure))
             throw AssertionError(safeFailure(failure))
         } finally { writeReport(run, "navigation-recovery", report) }
