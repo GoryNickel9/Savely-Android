@@ -16,7 +16,10 @@ import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
@@ -878,7 +881,8 @@ class FinanceScreenTest {
 
     private fun selectTransactionDate(label: String, date: LocalDate) {
         scrollFinanceNode(hasText("$label: ", substring = true)).performClick()
-        onView(isAssignableFrom(DatePicker::class.java)).perform(object : ViewAction {
+        compose.waitForIdle()
+        onView(isAssignableFrom(DatePicker::class.java)).inRoot(isDialog()).check(matches(isDisplayed())).perform(object : ViewAction {
             override fun getConstraints(): Matcher<View> = isAssignableFrom(DatePicker::class.java)
             override fun getDescription() = "Select the exact synthetic transaction boundary $date"
             override fun perform(controller: UiController, view: View) {
@@ -886,7 +890,7 @@ class FinanceScreenTest {
                 controller.loopMainThreadUntilIdle()
             }
         })
-        onView(withId(android.R.id.button1)).perform(click())
+        onView(withId(android.R.id.button1)).inRoot(isDialog()).check(matches(isDisplayed())).perform(click())
         compose.waitForIdle()
         scrollFinanceNode(hasText("$label: $date"))
     }
