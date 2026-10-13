@@ -1588,7 +1588,24 @@ class ReleaseApkBlackBoxTest {
         }
         // Fixed tokens and offsets only; never persist raw accessibility text.
         report.put("dashboard_token_offsets", positions).put("dashboard_nodes_read", visited)
-        return financeDashboardAmountsMatch(text.toString())
+        val matched = financeDashboardAmountsMatch(text.toString())
+        val balanceVisible = positions.getInt("Total balance") >= 0
+        val expensesVisible = positions.getInt("Expenses") >= 0
+        if (!matched && balanceVisible != expensesVisible && report.optInt("dashboard_scroll_attempts") < 12) {
+            val container = find {
+                val bounds = Rect().also(it::getBoundsInScreen)
+                it.isScrollable && visible(it) && bounds.height() > bounds.width()
+            }
+            val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+            container?.recycle()
+            if (bounds != null) {
+                val height = minOf(360, bounds.height() / 2)
+                val shortArea = Rect(bounds.left, bounds.centerY() - height / 2, bounds.right, bounds.centerY() + height / 2)
+                swipe(!balanceVisible, shortArea, avoidFling = true)
+                report.put("dashboard_scroll_attempts", report.optInt("dashboard_scroll_attempts") + 1)
+            }
+        }
+        return matched
     }
 
     private fun financeDashboardAmountsMatch(text: String): Boolean {
@@ -2044,7 +2061,7 @@ class ReleaseApkBlackBoxTest {
         }
     }
 
-    private fun swipe(backwards: Boolean, bounds: Rect? = null) {
+    private fun swipe(backwards: Boolean, bounds: Rect? = null, avoidFling: Boolean = false) {
         val window = bounds ?: automation.rootInActiveWindow?.let { node ->
             try { Rect().also(node::getBoundsInScreen) } finally { node.recycle() }
         } ?: throw IllegalStateException("SCROLL_WINDOW_MISSING")
@@ -2053,11 +2070,14 @@ class ReleaseApkBlackBoxTest {
         val x = window.exactCenterX()
         val from = window.top + window.height() * if (backwards) 0.15f else 0.85f
         val to = window.top + window.height() * if (backwards) 0.85f else 0.15f
-        for (index in 0..12) {
-            val action = when (index) { 0 -> MotionEvent.ACTION_DOWN; 12 -> MotionEvent.ACTION_UP; else -> MotionEvent.ACTION_MOVE }
-            val event = MotionEvent.obtain(start, start + index * 20L, action, x, from + (to - from) * index / 12, 0)
+        val steps = if (avoidFling) 20 else 12
+        for (index in 0..steps) {
+            val action = when (index) { 0 -> MotionEvent.ACTION_DOWN; steps -> MotionEvent.ACTION_UP; else -> MotionEvent.ACTION_MOVE }
+            val time = if (avoidFling) SystemClock.uptimeMillis() else start + index * 20L
+            val event = MotionEvent.obtain(start, time, action, x, from + (to - from) * minOf(index, 12) / 12, 0)
             event.source = InputDevice.SOURCE_TOUCHSCREEN
             try { requireCode(automation.injectInputEvent(event, true), "SCROLL_REJECTED") } finally { event.recycle() }
+            if (avoidFling && index < steps) SystemClock.sleep(20)
         }
     }
 
