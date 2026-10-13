@@ -199,7 +199,7 @@ class ReleaseApkBlackBoxTest {
             // Admin feedback follows the whole user list; never rewind that list while seeking it.
             val offscreen = find { label(it, setOf(message)) }
             if (offscreen != null) {
-                try { offscreen.performAction(AccessibilityNodeInfo.ACTION_SHOW_ON_SCREEN) } finally { offscreen.recycle() }
+                try { offscreen.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id) } finally { offscreen.recycle() }
                 SystemClock.sleep(250)
                 if (hasText(message)) return
             }
