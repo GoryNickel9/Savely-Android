@@ -138,6 +138,72 @@ class AuthSecurityTest {
         assertEquals(previous, store.load())
     }
 
+    @Test fun lostRevocationResponsePreservesCurrentOwnerWithoutRetryOrExtraLogout() = runBlocking {
+        val previous = session().also(store::save)
+        api.session()
+        val revision = requireNotNull(api.sessionOwnerRevision())
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        try {
+            withTimeout(5_000) { api.revokeSession(SID, expectedOwner = USER, expectedRevision = revision) }
+            fail("Expected lost response")
+        } catch (failure: ApiException) { assertEquals(ApiError.NETWORK, failure.kind) }
+        val request = requireNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+        assertEquals("POST", request.method)
+        assertEquals("/rest/v1/rpc/delete_session", request.path)
+        assertEquals("Bearer ${previous.accessToken}", request.getHeader("Authorization"))
+        assertEquals(SID, JSONObject(request.body.readUtf8()).getString("p_session_id"))
+        assertEquals(previous, store.load())
+        assertEquals(revision, api.sessionOwnerRevision())
+        assertNull(api.sessionInvalidation.value)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun staleRevocationCannotDispatchForAReplacementLoginOfSameOrAnotherUser() = runBlocking {
+        for (replacementUser in listOf(USER, OTHER_USER)) {
+            val previous = session().also(store::save)
+            api.session()
+            val revision = requireNotNull(api.sessionOwnerRevision())
+            val replacement = session(OTHER_SID, replacementUser).also(store::save)
+            try {
+                api.revokeSession(SID, expectedOwner = previous.userId, expectedRevision = revision)
+                fail("Expected changed owner")
+            } catch (failure: ApiException) { assertEquals(ApiError.PERMISSION, failure.kind) }
+            assertEquals(replacement, store.load())
+            assertEquals(replacement, api.session())
+            assertFalse(api.isSessionOwnerCurrent(revision))
+            assertNull(api.sessionInvalidation.value)
+        }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun lateSuccessfulRevocationCannotClearAReplacementLoginOfSameOrAnotherUser() = runBlocking {
+        for (replacementUser in listOf(USER, OTHER_USER)) {
+            val previous = session().also(store::save)
+            api.session()
+            val revision = requireNotNull(api.sessionOwnerRevision())
+            val replacement = session(OTHER_SID, replacementUser)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    store.save(replacement)
+                    return json("null")
+                }
+            }
+            try {
+                api.revokeSession(SID, expectedOwner = previous.userId, expectedRevision = revision)
+                fail("Expected changed owner")
+            } catch (failure: ApiException) { assertEquals(ApiError.PERMISSION, failure.kind) }
+            val request = requireNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+            assertEquals("POST", request.method)
+            assertEquals("/rest/v1/rpc/delete_session", request.path)
+            assertEquals("Bearer ${previous.accessToken}", request.getHeader("Authorization"))
+            assertEquals(SID, JSONObject(request.body.readUtf8()).getString("p_session_id"))
+            assertEquals(replacement, store.load())
+            assertNull(api.sessionInvalidation.value)
+            assertFalse(api.isSessionOwnerCurrent(revision))
+        }
+        assertEquals(2, server.requestCount)
+    }
+
     @Test fun refreshForExplicitlyBannedOrMissingUserClearsSessionAndRequiresAuthentication() = runBlocking {
         for (code in listOf("user_banned", "user_not_found")) for (status in listOf(400, 403)) {
             store.save(session().copy(expiresAt = 1))
