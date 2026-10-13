@@ -43,7 +43,7 @@ fun AdminScreen(api: SupabaseApi) {
     suspend fun refresh() {
         val owner = api.session() ?: throw ApiException(ApiError.PERMISSION, "Accedi di nuovo.")
         val revision = api.sessionOwnerRevision(owner) ?: throw ApiException(ApiError.PERMISSION, "Accedi di nuovo.")
-        if (api.permissions()["admin"] != true) {
+        if (api.permissions(expectedOwner = owner.userId, expectedRevision = revision)["admin"] != true) {
             throw ApiException(ApiError.PERMISSION, "Sono necessari i permessi di amministratore.")
         }
         val freshUsers = api.webPost("/api/admin", JSONObject().put("action", "get-users"),
@@ -125,7 +125,8 @@ fun AdminScreen(api: SupabaseApi) {
         }, confirmButton = { TextButton({ run {
             val (owner, revision) = actionOwner()
             val userId = user.getString("user_id")
-            val profiles = api.select("profiles", "select=id,permissions&user_id=eq.$userId")
+            val profiles = api.select("profiles", "select=id,permissions&user_id=eq.$userId",
+                expectedOwner = owner, expectedRevision = revision)
             // RLS may return [] rather than 403 if the role disappeared during the target read.
             actionOwner()
             require(profiles.length() == 1) { "Profilo utente non disponibile." }
