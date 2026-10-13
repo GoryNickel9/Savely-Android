@@ -1,6 +1,7 @@
 package cc.savely.android.transfer
 
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
@@ -8,6 +9,7 @@ import cc.savely.android.data.SupabaseApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -49,8 +51,8 @@ class TransferExportSessionTest {
     @Test fun preparedCsvCannotBeSavedAfterSameUidStartsANewSession(): Unit = runBlocking {
         Fixture().use { fixture ->
             val models = ViewModelStore()
+            val model = TransferViewModel(fixture.api).also { models.put("export", it) }
             try {
-                val model = TransferViewModel(fixture.api).also { models.put("export", it) }
                 model.prepareExport()
                 val prepared = withTimeout(10_000) { model.state.first { !it.busy } }
                 val exported = requireNotNull(prepared.export)
@@ -65,7 +67,7 @@ class TransferExportSessionTest {
                 assertEquals(0, writes.get())
                 assertEquals(requestsBefore, fixture.requests.size)
                 assertEquals(0, fixture.denied.get())
-            } finally { models.clear() }
+            } finally { clearAndJoin(models, model) }
         }
     }
 
@@ -88,8 +90,8 @@ class TransferExportSessionTest {
     @Test fun freshViewModelPickerCallbackWithoutCsvDiscardsOnceAndNeverReadsOrWrites(): Unit = runBlocking {
         Fixture().use { fixture ->
             val models = ViewModelStore()
+            val model = TransferViewModel(fixture.api).also { models.put("restored-export", it) }
             try {
-                val model = TransferViewModel(fixture.api).also { models.put("restored-export", it) }
                 val discards = AtomicInteger()
                 val writes = AtomicInteger()
                 model.saveExport(discardUnwritten = { discards.incrementAndGet(); ExportDiscardResult.REMOVED }) { writes.incrementAndGet() }
@@ -101,15 +103,15 @@ class TransferExportSessionTest {
                 assertEquals(1, discards.get())
                 assertEquals(0, writes.get())
                 assertTrue(fixture.requests.isEmpty())
-            } finally { models.clear() }
+            } finally { clearAndJoin(models, model) }
         }
     }
 
     @Test fun missingCsvAndFailedDiscardExplainBothErrorsWithoutExposingProviderDetails(): Unit = runBlocking {
         Fixture().use { fixture ->
             val models = ViewModelStore()
+            val model = TransferViewModel(fixture.api).also { models.put("restored-export", it) }
             try {
-                val model = TransferViewModel(fixture.api).also { models.put("restored-export", it) }
                 val writes = AtomicInteger()
                 model.saveExport(discardUnwritten = { throw IOException("Private provider URI must not appear") }) { writes.incrementAndGet() }
                 val failed = withTimeout(10_000) { model.state.first { !it.busy } }
@@ -118,7 +120,7 @@ class TransferExportSessionTest {
                 assertNull(failed.export)
                 assertEquals(0, writes.get())
                 assertTrue(fixture.requests.isEmpty())
-            } finally { models.clear() }
+            } finally { clearAndJoin(models, model) }
         }
     }
 
@@ -126,8 +128,8 @@ class TransferExportSessionTest {
         Fixture().use { fixture ->
             val models = ViewModelStore()
             val readGate = CompletableDeferred<String>()
+            val model = TransferViewModel(fixture.api).also { models.put("export", it) }
             try {
-                val model = TransferViewModel(fixture.api).also { models.put("export", it) }
                 model.prepare({ readGate.await() }, ImportFormat.NORMALIZED, "EUR")
                 assertTrue(model.state.value.busy)
                 val writes = AtomicInteger()
@@ -137,15 +139,17 @@ class TransferExportSessionTest {
                 assertTrue(rejected.busy)
                 assertEquals(0, writes.get())
                 assertTrue(fixture.requests.isEmpty())
-            } finally { models.clear(); readGate.cancel() }
+            } finally {
+                try { clearAndJoin(models, model) } finally { readGate.cancel() }
+            }
         }
     }
 
     @Test fun sessionChangesAfterCompletedWriteNeverDiscardTheWrittenCsv(): Unit = runBlocking {
         Fixture().use { fixture ->
             val models = ViewModelStore()
+            val model = TransferViewModel(fixture.api).also { models.put("export", it) }
             try {
-                val model = TransferViewModel(fixture.api).also { models.put("export", it) }
                 model.prepareExport()
                 val ready = withTimeout(10_000) { model.state.first { !it.busy } }
                 val exported = requireNotNull(ready.export)
@@ -171,15 +175,15 @@ class TransferExportSessionTest {
                 assertFalse(rejected.message.orEmpty().startsWith("CSV salvato:"))
                 assertEquals(reads, fixture.requests.size)
                 assertTrue(fixture.requests.all { it.method == "GET" })
-            } finally { models.clear() }
+            } finally { clearAndJoin(models, model) }
         }
     }
 
     @Test fun staleCallbackWithoutPendingRequestCannotWriteEvenWhenCsvIsPrepared(): Unit = runBlocking {
         Fixture().use { fixture ->
             val models = ViewModelStore()
+            val model = TransferViewModel(fixture.api).also { models.put("export", it) }
             try {
-                val model = TransferViewModel(fixture.api).also { models.put("export", it) }
                 model.prepareExport()
                 val ready = withTimeout(10_000) { model.state.first { !it.busy } }
                 assertNotNull(ready.export)
@@ -191,8 +195,15 @@ class TransferExportSessionTest {
                 assertEquals(0, writes.get())
                 assertEquals(reads, fixture.requests.size)
                 assertEquals(ready.export, failed.export)
-            } finally { models.clear() }
+            } finally { clearAndJoin(models, model) }
         }
+    }
+
+    private suspend fun clearAndJoin(models: ViewModelStore, model: TransferViewModel) {
+        val job = requireNotNull(model.viewModelScope.coroutineContext[Job])
+        models.clear()
+        // IO cancellation must return to Main before the fixture closes and resetMain unsets it.
+        withTimeout(10_000) { job.join() }
     }
 
     private class Fixture : AutoCloseable {
