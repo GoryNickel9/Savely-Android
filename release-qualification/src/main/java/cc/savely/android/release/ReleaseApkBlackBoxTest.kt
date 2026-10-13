@@ -1468,7 +1468,7 @@ class ReleaseApkBlackBoxTest {
         try {
             while (queue.isNotEmpty() && visited++ < 200) {
                 val node = queue.removeFirst()
-                text.append(node.text.orEmpty()).append('\n')
+                text.append(node.text?.toString().orEmpty()).append('\n')
                 for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
                 node.recycle()
             }
