@@ -226,6 +226,8 @@ class ReleaseApkBlackBoxTest {
     private fun adminPermission(label: String, before: Boolean, after: Boolean) {
         requireCode(hasText("Save permissions") && hasText(QA_EMAIL_B), "ADMIN_TARGET_DIALOG_INVALID")
         val heading = seekLabel(setOf(label), "ADMIN_PERMISSION_LABEL_MISSING", scroll = true)
+        val headingBounds = Rect().also(heading::getBoundsInScreen)
+        requireCode(!headingBounds.isEmpty, "ADMIN_PERMISSION_LABEL_BOUNDS_INVALID")
         var container: AccessibilityNodeInfo? = heading
         try {
             repeat(8) {
@@ -238,7 +240,11 @@ class ReleaseApkBlackBoxTest {
                 try {
                     while (queue.isNotEmpty() && visited++ < 128) {
                         val node = queue.removeFirst()
-                        if (node.isCheckable) { count++; if (checkbox == null) checkbox = AccessibilityNodeInfo.obtain(node) }
+                        val bounds = Rect().also(node::getBoundsInScreen)
+                        // Compose exposes these rows as siblings in one column; bind by the label's own vertical row.
+                        if (node.isCheckable && bounds.top <= headingBounds.centerY() && bounds.bottom > headingBounds.centerY()) {
+                            count++; if (checkbox == null) checkbox = AccessibilityNodeInfo.obtain(node)
+                        }
                         for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
                         node.recycle()
                     }
