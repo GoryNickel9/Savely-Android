@@ -40,6 +40,7 @@ class ReleaseApkBlackBoxTest {
         requireNewNavigationReport(run, "navigation-diagnostic")
         val report = baseReport(run, 14, "navigation-diagnostic").put("user_id", user)
             .put("login_run_id", loginRun).put("failed_run_id", failedRun)
+            .put("failed_phase", InstrumentationRegistry.getArguments().getString("releaseQualificationFailurePhase") ?: "navigation-routes")
         val activeRoot = automation.rootInActiveWindow
         try {
             report.put("active_root_is_target", activeRoot?.packageName?.toString() == TARGET)
@@ -89,9 +90,11 @@ class ReleaseApkBlackBoxTest {
         requireNewNavigationReport(run, "navigation-recovery")
         val report = baseReport(run, 14, "navigation-recovery").put("user_id", user)
             .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("cleanup_pending", true)
+            .put("failed_phase", InstrumentationRegistry.getArguments().getString("releaseQualificationFailurePhase") ?: "navigation-routes")
         // Reserve before any UI action; an interrupted recovery must not replay this run's logout.
         writeReport(run, "navigation-recovery-reservation", JSONObject().put("run_id", run).put("user_id", user)
-            .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("stage", "reserved"))
+            .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("stage", "reserved")
+            .put("failed_phase", InstrumentationRegistry.getArguments().getString("releaseQualificationFailurePhase") ?: "navigation-routes"))
         try {
             report.put("pid", launch())
             await("NAVIGATION_RECOVERY_UI_NOT_READY") { navigationDrawerOpen() || navigationBottomReady() }
@@ -116,14 +119,18 @@ class ReleaseApkBlackBoxTest {
         val user = dedicatedQaAccount().first
         val loginRun = navigationLogin(user)
         val failedRun = InstrumentationRegistry.getArguments().getString("releaseQualificationFailureRunId").orEmpty()
+        val failedPhase = InstrumentationRegistry.getArguments().getString("releaseQualificationFailurePhase") ?: "navigation-routes"
+        requireCode(failedPhase in setOf("navigation-routes", "couple-logout"), "NAVIGATION_RECOVERY_PHASE_INVALID")
         requireCode(runCatching { UUID.fromString(failedRun).toString() == failedRun }.getOrDefault(false) &&
-            run != loginRun && run != failedRun && loginRun != failedRun,
+            run != loginRun && run != failedRun &&
+            (if (failedPhase == "couple-logout") failedRun == loginRun else failedRun != loginRun),
             "NAVIGATION_RECOVERY_REFERENCES_INVALID")
-        val failed = readJson("release-qualification-$failedRun-navigation-routes.json", 16_384)
-        requireCode(failed.optString("run_id") == failedRun && failed.optString("phase") == "navigation-routes" &&
+        val failed = readJson("release-qualification-$failedRun-$failedPhase.json", 16_384)
+        requireCode(failed.optString("run_id") == failedRun && failed.optString("phase") == failedPhase &&
             failed.optString("stage") == "failed" && failed.optString("user_id") == user &&
             failed.optInt("target_code") == 14 && failed.optString("target_package") == TARGET &&
-            failed.optString("login_run_id") == loginRun && failed.optString("failure_code").matches(Regex("[A-Z_]{3,80}")),
+            (failedPhase == "couple-logout" || failed.optString("login_run_id") == loginRun) &&
+            failed.optBoolean("cleanup_pending") && failed.optString("failure_code").matches(Regex("[A-Z_]{3,80}")),
             "NAVIGATION_RECOVERY_FAILURE_INVALID")
         return loginRun to failedRun
     }
@@ -1160,7 +1167,7 @@ class ReleaseApkBlackBoxTest {
         val report = baseReport(run, code, "couple-logout").put("user_id", user)
         try {
             report.put("pid", launch())
-            clickLabel(setOf("Settings", "Impostazioni"), "SETTINGS_NAVIGATION_MISSING")
+            openSettings()
             scrollAccountToTop()
             await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
             requireEmail(email)
