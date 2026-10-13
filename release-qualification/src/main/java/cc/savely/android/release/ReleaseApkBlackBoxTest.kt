@@ -1238,6 +1238,9 @@ class ReleaseApkBlackBoxTest {
                 op == "dashboard-check" -> {
                     await("FINANCE_DASHBOARD_MISSING") { hasDashboardContent() }
                     report.put("dashboard_content", true)
+                    seekLabel(setOf("Statistics EUR"), "FINANCE_DASHBOARD_STATISTICS_MISSING", true).recycle()
+                    await("FINANCE_DASHBOARD_TOTALS_MISMATCH") { financeDashboardTotals() }
+                    report.put("eur_income", "0.06").put("eur_expense", "0.02").put("eur_balance", "0.04")
                     // Both isolated descriptions must be visible among the refreshed recent transactions.
                     seekLabel(setOf(income), "FINANCE_DASHBOARD_INCOME_MISSING", true).recycle()
                     seekLabel(setOf(expense), "FINANCE_DASHBOARD_EXPENSE_MISSING", true).recycle()
@@ -1454,6 +1457,30 @@ class ReleaseApkBlackBoxTest {
             SystemClock.sleep(250)
         }
         throw IllegalStateException("FINANCE_CURRENCY_MISSING")
+    }
+
+    private fun financeDashboardTotals(): Boolean {
+        val card = find { label(it, setOf("Statistics EUR")) && visible(it) } ?: return false
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(card)
+        val text = StringBuilder()
+        var visited = 0
+        try {
+            while (queue.isNotEmpty() && visited++ < 200) {
+                val node = queue.removeFirst()
+                text.append(node.text.orEmpty()).append('\n')
+                for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
+                node.recycle()
+            }
+        } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+        val expected = listOf("0.06", "0.02", "0.04").map { amount ->
+            java.text.NumberFormat.getCurrencyInstance(java.util.Locale.ITALY).apply {
+                currency = java.util.Currency.getInstance("EUR")
+                minimumFractionDigits = 2; maximumFractionDigits = 2
+                roundingMode = java.math.RoundingMode.HALF_UP
+            }.format(java.math.BigDecimal(amount))
+        }
+        return expected.all { it in text }
     }
 
     private fun financeSetField(field: String, value: String) {
