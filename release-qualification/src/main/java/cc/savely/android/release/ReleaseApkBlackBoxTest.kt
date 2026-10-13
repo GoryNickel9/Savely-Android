@@ -1473,7 +1473,7 @@ class ReleaseApkBlackBoxTest {
     private fun financeTop() {
         hideKeyboardIfShown()
         repeat(24) {
-            if (hasText("Search description or category") || hasText("New category") || hasText("New budget")) return
+            if (hasDashboardContent() || hasText("Search description or category") || hasText("New category") || hasText("New budget")) return
             val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
             val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
             val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } } ?: false
