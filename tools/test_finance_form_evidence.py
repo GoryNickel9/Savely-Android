@@ -421,6 +421,57 @@ class FinanceFormEvidenceTest(unittest.TestCase):
         self.reject("JOURNAL_RESERVATION_INVALID", lambda: self.ledger.observe("expense-category-create"))
         self.assertEqual(0, len(self.sql.value["records"]["categories"]) - 1)
 
+    def detach_without_category_patch(self):
+        self.sql.tick += 1
+        row = next(row for row in self.sql.value["records"]["transactions"] if row["id"] == CREATED["expense"])
+        row.update(category_id=None, updated_at=self.sql.clock())
+        return row
+
+    def test_partial_category_removal_adopts_only_confirmed_expense_detach_and_blocks_all_new_writes(self):
+        self.advance("expense-category-rename")
+        self.ledger.reserve("expense-category-soft-delete")
+        self.detach_without_category_patch()
+        result = self.ledger.recovery_read("expense-category-soft-delete")
+        self.assertEqual("partial", result["status"])
+        registry = result["registry"]
+        self.assertIsNone(registry["expense"]["row"]["category_id"])
+        self.assertIsNone(registry["expense-category"]["row"]["deleted_at"])
+        self.assertEqual(CREATED["expense-category"], registry["budget"]["row"]["category_id"])
+        self.assertEqual(CREATED["income-category"], registry["income"]["row"]["category_id"])
+        self.assertEqual(registry, self.ledger.history()[2])
+        self.assertEqual(5, len(self.ledger.cleanup_candidates()))
+        self.reject("RECOVERY_TERMINAL_NO_NEW_WRITES", lambda: self.ledger.reserve("expense-delete"))
+        self.assertFalse(self.ledger.path("checkpoint-completed-observed").exists())
+
+    def test_partial_category_removal_refuses_extra_delta_or_a_detach_timestamp_before_reservation(self):
+        for variant in ("income", "budget", "baseline", "category", "timestamp"):
+            with self.subTest(variant=variant):
+                with tempfile.TemporaryDirectory() as directory:
+                    sql = FakeSql()
+                    ledger = finance.FinanceFormEvidence(RUN, sql, root=Path(directory))
+                    ledger.preflight(); sql.login(); ledger.checkpoint("ready")
+                    for op in finance.OPS[:9]:
+                        ledger.reserve(op); sql.mutate(op, ledger.marker); ledger.observe(op)
+                    ledger.reserve("expense-category-soft-delete")
+                    sql.tick += 1
+                    expense = next(row for row in sql.value["records"]["transactions"] if row["id"] == CREATED["expense"])
+                    prior_time = expense["updated_at"]
+                    expense.update(category_id=None, updated_at=sql.clock())
+                    if variant == "income":
+                        next(row for row in sql.value["records"]["transactions"] if row["id"] == CREATED["income"])["category_id"] = None
+                    elif variant == "budget":
+                        next(row for row in sql.value["records"]["budgets"] if row["id"] == CREATED["budget"])["amount"] = "5.00"
+                    elif variant == "baseline":
+                        sql.value["records"]["transactions"][0]["category_id"] = None
+                    elif variant == "category":
+                        next(row for row in sql.value["records"]["categories"] if row["id"] == CREATED["expense-category"])["color"] = "#ffffff"
+                    else:
+                        expense["updated_at"] = prior_time
+                    with self.assertRaises(finance.EvidenceError):
+                        ledger.recovery_read("expense-category-soft-delete")
+                    self.assertFalse(ledger.path("expense-category-soft-delete-recovery-observed").exists())
+                    self.reject("RECOVERY_UNCERTAIN_NO_REPLAY", ledger.cleanup_candidates)
+
 
 if __name__ == "__main__":
     unittest.main()

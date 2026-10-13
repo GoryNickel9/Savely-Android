@@ -144,6 +144,21 @@ def _payload(row, expected):
             need(row[key] == wanted, "OWNED_PAYLOAD_CHANGED")
 
 
+def _detach_prefix(before, after, registry):
+    """Only the first confirmed write of expense category removal, never an arbitrary partial payload."""
+    result = copy.deepcopy(registry)
+    category, tx = result["expense-category"], result["expense"]
+    need(not category["removed"] and category["row"]["deleted_at"] is None and not tx["removed"] and
+         tx["row"]["category_id"] == category["row"]["id"], "PARTIAL_DETACH_PREIMAGE_INVALID")
+    row = next((item for item in after["records"]["transactions"] if item["id"] == tx["row"]["id"]), None)
+    need(row is not None, "PARTIAL_DETACH_ROW_MISSING")
+    _payload(row, {**tx["row"], "category_id": None, "updated_at": row["updated_at"]})
+    need(instant(before["now"]) <= instant(row["updated_at"]) <= instant(after["now"]),
+         "PARTIAL_DETACH_WINDOW_INVALID")
+    tx["row"] = copy.deepcopy(row)
+    return result
+
+
 def _apply(op, before, after, registry, marker):
     """Accept one fixed transition, including category deletion's one owned TX detach."""
     next_registry = copy.deepcopy(registry)
@@ -326,7 +341,7 @@ class FinanceFormEvidence:
             proof = self.read(op + ("-recovery-observed" if recovered else "-observed"))
             need(reservation.get("status") == "reserved" and reservation.get("op") == op and
                  reservation.get("registry") == registry and proof.get("status") in
-                 (("applied", "cancelled") if recovered else ("observed",)) and proof.get("op") == op,
+                 (("applied", "cancelled", "partial") if recovered else ("observed",)) and proof.get("op") == op,
                  "JOURNAL_PROOF_INVALID")
             if recovered:
                 recovery_proof = self.read(op + "-recovery-reservation")
@@ -342,6 +357,9 @@ class FinanceFormEvidence:
             if proof.get("status") == "cancelled":
                 need(instant(after["now"]) >= instant(before["now"]), "DATABASE_CLOCK_REVERSED")
                 _unchanged_records(base, after, registry)
+            elif proof.get("status") == "partial":
+                need(op == "expense-category-soft-delete", "PARTIAL_OPERATION_INVALID")
+                registry = _detach_prefix(before, after, registry)
             else:
                 registry = _apply(op, before, after, registry, self.marker)
             _unchanged_records(base, after, registry)
@@ -439,8 +457,14 @@ class FinanceFormEvidence:
                 _unchanged_records(base, after, adopted)
                 status = "applied"
             except EvidenceError:
-                _unchanged_records(base, after, registry)
-                adopted, status = copy.deepcopy(registry), "cancelled"
+                try:
+                    _unchanged_records(base, after, registry)
+                    adopted, status = copy.deepcopy(registry), "cancelled"
+                except EvidenceError:
+                    need(op == "expense-category-soft-delete", "BASELINE_OR_UNRESERVED_RECORD_CHANGED")
+                    adopted = _detach_prefix(before, after, registry)
+                    _unchanged_records(base, after, adopted)
+                    status = "partial"
             self.save(op + "-recovery-observed", {"status": status, "op": op, "snapshot": after, "registry": adopted})
             return {"status": status, "registry": copy.deepcopy(adopted)}
         except Exception as error:
