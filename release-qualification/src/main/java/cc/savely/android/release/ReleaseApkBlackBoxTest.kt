@@ -33,6 +33,101 @@ class ReleaseApkBlackBoxTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
+    @Test fun navigationFixedTargetDiagnostic() {
+        val run = preflight(14)
+        val (loginRun, failedRun) = navigationRecoveryReferences(run)
+        requireNewNavigationReport(run, "navigation-diagnostic")
+        val report = baseReport(run, 14, "navigation-diagnostic").put("user_id", QA_ADMIN_USER)
+            .put("login_run_id", loginRun).put("failed_run_id", failedRun)
+        val labels = JSONObject()
+        for (text in listOf("Modules", "Sign out of your account", "More", "Settings")) {
+            val matches = org.json.JSONArray()
+            val seen = mutableSetOf<String>()
+            for (match in 0 until 8) {
+                val node = find {
+                    label(it, setOf(text)) && "${it.windowId}:${it.className}:${it.isClickable}:${Rect().also(it::getBoundsInScreen).toShortString()}" !in seen
+                } ?: break
+                seen.add("${node.windowId}:${node.className}:${node.isClickable}:${Rect().also(node::getBoundsInScreen).toShortString()}")
+                val values = org.json.JSONArray()
+                var current: AccessibilityNodeInfo? = node
+                try {
+                    repeat(8) {
+                        val parent = current ?: return@repeat
+                        values.put(JSONObject().put("class", parent.className?.toString().orEmpty())
+                            .put("bounds", Rect().also(parent::getBoundsInScreen).toShortString())
+                            .put("scrollable", parent.isScrollable).put("clickable", parent.isClickable)
+                            .put("visible", visible(parent)).put("enabled", parent.isEnabled)
+                            .put("child_count", parent.childCount)
+                            .put("pane_title_known", Build.VERSION.SDK_INT >= 28 && parent.paneTitle?.toString() == "Navigation menu"))
+                        current = parent.parent
+                        parent.recycle()
+                    }
+                } finally { current?.recycle() }
+                matches.put(values)
+            }
+            labels.put(text, matches)
+        }
+        report.put("labels", labels).put("stage", "observed").put("back_injected", false)
+        if (InstrumentationRegistry.getArguments().getString("navigationDiagnosticCloseDrawer") == "true") {
+            requireTargetActiveWindow()
+            navigationBack()
+            report.put("back_injected", true)
+        }
+        writeReport(run, "navigation-diagnostic", report)
+    }
+
+    @Test fun recoverDedicatedQaNavigationLogout() {
+        val run = preflight(14)
+        val (loginRun, failedRun) = navigationRecoveryReferences(run)
+        requireNewNavigationReport(run, "navigation-recovery")
+        val report = baseReport(run, 14, "navigation-recovery").put("user_id", QA_ADMIN_USER)
+            .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("cleanup_pending", true)
+        // Reserve before any UI action; an interrupted recovery must not replay this run's logout.
+        writeReport(run, "navigation-recovery-reservation", JSONObject().put("run_id", run).put("user_id", QA_ADMIN_USER)
+            .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("stage", "reserved"))
+        try {
+            report.put("pid", launch())
+            requireTargetActiveWindow()
+            navigationBack()
+            openSettings(englishOnly = true)
+            requireEmail(QA_ADMIN_EMAIL)
+            awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true)
+            requireCode(logoutQa(report, QA_ADMIN_EMAIL), "NAVIGATION_RECOVERY_LOGOUT_FAILED")
+            report.put("native_logout", true).put("stage", "passed").put("cleanup_pending", false)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, "navigation-recovery", report) }
+    }
+
+    private fun navigationRecoveryReferences(run: String): Pair<String, String> {
+        requireCode(dedicatedQaAccount().first == QA_ADMIN_USER, "NAVIGATION_RECOVERY_OWNER_INVALID")
+        val loginRun = navigationLogin(QA_ADMIN_USER)
+        val failedRun = InstrumentationRegistry.getArguments().getString("releaseQualificationFailureRunId").orEmpty()
+        requireCode(loginRun == "8cbd83e2-c302-4e12-948f-6585dd3d2912" &&
+            failedRun == "e5835b0c-303f-4db9-8d3d-72c3a1a8081c" && run != loginRun && run != failedRun,
+            "NAVIGATION_RECOVERY_REFERENCES_INVALID")
+        val failed = readJson("release-qualification-$failedRun-navigation-routes.json", 16_384)
+        requireCode(failed.optString("run_id") == failedRun && failed.optString("stage") == "failed" && failed.optString("user_id") == QA_ADMIN_USER &&
+            failed.optInt("target_code") == 14 && failed.optString("target_package") == TARGET &&
+            failed.optString("login_run_id") == loginRun && failed.optString("failure_code") == "NAVIGATION_DRAWER_MISSING",
+            "NAVIGATION_RECOVERY_FAILURE_INVALID")
+        return loginRun to failedRun
+    }
+
+    private fun requireNewNavigationReport(run: String, phase: String) {
+        val file = privateFile("release-qualification-$run-$phase.json")
+        requireCode(!file.exists() && !File(file.path + ".bak").exists() && !File(file.path + ".new").exists(),
+            "NAVIGATION_RECOVERY_REPORT_ALREADY_EXISTS")
+    }
+
+    private fun requireTargetActiveWindow() {
+        val root = automation.rootInActiveWindow ?: throw IllegalStateException("NAVIGATION_TARGET_WINDOW_MISSING")
+        try { requireCode(root.packageName?.toString() == TARGET, "NAVIGATION_TARGET_WINDOW_INVALID") }
+        finally { root.recycle() }
+    }
+
     @Test fun qualifyDedicatedQaNavigationRoutes() {
         val run = preflight(14)
         val (user, email) = dedicatedQaAccount()
