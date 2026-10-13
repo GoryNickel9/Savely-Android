@@ -254,8 +254,10 @@ private fun MainShellSession(model: AppViewModel, state: AppState, theme: String
             }
         }
     }
-    // The last enabled callback takes priority over NavHost while the drawer is open.
-    BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
+    // NavHost registers Back after its first entry; keep our callback after it on each entry.
+    key(backStack?.id) {
+        BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
+    }
 }
 
 @Composable
