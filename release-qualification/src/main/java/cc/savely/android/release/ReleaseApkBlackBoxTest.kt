@@ -1277,14 +1277,16 @@ class ReleaseApkBlackBoxTest {
                             hideKeyboardIfShown()
                             if (op.startsWith("income")) financeSelect("Type: Expense", "Income")
                             financeSubmit(run, phase, report)
-                            seekLabel(setOf(name), "FINANCE_CREATED_CATEGORY_MISSING", true).recycle()
+                            seekLabel(setOf("Edit $name"), "FINANCE_CREATED_CATEGORY_MISSING", true).recycle()
+                            seekLabel(setOf("Delete $name"), "FINANCE_CREATED_CATEGORY_MISSING", true).recycle()
                         }
                     } else if (op == "expense-category-rename") {
                         clickLabel(setOf("Edit $expense"), "FINANCE_EDIT_CONTROL_MISSING", true)
                         await("FINANCE_EDITOR_MISSING") { hasText("Edit item") }
                         financeSetField("Name", "$expense-renamed")
                         financeSubmit(run, phase, report)
-                        seekLabel(setOf("$expense-renamed"), "FINANCE_UPDATED_CATEGORY_MISSING", true).recycle()
+                        seekLabel(setOf("Edit $expense-renamed"), "FINANCE_UPDATED_CATEGORY_MISSING", true).recycle()
+                        seekLabel(setOf("Delete $expense-renamed"), "FINANCE_UPDATED_CATEGORY_MISSING", true).recycle()
                     } else {
                         val name = if (op.startsWith("income")) income else expenseCategory
                         clickLabel(setOf("Delete $name"), "FINANCE_DELETE_CONTROL_MISSING", true)
