@@ -1589,8 +1589,8 @@ class ReleaseApkBlackBoxTest {
         // Fixed tokens and offsets only; never persist raw accessibility text.
         report.put("dashboard_token_offsets", positions).put("dashboard_nodes_read", visited)
         val matched = financeDashboardAmountsMatch(text.toString())
-        val balanceVisible = positions.getInt("Total balance") >= 0
-        val expensesVisible = positions.getInt("Expenses") >= 0
+        val balanceVisible = positions.getInt("Total balance") >= 0 && positions.getInt("0,04 €") >= 0
+        val expensesVisible = positions.getInt("Expenses") >= 0 && positions.getInt("0,02 €") >= 0
         if (!matched && balanceVisible != expensesVisible && report.optInt("dashboard_scroll_attempts") < 12) {
             val container = find {
                 val bounds = Rect().also(it::getBoundsInScreen)
