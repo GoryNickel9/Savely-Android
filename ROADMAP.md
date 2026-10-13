@@ -1,12 +1,22 @@
 # Roadmap Savely Android
 
-## Stato corrente — qualifica sessioni locale 0.1.11-alpha
+## Stato corrente — qualifica Admin locale 0.1.12-alpha
+
+[D01](docs/ADMIN_FORM_QUALIFICATION.md) è **PASS LOCALE**: produzione `a104e8c`, release firmato code 13/SHA-256 `3e5252bb4c4ff0b3b7c1630c92598cd8d909c1e27b48077699c1fea33fc74bd6`. Un metodo nativo API 31/EN conclude undici checkpoint in 84,583 s. Annullamento, modifica/ripristino Fire, concessione temporanea del ruolo Admin a QA B, revoca del ruolo principale con cache/dialogo svuotati, ripristino e logout sono osservati. QA B è un client host con token in RAM, non un secondo telefono.
+
+Passano **545 JVM per variante debug/release**, 24 guardie host offline e **12/12 fixture Admin su ciascuna API 31/35**, in 49,164/54,507 s; lint zero errori, 32 warning e sei hint per variante. Le patch rileggono il ruolo prima delle azioni e della pubblicazione e vincolano le letture alla sessione. I primi tentativi del driver, il timeout JVM intermedio e tre esecuzioni UI bloccate sono conservati. La regola Compose standard passa i casi isolati e le suite finali; la causa precisa del blocco dei frame non è dimostrata. La correzione Finance riguarda solo la sincronizzazione della fixture.
+
+I tre profili QA tornano ai permessi iniziali; fattori/sessioni e attività nelle tabelle controllate sono zero, registrazioni disabilitate, emulatori spenti. **V01/R01/C01/C02/A04/A05/D01: sette righe chiuse nei rispettivi perimetri locali, 26 aperte.** La candidata resta locale; nessuna CI o pubblicazione. Non sono qualificati reset email, eliminazione utenti, toggle globale o tutti i flussi dell'app sul nuovo APK.
+
+Prossimo blocco autonomo: **V02**, navigazione e permessi, con cambio account e controllo dei dati visibili nelle destinazioni negate. La data della 1.0 dipende dalla chiusura della matrice.
+
+## Consuntivo precedente — qualifica sessioni locale 0.1.11-alpha
 
 [A05](docs/SESSION_FORM_QUALIFICATION.md) è **PASS LOCALE**: sul release firmato invariato code 12, un metodo nativo API 31/EN conclude nove checkpoint in 253,075 s. Annulla conserva entrambe le sessioni; la revoca singola dal form elimina il bersaglio e il suo refresh restituisce HTTP 400 `refresh_token_not_found`. La revoca corrente riporta l'app al login; una terza sessione host distinta continua a rinnovarsi con lo stesso UUID, poi il logout locale lascia zero fattori/sessioni QA. Proiezioni selezionate d'identità/profili invariate, registrazioni disabilitate e attività QA zero nelle tabelle controllate.
 
 Passano 543 JVM per variante debug/release e 7/7 fixture SettingsSecurity per API 31/35 in 32,511/56,665 s; lint zero errori, 32 warning e sei hint. Conservati il primo fallimento JVM, corretto nel teardown, e il crash Compose API 31 durante distruzione dell'Activity, con isolato e suite successiva sullo stesso APK superati. La causa definitiva del crash Compose resta non dimostrata. I client secondari sono host in RAM, non telefoni; il refresh diretto della sessione corrente già cancellata dallo store non viene esercitato. Nessuna nuova suite completa dell'app o parità globale.
 
-**Sei righe chiuse nei rispettivi perimetri locali, 27 aperte.** Produzione e versione 0.1.11-alpha invariate; nessuna CI o pubblicazione. Prossimo blocco autonomo: D01, permessi Admin sui soli utenti QA con rilettura e ripristino dei valori modificati.
+**Sei righe chiuse nei rispettivi perimetri locali, 27 aperte in quel consuntivo.** Produzione e versione 0.1.11-alpha invariate; nessuna CI o pubblicazione. Il successivo blocco D01 è consuntivato sopra.
 
 ## Consuntivo precedente — qualifica MFA locale 0.1.11-alpha
 

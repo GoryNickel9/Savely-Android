@@ -1,5 +1,15 @@
 # Verifica Savely Android
 
+## Form Admin — D01, candidata locale 0.1.12-alpha
+
+[Rapporto completo](ADMIN_FORM_QUALIFICATION.md). Release firmato source `a104e8c`, code 13/SHA-256 `3e5252bb4c4ff0b3b7c1630c92598cd8d909c1e27b48077699c1fea33fc74bd6`. Nel run `9a2988a8-8650-49d0-b424-ab99f837a14f` il driver `a2981ea` passa **un metodo nativo API 31/EN, undici checkpoint, 84,583 s**. Client QA B host in RAM; nessuna email, eliminazione account o modifica globale delle registrazioni.
+
+Build finale: **545 JVM debug e 545 release**, zero failure/error/skip; lint di entrambe zero errori, 32 warning e 6 hint. Ledger readonly `7fe24f1`: **24/24 offline in 22,304 s**. Fixture finale `96b7d93`, test APK SHA-256 `6370daf21839cc6dab86a97571fe0bd233328dda72d39f072be30e1e030e6b8e`: **12/12 Admin API 31 in 49,164 s e API 35 in 54,507 s**, zero failure/skip. Sono quattro casi precedenti e otto nuovi; non una nuova suite completa dell'app. Gli isolati reset API 31 e diniego delete API 35 passano 1/1 in 9,950/11,739 s.
+
+Conservati due tentativi nativi falliti del driver, una compilazione del driver fallita e il timeout intermedio di una fixture JVM Finance. Tre esecuzioni UI con dispatcher virtuale si bloccano; lo stack API 31 osserva `performScrollTo` in attesa Espresso/frame Compose con Main idle. Il responsabile arresta i processi debug: i successivi messaggi di process crash derivano da questi stop. La regola Compose standard passa isolati e suite finali; la causa precisa del blocco resta non dimostrata. Nessuna diagnostica temporanea entra nell'APK finale.
+
+Snapshot finale alle **08:24:04,352365 UTC del 13 ottobre 2026**: permessi completi dei tre QA e proiezioni selezionate utenti/profili originali, fattori/sessioni zero, registrazioni disabilitate e attività QA zero nelle tabelle controllate. Emulatori spenti; adbd API 31 usato come root soltanto per lo stack debug, dopo la prova nativa, ripristinato a shell prima delle fixture finali. Nessuna CI o pubblicazione; D01 chiusa nel perimetro locale, 26 verifiche aperte.
+
 ## Form sessioni — A05, release locale 0.1.11-alpha invariato
 
 [Rapporto](SESSION_FORM_QUALIFICATION.md), produzione `44274e7` e release SHA-256 `5cdaca53d41d67d42cb05c0d2753f2611d6ba4d2f830067cde094d3355c757cd`. Run `4e4acd74`, harness `15ae1fe`: un metodo nativo API 31/EN passa nove checkpoint in 253,075 s. Annulla, revoca singola e corrente azionati dai form; client secondario host refresh 200 prima e 400 `refresh_token_not_found` dopo revoca; terzo client host distinto refresh 200 con stesso UUID prima e dopo revoca corrente, poi logout locale 204. UI corrente al login e snapshot finali zero sessioni/fattori QA, proiezioni selezionate invariate, registrazioni disabilitate e attività QA zero.

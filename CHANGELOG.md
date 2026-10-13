@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.12-alpha candidata locale — qualifica Admin D01, 13 ottobre 2026
+
+Riletto il ruolo Admin prima delle azioni e dopo il caricamento utenti, prima della pubblicazione; letture iniziali e del bersaglio vincolate a proprietario e revisione della sessione. La perdita del ruolo svuota cache e dialoghi, conservando la sessione; un errore 503 mantiene la bozza senza retry automatico. Aggiunte otto regressioni Android e due JVM, più 24 guardie ledger offline.
+
+Il release firmato passa undici checkpoint dai form QA API 31/EN in 84,583 s. QA B, client host temporaneamente Admin, revoca e ripristina il ruolo principale; i tre profili tornano al baseline e fattori/sessioni sono zero. Passano 545 JVM per variante e 12/12 fixture per ciascuna API 31/35; lint senza errori. Corretti selezione checkbox e attesa del messaggio nel driver, scheduling Compose e sincronizzazione Finance nelle fixture; tentativi falliti conservati. [Rapporto](docs/ADMIN_FORM_QUALIFICATION.md); sette righe chiuse localmente, 26 aperte. Emulatori spenti, nessuna CI o pubblicazione.
+
 ## Qualifica sessioni A05 — 13 ottobre 2026
 
 Sul release 0.1.11-alpha/code 12 invariato passano nove checkpoint dai form QA: annulla, revoca della sessione secondaria e refresh respinto, revoca corrente con ritorno al login e rinnovo della sessione superstite. Client secondari host con token in RAM, non un secondo smartphone. Fattori/sessioni QA zero dopo logout e fixture. Passano 543 JVM per variante e 7/7 fixture su ciascuna API 31/35; lint senza errori. Aggiunte tre regressioni JVM e tre Android, oltre al ledger readonly con 20 test offline. Corretto il teardown JVM prima di `resetMain`; conservato il crash iniziale Compose API 31 con isolato e suite successiva sullo stesso APK superati, senza causa definitiva attribuita. [Rapporto](docs/SESSION_FORM_QUALIFICATION.md); sei righe chiuse localmente, 27 verifiche aperte. Nessuna CI, nuova produzione o pubblicazione.
