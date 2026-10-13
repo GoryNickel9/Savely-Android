@@ -178,7 +178,7 @@ private fun MainShellSession(model: AppViewModel, state: AppState, theme: String
     }
     fun navigate(target: String) {
         if (!canNavigate(target, state.permissions)) return
-        nav.navigate(target) { popUpTo("dashboard") { saveState = true }; launchSingleTop = true; restoreState = true }
+        nav.navigate(target) { popUpTo("dashboard") { saveState = true }; launchSingleTop = true; restoreState = target != "dashboard" }
     }
     LaunchedEffect(backStack?.destination?.route, state.permissions) {
         // NavHost installs its graph after the shell's first composition.
