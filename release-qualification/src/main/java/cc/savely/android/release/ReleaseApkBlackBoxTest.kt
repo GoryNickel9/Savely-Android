@@ -100,7 +100,8 @@ class ReleaseApkBlackBoxTest {
             await("NAVIGATION_RECOVERY_UI_NOT_READY") { navigationDrawerOpen() || navigationBottomReady() }
             if (navigationDrawerOpen()) navigationBack()
             await("NAVIGATION_RECOVERY_DRAWER_NOT_CLOSED") { !navigationDrawerOpen() && navigationBottomReady() }
-            openSettings(englishOnly = true)
+            if (!hasProfileContent()) openSettings(englishOnly = true)
+            scrollAccountToTop()
             requireEmail(email)
             awaitProfileRead()
             report.put("settings_identity", true).put("profile_read", true)
@@ -1164,6 +1165,9 @@ class ReleaseApkBlackBoxTest {
         val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
         requireCode(previous.optString("run_id") == run && previous.optString("user_id") == user &&
             previous.optString("stage") == "passed" && previous.optBoolean("settings_identity"), "COUPLE_LOGIN_CHECKPOINT_INVALID")
+        requireNewNavigationReport(run, "couple-logout")
+        requireNewNavigationReport(run, "couple-logout-reservation")
+        writeReport(run, "couple-logout-reservation", JSONObject().put("run_id", run).put("user_id", user).put("stage", "reserved"))
         val report = baseReport(run, code, "couple-logout").put("user_id", user)
         try {
             report.put("pid", launch())
