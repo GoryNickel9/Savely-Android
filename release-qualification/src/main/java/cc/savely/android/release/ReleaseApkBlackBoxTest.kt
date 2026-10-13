@@ -168,8 +168,8 @@ class ReleaseApkBlackBoxTest {
                 requireCode(!editable(password = true), "NAVIGATION_LOGIN_FALLBACK")
                 covered.put(route)
                 if (route == "modules") {
-                    navigationAssertSelectedMoreButton()
-                    navigationDrawer()
+                    navigationOpenSelectedMore()
+                    await("NAVIGATION_SELECTED_MORE_DRAWER_MISSING") { navigationDrawerOpen() }
                     requireCode(navigationScanDrawer() == routes.map { it.second }.toSet() + "Sign out of your account",
                         "NAVIGATION_SELECTED_MORE_POLICY_INVALID")
                     navigationBack()
@@ -274,7 +274,7 @@ class ReleaseApkBlackBoxTest {
         navigationLabel(it, setOf("Dashboard")) && it.isEnabled
     }
 
-    private fun navigationAssertSelectedMoreButton() {
+    private fun navigationOpenSelectedMore() {
         var found: AccessibilityNodeInfo? = null
         await("NAVIGATION_SELECTED_MORE_MISSING") {
             found = find { navigationLabel(it, setOf("More")) && it.isEnabled && selectedControl(it) }
@@ -283,11 +283,14 @@ class ReleaseApkBlackBoxTest {
         var node = requireNotNull(found)
         try {
             repeat(8) {
-                if (node.isClickable || node.className?.toString() == "android.widget.Button") {
+                if (node.isClickable) {
+                    // Compose exposes a control with children as View; selection and click remain on it.
                     requireCode(node.packageName?.toString() == TARGET && visible(node) && node.isEnabled &&
-                        node.className?.toString() == "android.widget.Button" &&
+                        node.className?.toString() in setOf("android.view.View", "android.widget.Button") &&
+                        node.isCheckable && node.isChecked &&
                         node.actionList.any { action -> action.id == AccessibilityNodeInfo.ACTION_CLICK },
                         "NAVIGATION_SELECTED_MORE_BUTTON_INVALID")
+                    requireCode(node.performAction(AccessibilityNodeInfo.ACTION_CLICK), "NAVIGATION_SELECTED_MORE_CLICK_REJECTED")
                     return
                 }
                 val parent = node.parent ?: throw IllegalStateException("NAVIGATION_SELECTED_MORE_BUTTON_MISSING")
