@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Root
+import androidx.test.espresso.NoMatchingRootException
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.action.ViewActions.click
@@ -892,8 +893,20 @@ class FinanceScreenTest {
             override fun matchesSafely(root: Root): Boolean = isDialog().matches(root) &&
                 root.decorView.hasWindowFocus() && !root.decorView.isLayoutRequested
         }
-        // Espresso waits for this root; a previously dismissed picker may still exist during its exit animation.
-        onView(isAssignableFrom(DatePicker::class.java)).inRoot(focusedDialog).check(matches(isDisplayed())).perform(object : ViewAction {
+        fun awaitFocusedDialog(viewMatcher: Matcher<View>) {
+            compose.waitUntil(15_000) {
+                try {
+                    onView(viewMatcher).inRoot(focusedDialog).check(matches(isDisplayed()))
+                    true
+                } catch (_: NoMatchingRootException) {
+                    // The previous picker can still be dismissing before the next focused root is registered.
+                    false
+                }
+            }
+        }
+        val picker = isAssignableFrom(DatePicker::class.java)
+        awaitFocusedDialog(picker)
+        onView(picker).inRoot(focusedDialog).perform(object : ViewAction {
             override fun getConstraints(): Matcher<View> = isAssignableFrom(DatePicker::class.java)
             override fun getDescription() = "Select the exact synthetic transaction boundary $date"
             override fun perform(controller: UiController, view: View) {
@@ -901,7 +914,9 @@ class FinanceScreenTest {
                 controller.loopMainThreadUntilIdle()
             }
         })
-        onView(withId(android.R.id.button1)).inRoot(focusedDialog).check(matches(isDisplayed())).perform(click())
+        val confirmation = withId(android.R.id.button1)
+        awaitFocusedDialog(confirmation)
+        onView(confirmation).inRoot(focusedDialog).perform(click())
         compose.waitForIdle()
         scrollFinanceNode(hasText("$label: $date"))
     }
