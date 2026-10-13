@@ -181,11 +181,13 @@ private fun MainShellSession(model: AppViewModel, state: AppState, theme: String
         nav.navigate(target) { popUpTo("dashboard") { saveState = true }; launchSingleTop = true; restoreState = true }
     }
     BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
-    LaunchedEffect(route, state.permissions) {
+    LaunchedEffect(backStack?.destination?.route, state.permissions) {
+        // NavHost installs its graph after the shell's first composition.
+        if (backStack == null) return@LaunchedEffect
         if (!canNavigate(route, state.permissions)) {
             nav.navigate("dashboard") { popUpTo("dashboard") { saveState = false }; launchSingleTop = true }
         }
-        // Revoked entries must not restore a previous draft if access is granted again.
+        // Revoked entries must not restore saved navigation state if access is granted again.
         destinations.filter { it.permission != null && state.permissions[it.permission] != true }
             .forEach { nav.clearBackStack(it.route) }
     }
