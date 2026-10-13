@@ -160,7 +160,7 @@ class NavigationPermissionBoundaryTest {
         compose.runOnIdle { permissions[OWNER_A] = JSONObject().put("tcg", false); model.restore() }
         awaitModelIdle()
         title("Dashboard")
-        compose.onAllNodesWithText("NAV_CARD_ORIGINAL").assertCountEquals(0)
+        compose.onAllNodesWithText("NAV_CARD_ORIGINAL", substring = true).assertCountEquals(0)
         val readsAtDenial = cardReads.get()
         openDrawer()
         compose.onAllNodes(hasText("TCG") and hasClickAction()).assertCountEquals(0)
@@ -172,7 +172,7 @@ class NavigationPermissionBoundaryTest {
         awaitModelIdle()
         enter("TCG")
         awaitCard("NAV_CARD_AFTER_REGRANT")
-        compose.onAllNodesWithText("NAV_CARD_ORIGINAL").assertCountEquals(0)
+        compose.onAllNodesWithText("NAV_CARD_ORIGINAL", substring = true).assertCountEquals(0)
         assertTrue(cardReads.get() > readsAtDenial)
         assertReadOnlyGuards()
     }
@@ -186,7 +186,7 @@ class NavigationPermissionBoundaryTest {
         cardName.set("NAV_CARD_NEW_SESSION")
         replaceSession(session(OWNER_A, SID_B, "new-login"))
         title("Dashboard")
-        compose.onAllNodesWithText("NAV_CARD_ORIGINAL").assertCountEquals(0)
+        compose.onAllNodesWithText("NAV_CARD_ORIGINAL", substring = true).assertCountEquals(0)
         compose.waitUntil(15_000) { releaseChecks.get() == 2 }
         openModulesAndBack()
         enter("TCG")
@@ -304,8 +304,9 @@ class NavigationPermissionBoundaryTest {
 
     private fun awaitCard(value: String) {
         compose.waitUntil(15_000) { compose.onAllNodes(hasText("Aggiungi") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(value))
-        compose.onNodeWithText(value, substring = false).assertIsDisplayed()
+        val displayedName = "Nome carta: $value"
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(displayedName))
+        compose.onNodeWithText(displayedName, substring = false).assertIsDisplayed()
     }
 
     private fun awaitTransaction(value: String) {
