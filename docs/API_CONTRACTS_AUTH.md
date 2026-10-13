@@ -22,6 +22,10 @@ Il quarto parametro di `SupabaseApi`, `authLinks: AuthLinkStore`, mantiene separ
 
 ## Autenticazione
 
+La candidata 0.1.13-alpha conserva in `AppState.sessionRevision` la revisione del login accettato. Il logout in primo piano usa questa revisione e l'UID visualizzato: una richiesta obsoleta non invia HTTP, non cancella le nuove credenziali e non interrompe il nuovo audit. La rotazione dei token della stessa sessione conserva il vincolo e permette il logout con il token aggiornato. Un nuovo login rimuove lo stato del vecchio proprietario prima delle letture MFA/profilo; un loro errore temporaneo lascia le nuove credenziali nello store, senza mostrare i dati precedenti. Un errore temporaneo della stessa sessione conserva lo stato già accettato.
+
+Il contenitore di navigazione usa UID e revisione accettata: nuovi login, anche con `session_id` ripetuto o assente, ricreano navigazione e cache; il refresh dello stesso login conserva la destinazione. Una revoca porta alla Dashboard e rimuove gli stati salvati delle destinazioni negate, dopo l'installazione del grafo. Questi rami hanno fixture JVM e Android dedicate; i risultati del campione firmato sono documentati separatamente dalla loro presenza nel codice.
+
 | Metodo Kotlin | Richiesta | Risposta e comportamento |
 |---|---|---|
 | `signIn(email, password): Session` | `POST /auth/v1/token?grant_type=password`, email/password | Salva la sessione solo dopo risposta valida; conserva la sessione precedente se il login fallisce |
@@ -33,7 +37,7 @@ Il quarto parametro di `SupabaseApi`, `authLinks: AuthLinkStore`, mantiene separ
 | `isPasswordRecovery(session): Boolean` | Solo storage locale, sotto mutex | Verifica il gate associato a utente e `session_id`, anche dopo rotazione dei token |
 | `completePasswordRecovery(password, confirmation): Session` | Policy/conferma, sessione corrente, controllo MFA, poi `PUT /auth/v1/user` | Promuove la sessione recovery a quella ordinaria soltanto dopo risposta positiva; 400 e 503 conservano il gate |
 | `cancelPasswordRecovery(): Boolean` | `POST /auth/v1/logout?scope=local` della sola recovery associata | Cancella il contesto locale anche su errore del server; preserva un accesso ordinario diverso |
-| `signOut()` | `POST /auth/v1/logout?scope=local` | Revoca la sessione corrente; cancella le credenziali locali anche se la revoca fallisce; restituisce l'errore di rete/server |
+| `signOut(expectedOwner = null, expectedRevision = null)` | `POST /auth/v1/logout?scope=local` | Verifica l'eventuale vincolo prima della richiesta e della pulizia; revoca la sessione ammessa e cancella le sue credenziali locali anche se la revoca fallisce; restituisce l'errore di rete/server |
 | `updateAccount(email?, password?): JSONObject` | `PUT /auth/v1/user` | Restituisce utente aggiornato; aggiorna l'email locale secondo la risposta server |
 | `revokeSession(sessionId): Boolean` | RPC `delete_session`, `{p_session_id: <UUID>}` | Accetta solo un UUID canonico; `true` indica sessione corrente eliminata anche dallo store locale |
 
