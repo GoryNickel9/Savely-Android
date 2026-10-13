@@ -1,5 +1,9 @@
 # Savely Android
 
+La [qualifica navigazione V02](docs/NAVIGATION_FORM_QUALIFICATION.md) passa sulla candidata locale **0.1.13-alpha/code 14**: quindici checkpoint server nello stesso percorso firmato API 31/EN, con 19 destinazioni Admin, 18 A e 17 B, revoca/ripristino FIRE e logout. Corretti ritorno alla Dashboard, priorità di Indietro nel menu, azione «Altro» e separazione dello stato dopo un nuovo login. Passano **552 JVM per variante, 13/13 fixture di navigazione e 33/33 di sicurezza su ciascuna API 31/35**; lint senza errori. Permessi QA originali, fattori/sessioni zero, AVD di qualifica spenti. **Otto righe chiuse localmente, 25 verifiche aperte**; nessuna CI o pubblicazione e parità globale ancora aperta.
+
+Consuntivo precedente:
+
 La [qualifica Admin D01](docs/ADMIN_FORM_QUALIFICATION.md) passa sulla candidata locale **0.1.12-alpha/code 13**: undici checkpoint sul release firmato API 31/EN, inclusi salvataggio, perdita del ruolo, rimozione di cache/dialogo e ripristino. Corrette le letture del ruolo e i controlli prima della pubblicazione dei dati, vincolati alla sessione. Passano **545 JVM per variante e 12/12 fixture per ciascuna API 31/35**; lint senza errori. Conservati i tentativi falliti e i blocchi delle fixture, poi corretti nel driver e nella regola Compose. Permessi QA ripristinati, fattori/sessioni zero ed emulatori spenti. **Sette righe chiuse nei rispettivi perimetri locali, 26 verifiche aperte**; nessuna CI o pubblicazione, parità globale ancora aperta.
 
 ## Consuntivi precedenti

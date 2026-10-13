@@ -1,5 +1,18 @@
 # Verifica Savely Android
 
+## Navigazione e permessi — V02, candidata locale 0.1.13-alpha
+
+[Rapporto completo](NAVIGATION_FORM_QUALIFICATION.md). Produzione `3ae685f`, release firmato code 14/SHA-256 `38fb4b33a8db74912c0c294d486db4310a4e2b5eb4756492ad662d4471f138d5`, driver `8efe24f`, ledger `fec23fd`. Nel run `179e6e49-c86a-4bd2-a045-942781d7dd06` passano quindici checkpoint con Admin/A/B e host Admin: 19/18/17 destinazioni, Back, azione nativa «Altro», concessione/revoca/ripristino FIRE, identità e logout. Sono dieci metodi nativi, inclusi setup/cleanup, non quindici test JUnit.
+
+| Gruppo | API 31 | API 35 |
+|---|---:|---:|
+| Navigazione | 13/13, 86,518 s | 13/13, 87,647 s |
+| Sicurezza selezionata | 33/33, 164,111 s | 33/33, 99,117 s |
+
+552 JVM passano per variante debug/release, zero failure/error/skip; lint zero Error/Fatal, 32 Warning e sei Hint per variante. API 35 e regressione differenziale sono nel run `751298f0`; il riepilogo finale dimostra APK app e test identici al run API 31. Dashboard→Settings→Dashboard fallisce al titolo Dashboard sulla vecchia app `ceec4d…` e passa sulla corretta `c4f89d…`, stesso test `b1887b…`. I primi tentativi e recuperi restano conservati, incluso il run nativo fermato a tredici checkpoint; il PASS finale deriva da una nuova sequenza completa.
+
+Snapshot finale **13:54:57,827055 UTC del 13 ottobre 2026**: permessi/proiezioni QA originali, sessioni/fattori zero, registrazioni disabilitate e attività QA zero nelle tabelle controllate. AVD QA31/QA35 spenti. V02 chiusa localmente, 25 verifiche aperte; nessuna nuova suite Android completa, CI o pubblicazione. Il campione firmato è EN/font 1.0 su API 31; SID/legacy e dati sintetici precedenti sono fixture, non nuovi percorsi backend.
+
 ## Form Admin — D01, candidata locale 0.1.12-alpha
 
 [Rapporto completo](ADMIN_FORM_QUALIFICATION.md). Release firmato source `a104e8c`, code 13/SHA-256 `3e5252bb4c4ff0b3b7c1630c92598cd8d909c1e27b48077699c1fea33fc74bd6`. Nel run `9a2988a8-8650-49d0-b424-ab99f837a14f` il driver `a2981ea` passa **un metodo nativo API 31/EN, undici checkpoint, 84,583 s**. Client QA B host in RAM; nessuna email, eliminazione account o modifica globale delle registrazioni.

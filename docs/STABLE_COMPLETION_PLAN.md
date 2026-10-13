@@ -1,5 +1,11 @@
 # Piano di completamento della stabile
 
+## Consuntivo V02 — 13 ottobre 2026
+
+[V02 è chiusa localmente](NAVIGATION_FORM_QUALIFICATION.md): quindici checkpoint sul nuovo release firmato, gruppi selezionati su API 31/35 e pulizia QA verificata. La matrice conta ora **otto criteri chiusi e 25 aperti**. La tabella seguente conserva la base storica di sette/26 all'avvio: le 2–4 ore previste per V02 non sono un tempo residuo e i tentativi/correzioni sono documentati nel rapporto. Il budget iniziale di 50–76 ore non è una promessa di uscita; il residuo va ristimato sui prossimi blocchi, senza sottrarre meccanicamente i successi parziali. Restano i prerequisiti esterni già elencati.
+
+Il prossimo criterio autonomo è **V03**, form e filtri delle transazioni. Parità globale e versione stabile restano aperte.
+
 ## Base all'avvio di V02 — aggiornamento del 13 ottobre 2026
 
 Prevedere **40–60 ore di lavoro attivo di base**, più **8–12 ore di riserva**, quindi **48–72 ore** per preparare le prove residue, correggere i difetti emersi, integrare le regressioni e chiudere il pacchetto. La stima presuppone che le risorse esterne siano disponibili quando servono; la loro attesa è esclusa e non consente una promessa di data.
@@ -8,7 +14,7 @@ La stima provvisoria di 40–60 ore resta plausibile **senza riserva**, se le im
 
 Il punto di partenza della stima è il consuntivo D01: produzione `a104e8c`, APK locale 0.1.12-alpha/code 13, SHA-256 `3e5252bb4c4ff0b3b7c1630c92598cd8d909c1e27b48077699c1fea33fc74bd6`. All'avvio di V02 la [matrice](STABLE_VERIFICATION_MATRIX.md) conta **7 righe chiuse localmente e 26 aperte**: V01/R01/C01/C02/A04/A05/D01 sono chiuse nei rispettivi perimetri. Questa è la base storica della stima, non un nuovo consuntivo dell'APK in verifica V02. `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati.
 
-V02 è **non qualificata**. Il coordinatore comunica un primo gruppo debug di dodici casi con **sette successi e cinque fallimenti**, oltre al primo driver nativo fallito, con pulizia in corso al momento dell'aggiornamento. Questi tentativi non chiudono V02 e non riducono le 26 righe della base. Gli esiti conclusivi e la pulizia verificata saranno registrati separatamente; questo piano non ne anticipa il risultato.
+All'avvio V02 era **non qualificata**: il primo gruppo debug di dodici casi concludeva **sette successi e cinque fallimenti**, con driver nativo fallito e pulizia ancora in corso. Quei tentativi non riducevano le 26 righe della base. Il consuntivo conclusivo e i recuperi sono ora registrati nel rapporto V02, senza trasformare i tentativi falliti in PASS.
 
 Le 26 righe sono criteri di prova, non 26 funzioni da implementare. Più criteri condividono fixture, attori QA, dati e controlli. Non occorre rifare i blocchi già qualificati nel loro perimetro, ma i loro PASS non si trasferiscono automaticamente a nuovi byte dell'app.
 
@@ -67,7 +73,7 @@ Non è disponibile **alcuna durata d'attesa garantita**. Le 7–11 ore della tab
 
 ## Sequenza e controllo del budget
 
-1. Concludere V02: mapping, policy reali A/B/Admin, cambio login, IT/EN e lingua/tema/font; conservare risultati e perimetro senza acquisire utenti reali.
+1. V02 conclusa localmente: mapping, policy A/B/Admin, cambio login e profili IT/EN/tema/font sono consuntivati. Proseguire con V03 e i criteri finanza residui, mantenendo le evidenze per singolo blocco.
 2. Qualificare finanza/moduli dalle fixture esistenti, con le sole scritture QA necessarie; registrare divergenze prima delle correzioni e rileggere UUID/valori dopo ogni scrittura.
 3. Provare documenti con dati popolati e interruzioni reali; aprire servizi e account soltanto quando i prerequisiti autorizzati sono pronti.
 4. Dopo ogni blocco confrontare ore attive e budget, ristimando solo i residui. Non sommare successi parziali di run interrotti; conservare fallimenti e recuperi.

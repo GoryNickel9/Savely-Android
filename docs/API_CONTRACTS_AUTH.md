@@ -22,6 +22,8 @@ Il quarto parametro di `SupabaseApi`, `authLinks: AuthLinkStore`, mantiene separ
 
 ## Autenticazione
 
+La [qualifica V02](NAVIGATION_FORM_QUALIFICATION.md) associa questi contratti alla produzione `3ae685f` e all’APK firmato code 14: tre UID QA nel percorso nativo, SID/legacy e logout obsoleti nelle fixture. Il callback Back del menu si registra nuovamente quando cambia entry o apertura; Dashboard usa `restoreState=false`, poiché il child salvato può essere associato anche alla destinazione iniziale. Il refresh conserva lo stato dello stesso login.
+
 La candidata 0.1.13-alpha conserva in `AppState.sessionRevision` la revisione del login accettato. Il logout in primo piano usa questa revisione e l'UID visualizzato: una richiesta obsoleta non invia HTTP, non cancella le nuove credenziali e non interrompe il nuovo audit. La rotazione dei token della stessa sessione conserva il vincolo e permette il logout con il token aggiornato. Un nuovo login rimuove lo stato del vecchio proprietario prima delle letture MFA/profilo; un loro errore temporaneo lascia le nuove credenziali nello store, senza mostrare i dati precedenti. Un errore temporaneo della stessa sessione conserva lo stato già accettato.
 
 Il contenitore di navigazione usa UID e revisione accettata: nuovi login, anche con `session_id` ripetuto o assente, ricreano navigazione e cache; il refresh dello stesso login conserva la destinazione. Una revoca porta alla Dashboard e rimuove gli stati salvati delle destinazioni negate, dopo l'installazione del grafo. Questi rami hanno fixture JVM e Android dedicate; i risultati del campione firmato sono documentati separatamente dalla loro presenza nel codice.

@@ -1,6 +1,16 @@
 # Roadmap Savely Android
 
-## Stato corrente — qualifica Admin locale 0.1.12-alpha
+## Stato corrente — navigazione qualificata sulla candidata locale 0.1.13-alpha
+
+[V02](docs/NAVIGATION_FORM_QUALIFICATION.md) è **PASS LOCALE**. Produzione `3ae685f`, release firmato code 14/SHA-256 `38fb4b33a8db74912c0c294d486db4310a4e2b5eb4756492ad662d4471f138d5`. Il run finale conclude tutti i quindici checkpoint, con tre account QA, quattro sessioni distinte e i soli cambi autorizzati di B.Fire. Le destinazioni Admin/A/B, Indietro, azione nativa «Altro», diniego, revoca e ripristino sono osservati; il client Admin secondario tiene i token in RAM.
+
+Il ritorno a Dashboard non ripristina più il child salvato. Il callback Back del menu viene registrato nuovamente alla sua apertura; nuovi login ricreano navigazione e cache, mentre il refresh conserva lo stato dello stesso login. La regressione Dashboard fallisce sulla build precedente e passa su quella corretta con lo stesso APK test. Passano 552 JVM per variante e, per ciascuna API 31/35, 13 casi navigazione e 33 sicurezza. Lint senza errori; tentativi falliti e recuperi conservati.
+
+Snapshot finale **13:54:57,827055 UTC del 13 ottobre 2026**: permessi/proiezioni dei tre QA originali, sessioni/fattori zero e registrazioni disabilitate. AVD QA31/QA35 spenti. **V01/V02/R01/C01/C02/A04/A05/D01: otto righe chiuse localmente, 25 aperte.** La candidata resta alpha e locale; nessuna CI o pubblicazione, parità globale non qualificata. I gruppi selezionati non sono una nuova suite completa dell'app.
+
+Prossimo blocco autonomo: **V03**, form e filtri delle transazioni, con scritture isolate QA e rilettura dei risultati.
+
+## Consuntivo precedente — qualifica Admin locale 0.1.12-alpha
 
 [D01](docs/ADMIN_FORM_QUALIFICATION.md) è **PASS LOCALE**: produzione `a104e8c`, release firmato code 13/SHA-256 `3e5252bb4c4ff0b3b7c1630c92598cd8d909c1e27b48077699c1fea33fc74bd6`. Un metodo nativo API 31/EN conclude undici checkpoint in 84,583 s. Annullamento, modifica/ripristino Fire, concessione temporanea del ruolo Admin a QA B, revoca del ruolo principale con cache/dialogo svuotati, ripristino e logout sono osservati. QA B è un client host con token in RAM, non un secondo telefono.
 
@@ -8,7 +18,7 @@ Passano **545 JVM per variante debug/release**, 24 guardie host offline e **12/1
 
 I tre profili QA tornano ai permessi iniziali; fattori/sessioni e attività nelle tabelle controllate sono zero, registrazioni disabilitate, emulatori spenti. **V01/R01/C01/C02/A04/A05/D01: sette righe chiuse nei rispettivi perimetri locali, 26 aperte.** La candidata resta locale; nessuna CI o pubblicazione. Non sono qualificati reset email, eliminazione utenti, toggle globale o tutti i flussi dell'app sul nuovo APK.
 
-Prossimo blocco autonomo: **V02**, navigazione e permessi, con cambio account e controllo dei dati visibili nelle destinazioni negate. La data della 1.0 dipende dalla chiusura della matrice.
+In quel consuntivo il prossimo blocco era V02, ora qualificato nel perimetro indicato sopra.
 
 ## Consuntivo precedente — qualifica sessioni locale 0.1.11-alpha
 

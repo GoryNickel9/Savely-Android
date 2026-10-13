@@ -1,5 +1,9 @@
 # Parità fra Savely web e Android
 
+La [qualifica V02](NAVIGATION_FORM_QUALIFICATION.md) passa sulla candidata locale **0.1.13-alpha/code 14**: tutte le destinazioni mappate nei ruoli Admin/A/B, Back, «Altro» via azione nativa e revoca/ripristino FIRE, con quindici checkpoint nello stesso percorso firmato API 31/EN. Le fixture coprono IT/chiaro ed EN/scuro, 320dp/font 200%, sette dinieghi, cambio UID/SID e cache TCG come caso rappresentativo. Passano 552 JVM per variante e 13 navigazione più 33 sicurezza su ciascuna API 31/35. QA ripristinati e AVD di qualifica spenti. **Otto righe chiuse localmente, 25 aperte**; CRUD interni, servizi e parità globale mantengono i propri criteri aperti. Nessuna CI o pubblicazione.
+
+Consuntivo precedente:
+
 La [qualifica D01](ADMIN_FORM_QUALIFICATION.md) passa sui form Admin del release locale **0.1.12-alpha/code 13**: undici checkpoint API 31/EN, salvataggio e ripristino dei soli permessi QA, diniego dopo revoca del ruolo e rimozione di cache/dialogo. Le fixture IT/EN coprono anche chiavi sconosciute, errori, busy e login sostitutivo. Passano 545 JVM per variante, 12/12 fixture per ciascuna API 31/35 e 24 guardie host offline; lint senza errori. Permessi QA iniziali ripristinati, fattori/sessioni zero, emulatori spenti. **Sette righe chiuse nei rispettivi perimetri locali, 26 aperte**; parità globale non qualificata, nessuna CI o pubblicazione.
 
 Consuntivo precedente:

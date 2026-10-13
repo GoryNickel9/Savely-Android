@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13-alpha candidata locale — qualifica navigazione V02, 13 ottobre 2026
+
+Separato lo stato accettato del login dalla rotazione dei token; logout in primo piano vincolato a UID e revisione. Un nuovo login rimuove i dati del precedente prima delle letture MFA/profilo e ricrea navigazione/cache. Le revoche rimuovono route salvate; attesa l'installazione del grafo prima dei controlli. Corretti Back che navigava lasciando aperto il menu, «Altro» selezionato privo dell'azione nativa e Dashboard che poteva ripristinare Settings.
+
+La [qualifica](docs/NAVIGATION_FORM_QUALIFICATION.md) conclude quindici checkpoint sul release firmato API 31/EN: 19/18/17 destinazioni Admin/A/B, cinque fasi di concessione/revoca/ripristino FIRE, identità e logout. Passano 552 JVM per variante e 13 navigazione più 33 sicurezza per ciascuna API 31/35; lint zero errori, 32 warning e sei hint. La stessa regressione Dashboard riproduce l'errore sulla build precedente e passa dopo la correzione. Conservati i fallimenti, gli oracoli del driver corretti e i recuperi; permessi QA originali, fattori/sessioni zero, AVD di qualifica spenti. Otto verifiche locali chiuse e 25 aperte; nessuna CI, pubblicazione o parità globale.
+
 ## 0.1.12-alpha candidata locale — qualifica Admin D01, 13 ottobre 2026
 
 Riletto il ruolo Admin prima delle azioni e dopo il caricamento utenti, prima della pubblicazione; letture iniziali e del bersaglio vincolate a proprietario e revisione della sessione. La perdita del ruolo svuota cache e dialoghi, conservando la sessione; un errore 503 mantiene la bozza senza retry automatico. Aggiunte otto regressioni Android e due JVM, più 24 guardie ledger offline.
