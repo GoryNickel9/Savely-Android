@@ -1,9 +1,12 @@
 package cc.savely.android.finance
 
 import android.content.Context
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.UiAutomation
 import android.view.View
 import android.view.WindowManager
 import android.widget.DatePicker
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -13,6 +16,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Root
 import androidx.test.espresso.NoMatchingRootException
@@ -32,6 +36,7 @@ import cc.savely.android.data.SupabaseApi
 import cc.savely.android.ui.SavelyTheme
 import java.time.LocalDate
 import java.util.UUID
+import java.util.ArrayDeque
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicBoolean
@@ -762,6 +767,46 @@ class FinanceScreenTest {
         assertEquals(0, rejectedRequests.get())
     }
 
+    @Test fun dashboardStatisticsExposeLiteralLabelAmountPairsThroughNativeAccessibilityWithinCardBounds() {
+        dashboardComparisonFixture.set(true)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val automation = instrumentation.uiAutomation
+        val previousFlags = automation.serviceInfo.flags
+        val info = automation.serviceInfo
+        // Match the signed black-box driver; unimportant views must not be required to expose financial values.
+        info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        automation.serviceInfo = info
+        var observed = DashboardAccessibilityRead()
+        try {
+            compose.setContent {
+                SavelyTheme("light") { FinanceScreen(api, "dashboard", Modifier.fillMaxSize(), accountKey = USER_ID,
+                    today = LocalDate.of(2024, 6, 15)) }
+            }
+            waitForText("Periodo: Mese corrente")
+            scrollFinanceNode(hasContentDescription("Statistiche EUR"))
+            compose.onNodeWithContentDescription("Statistiche EUR").assertTextContains("180,00", substring = true)
+                .assertTextContains("120,00", substring = true).assertTextContains("30,00", substring = true)
+                .assertTextContains("90,00", substring = true)
+            try {
+                compose.waitUntil(15_000) {
+                    observed = readDashboardAccessibility(automation, instrumentation.targetContext.packageName)
+                    observed.pairs.all { it }
+                }
+            } catch (failure: ComposeTimeoutException) {
+                throw AssertionError("Native dashboard metrics unavailable inside the exact card: ${observed.diagnostic()}; " +
+                    "include_unimportant=${automation.serviceInfo.flags and AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS != 0}", failure)
+            }
+            assertEquals(listOf(true, true, true, true), observed.pairs)
+            assertEquals(0, automation.serviceInfo.flags and AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS)
+            println("SAVELY_DASHBOARD_ACCESSIBILITY ${observed.diagnostic()} include_unimportant=false")
+            assertEquals(0, posts.get() + patches.get() + deletes.get() + rejectedRequests.get())
+        } finally {
+            val restore = automation.serviceInfo
+            restore.flags = previousFlags
+            automation.serviceInfo = restore
+        }
+    }
+
     @Test fun dashboardCategoryDonutAndOperationLinksUseProductionScreenWithoutWrites() {
         dashboardComparisonFixture.set(true)
         val destination = AtomicReference("")
@@ -860,6 +905,95 @@ class FinanceScreenTest {
         assertEquals(2, patches.get())
         assertEquals(0, posts.get() + deletes.get())
         assertEquals("Headers, owner IDs, selected purchase IDs and closure CAS predicates must match", 0, rejectedRequests.get())
+    }
+
+    private data class DashboardAccessibilityRead(
+        val leafFound: Boolean = false,
+        val matchingBoundsScopes: Int = 0,
+        val matchedDepth: Int = -1,
+        val nodes: Int = 0,
+        val textNodes: Int = 0,
+        val leafChildren: Int = -1,
+        val parentChildren: Int = -1,
+        val leafTextPresent: Boolean = false,
+        val pairs: List<Boolean> = List(4) { false },
+    ) {
+        fun diagnostic() = "leaf=$leafFound same_bounds_scopes=$matchingBoundsScopes depth=$matchedDepth " +
+            "nodes=$nodes text_nodes=$textNodes leaf_children=$leafChildren parent_children=$parentChildren " +
+            "leaf_text=$leafTextPresent balance=${pairs[0]} income=${pairs[1]} expense=${pairs[2]} savings=${pairs[3]}"
+    }
+
+    private fun readDashboardAccessibility(automation: UiAutomation, targetPackage: String): DashboardAccessibilityRead {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        automation.rootInActiveWindow?.let(queue::add)
+        var leaf: AccessibilityNodeInfo? = null
+        var scanned = 0
+        try {
+            while (queue.isNotEmpty()) {
+                val node = queue.removeFirst()
+                try {
+                    check(++scanned <= 256) { "Dashboard accessibility fixture exceeded its node bound" }
+                    if (node.packageName?.toString() != targetPackage) continue
+                    if (node.contentDescription?.toString() == "Statistiche EUR" && node.isVisibleToUser) {
+                        leaf = AccessibilityNodeInfo.obtain(node)
+                        break
+                    }
+                    for (index in 0 until node.childCount) node.getChild(index)?.let(queue::add)
+                } finally { node.recycle() }
+            }
+        } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+        var current = leaf ?: return DashboardAccessibilityRead()
+        val cardBounds = android.graphics.Rect().also(current::getBoundsInScreen)
+        val leafChildren = current.childCount
+        val leafTextPresent = !current.text.isNullOrEmpty()
+        var parentChildren = -1
+        var result = DashboardAccessibilityRead(leafFound = true, leafChildren = leafChildren, leafTextPresent = leafTextPresent)
+        try {
+            // Compose emits a description-only fake leaf. Inspect its nearest card ancestors, never the whole dashboard.
+            for (depth in 0..3) {
+                val bounds = android.graphics.Rect().also(current::getBoundsInScreen)
+                if (bounds != cardBounds || current.packageName?.toString() != targetPackage) break
+                if (depth == 1) parentChildren = current.childCount
+                val values = mutableListOf<String>()
+                var textNodes = 0
+                var nodes = 0
+                var wrongCurrencyCard = false
+                queue.add(AccessibilityNodeInfo.obtain(current))
+                try {
+                    while (queue.isNotEmpty()) {
+                        val node = queue.removeLast()
+                        try {
+                            check(++nodes <= 256) { "Dashboard accessibility card exceeded its node bound" }
+                            if (node.packageName?.toString() != targetPackage) continue
+                            node.text?.toString()?.takeIf { it.isNotEmpty() }?.let { values.add(it); textNodes++ }
+                            node.contentDescription?.toString()?.takeIf { it.isNotEmpty() }?.let {
+                                if (it.startsWith("Statistiche ") && it != "Statistiche EUR") wrongCurrencyCard = true
+                                values.add(it)
+                            }
+                            for (index in node.childCount - 1 downTo 0) node.getChild(index)?.let(queue::add)
+                        } finally { node.recycle() }
+                    }
+                } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+                val text = values.joinToString("\n").replace('\u00a0', ' ').replace('\u202f', ' ')
+                val labels = listOf("Saldo totale", "Entrate", "Uscite", "Risparmio")
+                val amounts = listOf("180,00 €", "120,00 €", "30,00 €", "90,00 €")
+                val offsets = labels.map { text.indexOf(it) }
+                val pairs = labels.indices.map { index ->
+                    val start = offsets[index]
+                    val end = if (index == labels.lastIndex) text.length else offsets[index + 1]
+                    val amount = if (start < 0) -1 else text.indexOf(amounts[index], start + labels[index].length)
+                    !wrongCurrencyCard && start >= 0 && end > start && amount in (start + labels[index].length) until end
+                }
+                result = DashboardAccessibilityRead(leafFound = true, matchingBoundsScopes = depth + 1,
+                    matchedDepth = if (pairs.all { it }) depth else -1, nodes = nodes, textNodes = textNodes,
+                    leafChildren = leafChildren, parentChildren = parentChildren, leafTextPresent = leafTextPresent, pairs = pairs)
+                if (pairs.all { it }) return result
+                val parent = current.parent ?: break
+                current.recycle()
+                current = parent
+            }
+        } finally { current.recycle() }
+        return result
     }
 
     private fun transactionList() = compose.onNode(hasScrollToIndexAction())
