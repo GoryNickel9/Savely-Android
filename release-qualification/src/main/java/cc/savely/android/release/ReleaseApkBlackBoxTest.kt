@@ -1245,6 +1245,7 @@ class ReleaseApkBlackBoxTest {
                 }
                 op.contains("category") -> {
                     navigationEnter("Categories")
+                    financeTop()
                     await("FINANCE_CATEGORIES_MISSING") { hasText("Expense categories") }
                     if (op.endsWith("create") || op == "cancel-category") {
                         clickLabel(setOf("New category"), "FINANCE_CREATE_CONTROL_MISSING", true)
@@ -1276,6 +1277,7 @@ class ReleaseApkBlackBoxTest {
                 }
                 op.startsWith("budget") -> {
                     navigationEnter("Budget")
+                    financeTop()
                     seekLabel(setOf("New budget"), "FINANCE_BUDGET_MISSING", true).recycle()
                     if (op == "budget-create") {
                         clickLabel(setOf("New budget"), "FINANCE_CREATE_CONTROL_MISSING")
@@ -1299,6 +1301,7 @@ class ReleaseApkBlackBoxTest {
                 }
                 else -> {
                     clickNavigation(setOf("Transactions"), "FINANCE_TRANSACTIONS_NAVIGATION_MISSING")
+                    financeTop()
                     await("FINANCE_TRANSACTIONS_MISSING") { hasText("New transaction") }
                     if (op == "filter-check") {
                         financeSetField("Search description or category", marker)
@@ -1321,6 +1324,7 @@ class ReleaseApkBlackBoxTest {
                         val isIncome = op.startsWith("income")
                         financeSetField("Amount", if (isIncome) "0.05" else "0.01")
                         hideKeyboardIfShown()
+                        financeCurrencyEur()
                         if (isIncome) financeSelect("Type: Expense", "Income")
                         financeSelect("Category: Uncategorized", if (isIncome) income else expenseCategory)
                         financeSetField("Optional description", if (isIncome) income else expense)
@@ -1432,6 +1436,24 @@ class ReleaseApkBlackBoxTest {
         hideKeyboardIfShown()
         clickLabel(setOf(control), "FINANCE_SELECTOR_MISSING", true)
         clickLabel(setOf(option), "FINANCE_OPTION_MISSING", true)
+    }
+
+    private fun financeCurrencyEur() {
+        repeat(24) {
+            val control = find { it.text?.toString()?.matches(Regex("Currency: [A-Z]{3}")) == true && visible(it) && hasClickableAncestor(it) }
+            if (control != null) {
+                if (control.text?.toString() == "Currency: EUR") { control.recycle(); return }
+                clickControl(control, "FINANCE_CURRENCY_MISSING")
+                clickLabel(setOf("EUR"), "FINANCE_CURRENCY_EUR_MISSING", true)
+                return
+            }
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+            val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+            val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) } finally { it.recycle() } } ?: false
+            if (!moved) swipe(false, bounds)
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("FINANCE_CURRENCY_MISSING")
     }
 
     private fun financeSetField(field: String, value: String) {
