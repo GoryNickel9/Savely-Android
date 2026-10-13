@@ -36,8 +36,9 @@ class ReleaseApkBlackBoxTest {
     @Test fun navigationFixedTargetDiagnostic() {
         val run = preflight(14)
         val (loginRun, failedRun) = navigationRecoveryReferences(run)
+        val (user, _) = dedicatedQaAccount()
         requireNewNavigationReport(run, "navigation-diagnostic")
-        val report = baseReport(run, 14, "navigation-diagnostic").put("user_id", QA_ADMIN_USER)
+        val report = baseReport(run, 14, "navigation-diagnostic").put("user_id", user)
             .put("login_run_id", loginRun).put("failed_run_id", failedRun)
         val activeRoot = automation.rootInActiveWindow
         try {
@@ -84,11 +85,12 @@ class ReleaseApkBlackBoxTest {
     @Test fun recoverDedicatedQaNavigationLogout() {
         val run = preflight(14)
         val (loginRun, failedRun) = navigationRecoveryReferences(run)
+        val (user, email) = dedicatedQaAccount()
         requireNewNavigationReport(run, "navigation-recovery")
-        val report = baseReport(run, 14, "navigation-recovery").put("user_id", QA_ADMIN_USER)
+        val report = baseReport(run, 14, "navigation-recovery").put("user_id", user)
             .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("cleanup_pending", true)
         // Reserve before any UI action; an interrupted recovery must not replay this run's logout.
-        writeReport(run, "navigation-recovery-reservation", JSONObject().put("run_id", run).put("user_id", QA_ADMIN_USER)
+        writeReport(run, "navigation-recovery-reservation", JSONObject().put("run_id", run).put("user_id", user)
             .put("login_run_id", loginRun).put("failed_run_id", failedRun).put("stage", "reserved"))
         try {
             report.put("pid", launch())
@@ -96,30 +98,32 @@ class ReleaseApkBlackBoxTest {
             if (navigationDrawerOpen()) navigationBack()
             await("NAVIGATION_RECOVERY_DRAWER_NOT_CLOSED") { !navigationDrawerOpen() && navigationBottomReady() }
             openSettings(englishOnly = true)
-            requireEmail(QA_ADMIN_EMAIL)
+            requireEmail(email)
             awaitProfileRead()
             report.put("settings_identity", true).put("profile_read", true)
-            requireCode(logoutQa(report, QA_ADMIN_EMAIL), "NAVIGATION_RECOVERY_LOGOUT_FAILED")
+            requireCode(logoutQa(report, email), "NAVIGATION_RECOVERY_LOGOUT_FAILED")
             report.put("native_logout", true).put("stage", "passed").put("cleanup_pending", false)
         } catch (failure: Throwable) {
             recordUiFlags(report)
             report.put("admin_identity_seen", runCatching { hasText(QA_ADMIN_EMAIL) }.getOrDefault(false))
+                .put("dedicated_identity_seen", runCatching { hasText(email) }.getOrDefault(false))
             report.put("stage", "failed").put("failure_code", safeFailure(failure))
             throw AssertionError(safeFailure(failure))
         } finally { writeReport(run, "navigation-recovery", report) }
     }
 
     private fun navigationRecoveryReferences(run: String): Pair<String, String> {
-        requireCode(dedicatedQaAccount().first == QA_ADMIN_USER, "NAVIGATION_RECOVERY_OWNER_INVALID")
-        val loginRun = navigationLogin(QA_ADMIN_USER)
+        val user = dedicatedQaAccount().first
+        val loginRun = navigationLogin(user)
         val failedRun = InstrumentationRegistry.getArguments().getString("releaseQualificationFailureRunId").orEmpty()
-        requireCode(loginRun == "8cbd83e2-c302-4e12-948f-6585dd3d2912" &&
-            failedRun == "e5835b0c-303f-4db9-8d3d-72c3a1a8081c" && run != loginRun && run != failedRun,
+        requireCode(runCatching { UUID.fromString(failedRun).toString() == failedRun }.getOrDefault(false) &&
+            run != loginRun && run != failedRun && loginRun != failedRun,
             "NAVIGATION_RECOVERY_REFERENCES_INVALID")
         val failed = readJson("release-qualification-$failedRun-navigation-routes.json", 16_384)
-        requireCode(failed.optString("run_id") == failedRun && failed.optString("stage") == "failed" && failed.optString("user_id") == QA_ADMIN_USER &&
+        requireCode(failed.optString("run_id") == failedRun && failed.optString("phase") == "navigation-routes" &&
+            failed.optString("stage") == "failed" && failed.optString("user_id") == user &&
             failed.optInt("target_code") == 14 && failed.optString("target_package") == TARGET &&
-            failed.optString("login_run_id") == loginRun && failed.optString("failure_code") == "NAVIGATION_DRAWER_MISSING",
+            failed.optString("login_run_id") == loginRun && failed.optString("failure_code").matches(Regex("[A-Z_]{3,80}")),
             "NAVIGATION_RECOVERY_FAILURE_INVALID")
         return loginRun to failedRun
     }
@@ -172,6 +176,14 @@ class ReleaseApkBlackBoxTest {
             openSettings(englishOnly = true); requireEmail(email); awaitProfileRead()
             report.put("identity_preserved", true).put("stage", "passed").put("cleanup_pending", true)
         } catch (failure: Throwable) {
+            recordUiFlags(report)
+            runCatching {
+                val root = automation.rootInActiveWindow
+                try {
+                    report.put("active_root_is_target", root?.packageName?.toString() == TARGET)
+                        .put("active_root_bounds", root?.let { Rect().also(it::getBoundsInScreen).toShortString() } ?: JSONObject.NULL)
+                } finally { root?.recycle() }
+            }
             report.put("covered_routes", covered).put("stage", "failed").put("failure_code", safeFailure(failure)).put("cleanup_pending", true)
             throw AssertionError(safeFailure(failure))
         } finally { writeReport(run, "navigation-routes", report) }
@@ -228,7 +240,8 @@ class ReleaseApkBlackBoxTest {
         val run = InstrumentationRegistry.getArguments().getString("releaseQualificationLoginRunId").orEmpty()
         requireCode(runCatching { UUID.fromString(run).toString() == run }.getOrDefault(false), "NAVIGATION_LOGIN_RUN_INVALID")
         val prior = readJson("release-qualification-$run-couple-login.json", 16_384)
-        requireCode(prior.optString("stage") == "passed" && prior.optString("user_id") == user && prior.optInt("target_code") == 14 &&
+        requireCode(prior.optString("run_id") == run && prior.optString("phase") == "couple-login" && prior.optString("target_package") == TARGET &&
+            prior.optString("stage") == "passed" && prior.optString("user_id") == user && prior.optInt("target_code") == 14 &&
             prior.optBoolean("settings_identity") && prior.optBoolean("english_selected"), "NAVIGATION_LOGIN_INVALID")
         return run
     }
@@ -345,7 +358,6 @@ class ReleaseApkBlackBoxTest {
     }
 
     private fun navigationBack() {
-        hideKeyboardIfShown()
         requireTargetActiveWindow()
         readShell("input keyevent KEYCODE_BACK", 256)
     }
@@ -1332,9 +1344,9 @@ class ReleaseApkBlackBoxTest {
 
     private fun awaitDashboard() {
         await("DASHBOARD_NAVIGATION_MISSING") { exists { navigationLabel(it, setOf("Dashboard")) } }
-        if (!hasDashboardContent()) {
+        if (!hasDashboardContent() && !navigationTitle("Dashboard")) {
             scrollAccountToTop()
-            if (!hasDashboardContent()) clickNavigation(setOf("Dashboard"), "DASHBOARD_NAVIGATION_MISSING")
+            if (!hasDashboardContent() && !navigationTitle("Dashboard")) clickNavigation(setOf("Dashboard"), "DASHBOARD_NAVIGATION_MISSING")
         }
         scrollAccountToTop()
         await("DASHBOARD_MISSING") { hasDashboardContent() && !editable(password = true) }
