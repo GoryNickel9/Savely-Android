@@ -32,7 +32,7 @@ Build debug e instrumentation, JVM debug/release: **5m11s**, **590 test per vari
 | Debug 0.1.17-alpha/code 18 | `dd203855e2ffb0238edaaf53bf56692954401a439c3c87b07f8acb7ad294ebd2` |
 | Instrumentation | `61543e92e34704e2667c40efedf044f0e95dc1ee2373c1fb5ccab14c1e6eeec9` |
 
-Run `artifacts/net-worth-qualification/6502d110-8dd8-479c-8736-60582bbd3040`; `input-metadata.json` conserva SHA delle fonti e dei binari, XML JVM e log. Il `PortfolioModels.kt` compilato ha SHA-256 `fe4e3904b9cd94455cee1ae4eec92502abcab58f8edde13b5134f1c64ca6059c`. Lint debug supera il controllo: zero errori/fatal, 33 warning e 0 hint. Nessun nuovo release R8 viene costruito per questo campione: il release V06 conserva il proprio hash e il proprio perimetro.
+Run `artifacts/net-worth-qualification/6502d110-8dd8-479c-8736-60582bbd3040`; `input-metadata.json` conserva SHA delle fonti e dei binari, XML JVM e log. Il `PortfolioModels.kt` compilato ha SHA-256 `fe4e3904b9cd94455cee1ae4eec92502abcab58f8edde13b5134f1c64ca6059c`. Lint debug supera il controllo: zero errori/fatal, 33 warning e sei hint. Nessun nuovo release R8 viene costruito per questo campione: il release V06 conserva il proprio hash e il proprio perimetro.
 
 ## Immagini e limiti
 
