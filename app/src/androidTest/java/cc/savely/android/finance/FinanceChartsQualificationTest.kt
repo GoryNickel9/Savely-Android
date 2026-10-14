@@ -50,6 +50,7 @@ class FinanceChartsQualificationTest {
     private val unused = FinanceCategory("unused", "QA Empty", TransactionType.EXPENSE)
     private var rootView: View? = null
     private var hideInput: () -> Unit = {}
+    private var showInput: () -> Unit = {}
     private var timeColors = emptyList<Int>()
 
     private fun row(id: String, date: String, amount: String, type: TransactionType,
@@ -151,7 +152,7 @@ class FinanceChartsQualificationTest {
             assertSummaryExists(english, "120,00", "30,00", "90,00")
             input(if (english) "From" else "Dal", "2026-06-01")
             input(if (english) "To" else "Al", "2026-06-15")
-            awaitIme(true)
+            openKeyboard(if (english) "To" else "Al")
             clickApply(english)
             awaitIme(false)
             compose.onNode(malformed).assertDoesNotExist()
@@ -180,6 +181,7 @@ class FinanceChartsQualificationTest {
                     SideEffect {
                         rootView = view
                         hideInput = { focus.clearFocus(force = true); keyboard?.hide() }
+                        showInput = { keyboard?.show() }
                         timeColors = colors
                     }
                     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("v05-scroll")) {
@@ -197,6 +199,7 @@ class FinanceChartsQualificationTest {
                 compose.waitForIdle()
                 rootView = null
                 hideInput = {}
+                showInput = {}
             }
         }
     }
@@ -220,7 +223,7 @@ class FinanceChartsQualificationTest {
         choose(if (english) "Period: Year" else "Periodo: Anno", if (english) "Between dates" else "Tra date")
         input(if (english) "From" else "Dal", from)
         input(if (english) "To" else "Al", to)
-        if (proveKeyboard) awaitIme(true)
+        if (proveKeyboard) openKeyboard(if (english) "To" else "Al")
         clickApply(english)
         awaitIme(false)
     }
@@ -304,6 +307,13 @@ class FinanceChartsQualificationTest {
         // Error captures are observations after explicit test-side focus release, never proof of valid Apply hiding IME.
         compose.runOnIdle { hideInput() }
         awaitIme(false)
+    }
+
+    private fun openKeyboard(label: String) {
+        // Text replacement is a semantics edit; it does not itself guarantee an IME show request.
+        compose.onNodeWithText(label).assertIsFocused()
+        compose.runOnIdle { showInput() }
+        awaitIme(true)
     }
 
     private fun awaitIme(expected: Boolean) {

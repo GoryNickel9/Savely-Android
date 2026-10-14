@@ -7,7 +7,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -47,6 +49,28 @@ class FinanceChartsScreenTest {
 
     private fun panelText(text: String, panel: String): SemanticsNodeInteraction =
         compose.onNode(hasText(text) and hasAnyAncestor(hasTestTag(panel)))
+
+    private fun selectVisibleAnalysis(label: String) {
+        val chip = compose.onNode(hasText(label) and hasClickAction())
+        chip.performScrollTo()
+        repeat(8) {
+            compose.waitForIdle()
+            val node = chip.fetchSemanticsNode()
+            val target = Rect(node.positionInRoot.x, node.positionInRoot.y,
+                node.positionInRoot.x + node.size.width, node.positionInRoot.y + node.size.height)
+            val viewport = compose.onNodeWithTag("charts-scroll").fetchSemanticsNode().boundsInRoot
+            if (target.left >= viewport.left && target.right <= viewport.right &&
+                target.top >= viewport.top && target.bottom <= viewport.bottom) {
+                chip.assertIsDisplayed().assertIsEnabled().performTouchInput { click() }
+                compose.waitForIdle()
+                chip.assertIsSelected()
+                return
+            }
+            val delta = (target.center.y - viewport.center.y).coerceIn(-viewport.height / 2f, viewport.height / 2f)
+            compose.onNodeWithTag("charts-scroll").performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, delta) }
+        }
+        throw AssertionError("Analysis chip must be fully visible before its tap: $label")
+    }
 
     @Test fun restoredFiltersGraphicsAndInvalidDraftKeepTheLastAppliedRange() {
         val restoration = StateRestorationTester(compose)
@@ -146,12 +170,12 @@ class FinanceChartsScreenTest {
         choose("Mese: marzo", "febbraio")
         compose.onNodeWithText("Applica intervallo").performScrollTo().performClick()
         compose.onNodeWithText("Periodo selezionato: 2024-02-01 – 2024-02-29").assertExists()
-        compose.onNodeWithText("Analisi Uscite").performScrollTo().performClick()
+        selectVisibleAnalysis("Analisi Uscite")
         choose("Valuta: Tutte le valute", "EUR")
         choose("Categoria: Tutte le categorie", "Categoria QA")
         panelText("Uscite ${formatMoney("0.30".toBigDecimal(), "EUR")}", "chart-summary-EUR").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("chart-time-USD").assertDoesNotExist()
-        compose.onNodeWithText("Analisi Entrate").performScrollTo().performClick()
+        selectVisibleAnalysis("Analisi Entrate")
         compose.onNodeWithText("Categoria: Tutte le categorie").assertExists()
         panelText("Entrate ${formatMoney("10".toBigDecimal(), "EUR")}", "chart-summary-EUR").performScrollTo().assertIsDisplayed()
         panelText("Uscite ${formatMoney("0".toBigDecimal(), "EUR")}", "chart-summary-EUR").assertExists()
