@@ -1,0 +1,277 @@
+--- a/supabase/functions/update-tcg-prices/index.ts
++++ b/supabase/functions/update-tcg-prices/index.ts
+@@ -1,5 +1,6 @@
+ // @ts-ignore - Supabase Edge Functions don't have complete type definitions
+ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
++import { eligibleCard, euroPrice, compareAndSwap, PriceFailure, type TcgCard } from './price-contract.ts';
+ 
+ // @ts-ignore - Deno is available in Supabase Edge Functions
+ const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGIN') || '')
+@@ -43,73 +44,30 @@
+     && provided === expected;
+ }
+ 
+-interface TcgCard {
+-  id: string;
+-  user_id: string;
+-  category: 'magic' | 'pokemon' | 'yugioh';
+-  card_id: string | null;
+-  current_price: number | null;
+-  condition: string | null;
+-}
+-
+-// Maps app condition values to CardTrader API condition strings
+-function mapConditionToCardTrader(condition: string): string {
+-  const map: Record<string, string> = {
+-    near_mint: 'Near Mint',
+-    lightly_played: 'Slightly Played',
+-    moderately_played: 'Moderately Played',
+-    heavily_played: 'Heavily Played',
+-    damaged: 'Poor',
+-  };
+-  return map[condition] ?? 'Near Mint';
+-}
+-
+-/**
+- * Fetch the CT Zero lowest price (cents) for a CardTrader blueprint, filtered by condition.
+- * CT Zero sellers: products where user.can_sell_via_hub === true.
+- * Returns the price in EUR (price_cents / 100), or null if unavailable.
+- */
+-async function fetchCardTraderCtZeroPrice(blueprintId: string, apiKey: string, condition?: string): Promise<number | null> {
++/** Provider JSON is bounded; credentials never follow a redirect. No retries. */
++async function fetchCardTraderCtZeroPrice(card: TcgCard, apiKey: string): Promise<string | null> {
++  const response = await fetch(
++    `${CT_API_URL}/marketplace/products?blueprint_id=${encodeURIComponent(card.card_id!)}`,
++    { headers: { Authorization: `Bearer ${apiKey}` }, redirect: 'error', signal: AbortSignal.timeout(10_000) },
++  );
++  if (!response.ok) { await response.body?.cancel(); throw new PriceFailure('PROVIDER_HTTP_ERROR'); }
++  if (!response.body) throw new PriceFailure('PROVIDER_RESPONSE_INVALID');
++  const reader = response.body.getReader();
++  const decoder = new TextDecoder();
++  let size = 0, text = '';
+   try {
+-    const res = await fetch(
+-      `${CT_API_URL}/marketplace/products?blueprint_id=${encodeURIComponent(blueprintId)}`,
+-      { headers: { Authorization: `Bearer ${apiKey}` } },
+-    );
+-
+-    if (!res.ok) {
+-      console.log(`✗ CardTrader marketplace error for blueprint ${blueprintId}: ${res.status}`);
+-      return null;
++    while (true) {
++      const chunk = await reader.read();
++      if (chunk.done) break;
++      size += chunk.value.byteLength;
++      if (size > 1_048_576) { await reader.cancel(); throw new PriceFailure('PROVIDER_RESPONSE_INVALID'); }
++      text += decoder.decode(chunk.value, { stream: true });
+     }
+-
+-    const data: Record<string, any[]> = await res.json();
+-    const products: any[] = data[blueprintId] ?? [];
+-
+-    if (products.length === 0) return null;
+-
+-    // 1. Restrict to CT Zero sellers (matches CardTrader "Prezzo Min CT")
+-    const ctZero = products.filter((p: any) => p.user?.can_sell_via_hub === true);
+-    let candidates = ctZero.length > 0 ? ctZero : products; // fallback to all if no CT Zero
+-
+-    // 2. Further filter by condition
+-    if (condition) {
+-      const ctCondition = mapConditionToCardTrader(condition);
+-      const byCondition = candidates.filter((p) => (p as any).properties_hash?.condition === ctCondition);
+-      if (byCondition.length > 0) candidates = byCondition;
+-      // If no listings match the exact condition, fall back to CT Zero (any condition)
+-    }
+-
+-    const lowest = candidates.reduce(
+-      (min, p) => (p.price_cents < min.price_cents ? p : min),
+-      candidates[0],
+-    );
+-
+-    const price = lowest.price_cents / 100;
+-    console.log(`✓ Price for blueprint ${blueprintId} (${condition ?? 'any'}): €${price}`);
+-    return price;
+-  } catch (err) {
+-    console.error(`Error fetching CT Zero price for blueprint ${blueprintId}:`, err);
+-    return null;
+-  }
++    text += decoder.decode();
++    let data: unknown;
++    try { data = JSON.parse(text); } catch { throw new PriceFailure('PROVIDER_RESPONSE_INVALID'); }
++    return euroPrice(card.card_id!, card.condition, data);
++  } finally { reader.releaseLock(); }
+ }
+ 
+ // @ts-ignore - Deno is available in Edge Functions
+@@ -148,11 +106,11 @@
+     // Fetch all cards that have a card_id (blueprint_id) to look up
+     const { data: cards, error: fetchError } = await supabase
+       .from('tgc_cards')
+-      .select('id, user_id, category, card_id, current_price, condition')
++      .select('id, user_id, category, card_id, current_price, condition, currency, updated_at')
+       .not('card_id', 'is', null);
+ 
+     if (fetchError) {
+-      console.error('Error fetching TCG cards:', fetchError);
++      console.error('TCG_READ_FAILED');
+       return new Response(
+         JSON.stringify({ error: 'Internal error' }),
+         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+@@ -169,47 +127,49 @@
+     let updated = 0;
+     let skipped = 0;
+     let failed = 0;
++    let skippedCurrency = 0;
++    let skippedInvalid = 0;
++    let skippedConcurrent = 0;
+ 
+-    for (const card of cards as TcgCard[]) {
+-      if (!card.card_id) {
++    for (const value of cards) {
++      let card: TcgCard;
++      try { card = eligibleCard(value); }
++      catch (error) {
+         skipped++;
++        if (error instanceof PriceFailure && error.code === 'ROW_CURRENCY_UNSUPPORTED') skippedCurrency++;
++        else skippedInvalid++;
+         continue;
+       }
+-
+-      const price = await fetchCardTraderCtZeroPrice(card.card_id, apiKey, card.condition ?? undefined);
+-
+-      if (price !== null) {
+-        const { error: updateError } = await supabase
++      try {
++        const price = await fetchCardTraderCtZeroPrice(card, apiKey);
++        if (price === null) { failed++; continue; }
++        const { data: changed, error: updateError } = await compareAndSwap(supabase
+           .from('tgc_cards')
+-          .update({ current_price: price, updated_at: new Date().toISOString() })
+-          .eq('id', card.id);
+-
+-        if (updateError) {
+-          console.error(`Error updating card ${card.id}:`, updateError);
+-          failed++;
+-        } else {
+-          updated++;
+-        }
+-      } else {
++          .update({ current_price: price, updated_at: new Date().toISOString() }), card)
++          .select('id').maybeSingle();
++        if (updateError) { failed++; console.error('TCG_UPDATE_FAILED'); }
++        else if (changed?.id === card.id) updated++;
++        else { skipped++; skippedConcurrent++; }
++      } catch (error) {
+         failed++;
++        console.error(error instanceof PriceFailure ? error.code : 'TCG_PROVIDER_OR_UPDATE_FAILED');
++      } finally {
++        // Preserve existing pacing, including provider failures; no mutation retry.
++        await new Promise((resolve) => setTimeout(resolve, 200));
+       }
+-
+-      // Respect CardTrader rate limits: 200ms between requests
+-      await new Promise((resolve) => setTimeout(resolve, 200));
+     }
+ 
+     console.log(`TCG price update complete: ${updated} updated, ${skipped} skipped, ${failed} failed`);
+ 
+     return new Response(
+-      JSON.stringify({ updated, skipped, failed, total: cards.length }),
++      JSON.stringify({ updated, skipped, failed, total: cards.length, skippedCurrency, skippedInvalid, skippedConcurrent, quoteContractVersion: 1 }),
+       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+     );
+   } catch (error) {
+-    console.error('Unexpected error in update-tcg-prices:', error);
++    console.error('TCG_INTERNAL_ERROR');
+     return new Response(
+       JSON.stringify({ error: 'Internal server error' }),
+       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+     );
+   }
+ });
+-
+--- /dev/null
++++ b/supabase/functions/update-tcg-prices/price-contract.ts
+@@ -0,0 +1,82 @@
++/** CardTrader quote identity/unit boundary. No database, credentials or network. */
++export class PriceFailure extends Error {
++  constructor(readonly code: string) { super(code); this.name = 'PriceFailure'; }
++}
++const CONDITIONS: Record<string, string> = {
++  near_mint: 'Near Mint', lightly_played: 'Slightly Played',
++  moderately_played: 'Moderately Played', heavily_played: 'Heavily Played', damaged: 'Poor',
++};
++const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
++export interface TcgCard {
++  id: string; user_id: string; category: string; card_id: string | null;
++  currency: string | null; condition: string | null; current_price: number | string | null;
++  updated_at: string | null;
++}
++function need(ok: unknown, code: string): asserts ok {
++  if (!ok) throw new PriceFailure(code);
++}
++function record(value: unknown): Record<string, any> {
++  need(value !== null && typeof value === 'object' && !Array.isArray(value), 'PRODUCT_INVALID');
++  return value as Record<string, any>;
++}
++export function blueprintId(value: unknown): string {
++  need(typeof value === 'string' && /^[1-9][0-9]{0,14}$/.test(value) &&
++    Number.isSafeInteger(Number(value)), 'BLUEPRINT_ID_INVALID');
++  return value;
++}
++export function eligibleCard(value: unknown): TcgCard {
++  const row = record(value);
++  need(typeof row.id === 'string' && UUID.test(row.id) &&
++    typeof row.user_id === 'string' && UUID.test(row.user_id), 'ROW_IDENTITY_INVALID');
++  // Both clients interpret legacy SQL NULL as EUR. Missing fields are not SQL NULL.
++  need(row.currency === 'EUR' || row.currency === null, 'ROW_CURRENCY_UNSUPPORTED');
++  blueprintId(row.card_id);
++  need(['magic', 'pokemon', 'yugioh', 'lorcana'].includes(row.category), 'ROW_CATEGORY_INVALID');
++  need(row.condition === null || typeof row.condition === 'string' &&
++    Object.hasOwn(CONDITIONS, row.condition), 'ROW_CONDITION_INVALID');
++  need(row.updated_at === null || typeof row.updated_at === 'string' &&
++    row.updated_at.length <= 64 && Number.isFinite(Date.parse(row.updated_at)), 'ROW_TIME_INVALID');
++  need(row.current_price === null ||
++    (typeof row.current_price === 'number' || typeof row.current_price === 'string') &&
++    /^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{1,2})?$/.test(String(row.current_price)), 'ROW_PRICE_INVALID');
++  return row as TcgCard;
++}
++function centsForProduct(value: unknown, requested: string): number {
++  const product = record(value);
++  need(Number.isSafeInteger(product.blueprint_id) && String(product.blueprint_id) === requested,
++    'QUOTE_BLUEPRINT_MISMATCH');
++  // Keep each amount with its own declared currency; these two pairs can differ in the API.
++  const topPair = Object.hasOwn(product, 'price_cents') || Object.hasOwn(product, 'price_currency');
++  const price = topPair ? { cents: product.price_cents, currency: product.price_currency } : record(product.price);
++  need(price.currency === 'EUR', 'QUOTE_CURRENCY_UNSUPPORTED');
++  need(typeof price.cents === 'number' && Number.isSafeInteger(price.cents) &&
++    price.cents >= 0 && price.cents <= 9_999_999_999, 'QUOTE_CENTS_INVALID');
++  return price.cents;
++}
++export function euroPrice(blueprint: string, condition: string | null, payload: unknown): string | null {
++  const requested = blueprintId(blueprint);
++  need(condition === null || Object.hasOwn(CONDITIONS, condition), 'ROW_CONDITION_INVALID');
++  const data = record(payload);
++  const products = data[requested];
++  need(Array.isArray(products), 'QUOTE_RESPONSE_INVALID');
++  if (products.length === 0) return null;
++  // A malformed/mixed-currency response fails this card instead of silently omitting a cheap listing.
++  const validated = products.map(product => ({ product: record(product), cents: centsForProduct(product, requested) }));
++  const zero = validated.filter(({ product }) => product.user?.can_sell_via_hub === true);
++  let candidates = zero.length > 0 ? zero : validated;
++  if (condition !== null) {
++    const matching = candidates.filter(({ product }) => product.properties_hash?.condition === CONDITIONS[condition]);
++    if (matching.length > 0) candidates = matching;
++  }
++  // Preserve the existing CT Zero/exact-condition fallback; cents need no monetary rounding.
++  const cents = BigInt(candidates.reduce((minimum, item) => item.cents < minimum ? item.cents : minimum, candidates[0].cents));
++  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, '0')}`;
++}
++export function compareAndSwap(query: any, card: TcgCard): any {
++  eligibleCard(card);
++  let guarded = query.eq('id', card.id).eq('user_id', card.user_id)
++    .eq('category', card.category).eq('card_id', card.card_id);
++  for (const key of ['currency', 'condition', 'current_price', 'updated_at'] as const)
++    guarded = card[key] === null ? guarded.is(key, null) : guarded.eq(key, card[key]);
++  return guarded;
++}
