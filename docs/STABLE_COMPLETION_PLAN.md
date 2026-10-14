@@ -1,12 +1,20 @@
 # Piano di completamento della stabile
 
-## Qualifica Ricorrenze V04 — candidata locale 0.1.15-alpha
+## Qualifica Grafici V05 — candidata locale 0.1.16-alpha
+
+**[V05 è PASS LOCALE](CHARTS_QUALIFICATION.md)** nel criterio delle fixture comuni e acquisizioni IT/EN. Corretti i filtri rimasti su categorie/valute rimosse, aggiunto il tasso di risparmio decimale per valuta e sistemati i pulsanti dei grafici a font 200%. Produzione `522051c`, code 17; passano **570 JVM per variante**, lint senza errori e **13/13 Grafici API 31 in 107,677 s**. I test finali riproducono i due difetti sulle rispettive build precedenti.
+
+La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38558425255), fonte `522051c`, passa entrambi i job: **570 JVM e 219/219 Android 15/API 35**, zero failure/skip, UI 11m1,56s. La sola estensione della fixture `f84eb25` aggiunge i controlli Torta: **1/1 API 31 in 37,797 s**, con produzione invariata; non è una nuova suite completa API 35. **20 PNG e 20 JSON** revisionati, viewport effettivi 360×577 dp IT/font 100% e 320×577 dp EN/font 200%; gli 800 dp dei nomi sono la richiesta della fixture. Tentativi falliti, ANR SystemUI e run annullato restano documentati.
+
+**Undici criteri chiusi localmente, 22 aperti.** Nessun accesso o mutazione sul backend QA; emulatore locale spento. La candidata resta alpha e locale, senza pubblicazione: `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V06, Portafoglio**.
+
+## Consuntivo Ricorrenze V04 — candidata locale 0.1.15-alpha
 
 **[V04 è PASS LOCALE](RECURRING_FORM_QUALIFICATION.md).** Sul release firmato code 16, sorgente `a73d313`, passano 14 verifiche dei form e login/logout: creazione in pausa, modifica, calendario, ripresa, elaborazione `1/0/1`, reset della data, deduplica `0/1/1`, elaborazione vuota, pausa e annullamento della cancellazione. Il coordinatore host originale resta fallito per il parsing dei decimali REST; la ripresa corregge solo il parser, elimina i due record con CAS esatto e completa le nove operazioni del ledger, senza ripetere i form.
 
 Passano **567 JVM per variante**, **38/38 Finance e 1/1 preferenze per account su API 31**, **35 guardie ledger e otto CAS**. La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173), sullo stesso sorgente, passa build/lint/JVM e la suite completa di **213/213 test Android 15/API 35**, zero failure/skip. Gli APK UI della CI non sono archiviati: la parità dei byte con gli APK locali non è attestata. Lint locale senza errori. La cancellazione logica è provata nella fixture TLS; sul backend reale la ricorrenza resta visibile e in pausa fino al CAS, perché la RLS nasconde i record eliminati logicamente.
 
-Baseline QA ripristinato alle **10:47:31,815004 UTC del 14 ottobre 2026**: 33 categorie e zero transazioni/budget/ricorrenze/sessioni/fattori; emulatore locale QA31 spento. **Dieci criteri chiusi localmente, 23 aperti**. Nessuna pubblicazione; `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V05, Grafici**.
+Baseline QA ripristinato alle **10:47:31,815004 UTC del 14 ottobre 2026**: 33 categorie e zero transazioni/budget/ricorrenze/sessioni/fattori; emulatore locale QA31 spento. **Dieci criteri chiusi localmente, 23 aperti**. Nessuna pubblicazione; `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Alla chiusura di V04 seguiva V05, qualificato nel perimetro descritto sopra.
 
 ## Consuntivo Finance V03 — candidata locale 0.1.14-alpha
 

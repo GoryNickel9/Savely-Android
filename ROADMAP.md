@@ -1,12 +1,20 @@
 # Roadmap Savely Android
 
-## Stato corrente — Ricorrenze V04 concluse localmente, candidata 0.1.15-alpha
+## Stato corrente — Grafici V05 — candidata locale 0.1.16-alpha
+
+**[V05 è PASS LOCALE](docs/CHARTS_QUALIFICATION.md)** nel criterio delle fixture comuni e acquisizioni IT/EN. Corretti i filtri rimasti su categorie/valute rimosse, aggiunto il tasso di risparmio decimale per valuta e sistemati i pulsanti dei grafici a font 200%. Produzione `522051c`, code 17; passano **570 JVM per variante**, lint senza errori e **13/13 Grafici API 31 in 107,677 s**. I test finali riproducono i due difetti sulle rispettive build precedenti.
+
+La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38558425255), fonte `522051c`, passa entrambi i job: **570 JVM e 219/219 Android 15/API 35**, zero failure/skip, UI 11m1,56s. La sola estensione della fixture `f84eb25` aggiunge i controlli Torta: **1/1 API 31 in 37,797 s**, con produzione invariata; non è una nuova suite completa API 35. **20 PNG e 20 JSON** revisionati, viewport effettivi 360×577 dp IT/font 100% e 320×577 dp EN/font 200%; gli 800 dp dei nomi sono la richiesta della fixture. Tentativi falliti, ANR SystemUI e run annullato restano documentati.
+
+**Undici criteri chiusi localmente, 22 aperti.** Nessun accesso o mutazione sul backend QA; emulatore locale spento. La candidata resta alpha e locale, senza pubblicazione: `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V06, Portafoglio**.
+
+## Consuntivo Ricorrenze V04 — candidata locale 0.1.15-alpha
 
 [V04 è PASS LOCALE](docs/RECURRING_FORM_QUALIFICATION.md): 14 form sul release firmato API 31/EN, con calendario, pausa/ripresa, prima creazione, reset della data, deduplica e annullamento della cancellazione. Corretti validazione prima dell'HTTP, PATCH ambigui, isolamento dell'ignore e controlli durante riconciliazione. Passano 567 JVM per variante, 38 Finance + una preferenze API 31 e la [CI finale: 213/213 Android 15](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173); lint senza errori.
 
 Il coordinatore host originale resta fallito per il parser numerico; la ripresa completa solo i due CAS e ripristina il baseline QA. Zero transazioni/budget/ricorrenze/sessioni/fattori QA; 33 categorie originali ed emulatore locale spento. La RLS richiede di provare il soft delete nella fixture locale e pulire sul backend la ricorrenza ancora in pausa e visibile. Nessuna policy modificata.
 
-**V01/V02/V03/V04/R01/C01/C02/A04/A05/D01: dieci righe chiuse localmente, 23 aperte.** Parità globale non qualificata e nessuna pubblicazione. Prossimo blocco autonomo: **V05, Grafici**.
+**V01/V02/V03/V04/R01/C01/C02/A04/A05/D01: dieci righe chiuse localmente, 23 aperte.** Parità globale non qualificata e nessuna pubblicazione. Alla chiusura di V04 seguiva V05, ora qualificato nel perimetro sopra.
 
 ## Consuntivo Finance V03 — candidata 0.1.14-alpha
 

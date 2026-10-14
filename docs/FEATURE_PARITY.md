@@ -1,12 +1,20 @@
 # Parità fra Savely web e Android
 
-## Qualifica Ricorrenze V04 — candidata locale 0.1.15-alpha
+## Qualifica Grafici V05 — candidata locale 0.1.16-alpha
+
+**[V05 è PASS LOCALE](CHARTS_QUALIFICATION.md)** nel criterio delle fixture comuni e acquisizioni IT/EN. Corretti i filtri rimasti su categorie/valute rimosse, aggiunto il tasso di risparmio decimale per valuta e sistemati i pulsanti dei grafici a font 200%. Produzione `522051c`, code 17; passano **570 JVM per variante**, lint senza errori e **13/13 Grafici API 31 in 107,677 s**. I test finali riproducono i due difetti sulle rispettive build precedenti.
+
+La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38558425255), fonte `522051c`, passa entrambi i job: **570 JVM e 219/219 Android 15/API 35**, zero failure/skip, UI 11m1,56s. La sola estensione della fixture `f84eb25` aggiunge i controlli Torta: **1/1 API 31 in 37,797 s**, con produzione invariata; non è una nuova suite completa API 35. **20 PNG e 20 JSON** revisionati, viewport effettivi 360×577 dp IT/font 100% e 320×577 dp EN/font 200%; gli 800 dp dei nomi sono la richiesta della fixture. Tentativi falliti, ANR SystemUI e run annullato restano documentati.
+
+**Undici criteri chiusi localmente, 22 aperti.** Nessun accesso o mutazione sul backend QA; emulatore locale spento. La candidata resta alpha e locale, senza pubblicazione: `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V06, Portafoglio**.
+
+## Consuntivo Ricorrenze V04 — candidata locale 0.1.15-alpha
 
 **[V04 è PASS LOCALE](RECURRING_FORM_QUALIFICATION.md).** Sul release firmato code 16, sorgente `a73d313`, passano 14 verifiche dei form e login/logout: creazione in pausa, modifica, calendario, ripresa, elaborazione `1/0/1`, reset della data, deduplica `0/1/1`, elaborazione vuota, pausa e annullamento della cancellazione. Il coordinatore host originale resta fallito per il parsing dei decimali REST; la ripresa corregge solo il parser, elimina i due record con CAS esatto e completa le nove operazioni del ledger, senza ripetere i form.
 
 Passano **567 JVM per variante**, **38/38 Finance e 1/1 preferenze per account su API 31**, **35 guardie ledger e otto CAS**. La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173), sullo stesso sorgente, passa build/lint/JVM e la suite completa di **213/213 test Android 15/API 35**, zero failure/skip. Gli APK UI della CI non sono archiviati: la parità dei byte con gli APK locali non è attestata. Lint locale senza errori. La cancellazione logica è provata nella fixture TLS; sul backend reale la ricorrenza resta visibile e in pausa fino al CAS, perché la RLS nasconde i record eliminati logicamente.
 
-Baseline QA ripristinato alle **10:47:31,815004 UTC del 14 ottobre 2026**: 33 categorie e zero transazioni/budget/ricorrenze/sessioni/fattori; emulatore locale QA31 spento. **Dieci criteri chiusi localmente, 23 aperti**. Nessuna pubblicazione; `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V05, Grafici**.
+Baseline QA ripristinato alle **10:47:31,815004 UTC del 14 ottobre 2026**: 33 categorie e zero transazioni/budget/ricorrenze/sessioni/fattori; emulatore locale QA31 spento. **Dieci criteri chiusi localmente, 23 aperti**. Nessuna pubblicazione; `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Alla chiusura di V04 seguiva V05, qualificato nel perimetro descritto sopra.
 
 ## Consuntivo Finance V03 — candidata locale 0.1.14-alpha
 
@@ -57,7 +65,7 @@ I package `ui`, `data`, `finance`, `transfer` e `modules` contengono le schermat
 | REC | `/recurring` | CRUD, periodicità, suggerimenti, ignore e comportamento delle ricorrenze | Ricorrenze | CRUD, suggerimenti, ignore per account, pausa/ripresa ed elaborazione personale presenti; calendario mensile di sola lettura aggiunto, con clamp ripetuto e proiezioni dalla prossima scadenza; fixture locali 0.1.7 superate |
 | BUD | `/budget` | Periodi, limiti e spesa raggiunta | Budget | Mediana mensile e arrotondamenti con fixture; lettura, inserimento/modifica QA isolati e cleanup reali verificati nella 0.1.8. |
 | CAT | `/categories` | Categorie e compatibilità con transazioni/importazioni | Categorie | CRUD, detach, selezione icona/colore e palette del riferimento presenti; lettura, inserimento QA isolato e cleanup reali verificati; detach con dati condivisi non provato dal run isolato. |
-| CHART | `/charts`, `/charts/income-expense`, `/charts/expense`, `/charts/income` | Aggregazioni, filtri e rappresentazione dei valori | Grafici | Periodi, filtri tipo/categoria/valuta, granularità, barre/torta/linee e confronti cumulativi presenti, con righe numeriche e valute separate; fixture locali 0.1.7 superate; confronto completo web aperto |
+| CHART | `/charts`, `/charts/income-expense`, `/charts/expense`, `/charts/income` | Aggregazioni, filtri e rappresentazione dei valori | Grafici | V05 PASS LOCALE: filtri tipo/categoria/valuta con reset dopo refresh, quattro granularità, barre/torta/linee, tasso di risparmio e confronto cumulativo; 13/13 API 31, CI 219/219 API 35, 20 acquisizioni IT/EN. Valute e differenze native/web documentate; confronto browser completo aperto. |
 | PORT | `/portfolio` | Posizioni, chiusure e operazioni disponibili, prezzi e cambi | Portafoglio | Allocazioni, rendimento, prezzi e storico presenti; chiusure singole/collettive CAS e blocco fino a refresh. Letture e due chiusure QA reali superate; confronto completo con lo stesso dataset web aperto. |
 | NW | `/net-worth` | Componenti del patrimonio, storico e totali | Patrimonio | Formula corrente per valuta e storico server con periodi, dettagli, metriche e confronti presenti; snapshot senza valuta mantenute grezze, TCG escluso come sul web; fixture locali 0.1.7 superate |
 | INS | `/insights` | Metriche e calcoli sullo stesso dataset | Insights | Otto rilevatori nel sorgente, severità/badge/filtri e template IT/EN presenti; soglie decimali e valute separate dichiarate, milestone sulla serie server senza valuta; fixture locali 0.1.7 superate; parità globale aperta |

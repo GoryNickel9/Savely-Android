@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.16-alpha candidata locale — Grafici V05 qualificati localmente, 14 ottobre 2026
+
+I filtri valuta/categoria tornano a «Tutte» quando il refresh rimuove la selezione e non la riattivano alla ricomparsa. Aggiunto il tasso di risparmio esatto per valuta; rimosso il minimo di larghezza che sovrapponeva barre molto dense. I pulsanti dei grafici passano interi alla riga successiva con font grandi. La revisione delle immagini ha rilevato e corretto «Lin/e» in inglese a font 200%.
+
+La [qualifica V05](docs/CHARTS_QUALIFICATION.md) passa: 570 JVM per variante, 13/13 Grafici API 31, [CI completa API 35: 219/219](https://github.com/GoryNickel9/Savely-Android/actions/runs/38558425255), lint senza errori. Una successiva estensione solo test passa 1/1 API 31 e aggiunge due acquisizioni dei controlli Torta; 20 PNG/JSON revisionati complessivamente. Conservati errori delle fixture, ANR SystemUI, recupero, parser host singolare e run annullato. Nessun backend QA usato, emulatore spento; undici criteri chiusi localmente e 22 aperti, senza pubblicazione o parità globale.
+
 ## 0.1.15-alpha candidata locale — Ricorrenze V04 qualificate localmente, 14 ottobre 2026
 
 Ricorrenze: importo, data e identificatore sono validati prima dell'autenticazione e delle letture HTTP. Un aggiornamento con risposta incerta richiede una lettura completa prima di altre modifiche. L'ignore locale verifica la sessione prima e dopo la scrittura; tutti i comandi di modifica restano disabilitati durante la riconciliazione. Aggiunte nove regressioni JVM e una fixture Android di cancellazione; rafforzata la fixture di errore parziale con refresh 503/200. Isolati i client della fixture di cancellazione logout e aggiunto lo scroll mancante della seconda metrica Barista, conservando le prove dei fallimenti CI.
