@@ -1,8 +1,8 @@
 # Proposta per il contratto delle quotazioni
 
-**28/28 test offline Node e 18/18 test Deno superati; check Deno del gestore, typecheck strict del helper e applicabilità della patch verificati. La proposta non è applicata al web né distribuita; il deployment del servizio condiviso non è autorizzato.**
+**28/28 test offline, 18/18 Deno e controllo del gestore superati. Deployment autorizzato e verificato: versione 17 ACTIVE, `verify_jwt=false`, moduli identici alla proposta. La prova QA dei prezzi resta aperta; [rapporto](DEPLOYMENT_REPORT.md).**
 
-Il servizio corrente salva il prezzo Yahoo senza leggerne la valuta e può cambiare borsa tramite fallback. Un prezzo USD può quindi finire in una posizione EUR. Anche il fallback CoinGecko alla prima ricerca può scegliere un'altra criptovaluta. La baseline web è `1cfcf6297e85d56bfafe3522362ceecef6f6b281`; il responsabile dell'integrazione ha verificato separatamente la stessa semantica nel bundle distribuito.
+La versione 16 precedente salvava il prezzo Yahoo senza leggerne la valuta e può cambiare borsa tramite fallback. Un prezzo USD può quindi finire in una posizione EUR. Anche il fallback CoinGecko alla prima ricerca può scegliere un'altra criptovaluta. La baseline web è `1cfcf6297e85d56bfafe3522362ceecef6f6b281`; il responsabile dell'integrazione ha verificato separatamente la stessa semantica nel bundle distribuito.
 
 ## Contenuto
 
@@ -70,4 +70,4 @@ I comandi completi e gli hash dei log sono in `verification.json`. Un primo invi
 
 La proposta non ripara prezzi o storici già salvati nella valuta errata. Lo storico non ha una colonna valuta e non consente di ricostruire automaticamente la provenienza. Asset, storico e log restano scritture separate: un errore non implica rollback. Yahoo può fornire la chiusura precedente anziché un prezzo corrente, sempre dello stesso simbolo e nella valuta verificata. La lettura cron conserva la paginazione del servizio esistente; i dataset oltre il limite REST del progetto non sono qualificati.
 
-Prima di applicare o distribuire, occorrono revisione del diff e autorizzazione separata del deployment condiviso. La verifica Deno locale è completata; il bundle Edge distribuito e i provider reali restano da qualificare. Il piano operativo è in `DEPLOYMENT_PLAN.md` e conserva `verify_jwt: false`, il backup della versione 16 e il confine di autorizzazione JWT/cron esistente.
+Il deployment autorizzato è concluso e il bundle Edge è identificato nel [rapporto](DEPLOYMENT_REPORT.md). Restano la prova QA e i provider reali. Il piano operativo conserva `verify_jwt: false`, il backup della versione 16 e il confine JWT/cron esistente. La patch non è ancora applicata al repository web.

@@ -1,6 +1,6 @@
 # Deployment proposto di update-prices
 
-Piano non eseguito. Serve autorizzazione separata per sostituire il servizio condiviso del progetto `crqnfbahytzenisospcx`. Il pacchetto non cambia schema, segreti, cron o configurazione delle altre funzioni.
+Piano predisposto prima del deployment e successivamente autorizzato dall’utente. L’esecuzione del 14 ottobre 2026 è nel [rapporto](DEPLOYMENT_REPORT.md); le istruzioni sotto conservano il protocollo previsto per il servizio condiviso `crqnfbahytzenisospcx`. Il pacchetto non cambia schema, segreti, cron o configurazione delle altre funzioni.
 
 ## 1. Bloccare la preimmagine e conservare il backup
 

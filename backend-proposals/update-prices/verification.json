@@ -1,5 +1,5 @@
 {
-  "status": "proposal-not-applied-not-deployed",
+  "status": "deployed-readback-verified-qa-canary-pending",
   "web_baseline": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
   "baseline_index_sha256": "5673b9694706fad8f8ba8426a7c6d400bc2e6593f00ecaad50f3443c71faa91c",
   "auth_jwt_cron_block_unchanged": true,
@@ -17,8 +17,8 @@
   "offline_execution": "Executed on the LF package with Node and existing sibling web TypeScript; fake providers and database only, no network.",
   "deno_validation_executed": true,
   "live_validation_executed": false,
-  "deployment_authorized": false,
-  "deployment_executed": false,
+  "deployment_authorized": true,
+  "deployment_executed": true,
   "new_schema_or_config": false,
   "files": {
     "index.ts": "edb0e48b02a5cae884f256f2a635ad0522452086ce63d4e26a04e042f5376f6f",
@@ -28,8 +28,9 @@
     "upstream.patch": "fa1c6767234f8617d65a15bd88ea596b52d95f1cf61b62e33686b2be2bd7b943",
     "tsconfig.offline.json": "bce6d76a75be347165245f555c8fbd048e292f55c70abf817b54aea6a7401d1a",
     ".gitattributes": "07e4921ff78548c0f97633ba38be57c19ee03fdfe302d420fef5822b98120a1f",
-    "README.md": "214e79e02c7d39b0083e745f7f1b29d3c02fadb4976c58b50eb6a1d13e870e10",
-    "DEPLOYMENT_PLAN.md": "bf5ff2aa14142d1edaac3ae036d0d76d704d50cd11c77fd0d08668bd456eefbd"
+    "README.md": "21a2c0e9de84d2bebb49da17d014bec13fd468e01c4059e48e31af894a5f2cad",
+    "DEPLOYMENT_PLAN.md": "3bd3c7fabb5473f24b4eff6561ae2a93cdb21eebf5bafda8729e87b3a224f7ea",
+    "DEPLOYMENT_REPORT.md": "a59e199ceef161d001f1fe415d77b16ab660a2d6a904fd4642a6c310ba8690c3"
   },
   "historical_offline_verification": {
     "scope": "before-cash-read-preflight-change",
@@ -164,5 +165,29 @@
     "verify_jwt": false,
     "backup_eszip_sha256": "1348961e3f0e8f62a38d2fd16277da38a97b0d55b17283cb32cf47b669d3b01d",
     "version_number_preserved_by_redeploy": false
-  }
+  },
+  "historical_proposal_status": "proposal-not-applied-not-deployed",
+  "deployment": {
+    "backup_sha256": "1348961e3f0e8f62a38d2fd16277da38a97b0d55b17283cb32cf47b669d3b01d",
+    "exact_original_module_hashes": {
+      "index.ts": "edb0e48b02a5cae884f256f2a635ad0522452086ce63d4e26a04e042f5376f6f",
+      "quote-contract.ts": "a231e311459cdcc18282c961586a18ae9efb54e0c86387b7a5bbdeeb0c7ac050"
+    },
+    "function_id": "ebab8b27-d721-4b3b-80a9-c8945de4691f",
+    "function_invoked": false,
+    "post_attempts": 1,
+    "post_http_status": 201,
+    "previous_version": 16,
+    "proposal_commit": "ca9754784c8c15f5588e1797e3a60d8597cc37eb",
+    "qa_test_executed": false,
+    "readback_bytes": 293813,
+    "readback_sha256": "74801a62b657a8f4bad0490538e2d8ad2321049d67238987b087dffa2ee274c4",
+    "rollback_executed": false,
+    "run_id": "4d0fdd26-0a67-418a-b1cf-9a44f6116105",
+    "stage": "deployed_readback_verified",
+    "status": "ACTIVE",
+    "verify_jwt": false,
+    "version": 17
+  },
+  "deployment_result_sha256": "158115d8a67b719e9505eee1e08a430237abdee7fa5dd33ffcfe91d61fd7c385"
 }
