@@ -1,10 +1,10 @@
 # Roadmap Savely Android
 
-## Stato corrente — Insights V08 — candidata locale 0.1.17-alpha
+## Stato corrente — Portafoglio V06 e Insights V08 — candidata locale 0.1.17-alpha
 
 **[V08 è PASS LOCALE](docs/INSIGHTS_QUALIFICATION.md)**: 593 JVM per variante, lint debug senza errori, 11/11 API 31 in 79,068 s e 18 PNG/18 JSON IT/EN revisionati. Otto rilevatori, soglie, filtri/severità, testi e stati vuoto/errore sono verificati nelle fixture. Il testo delle perdite allinea i pareggi negativi a `Math.round`; i tentativi iniziali e diagnostici falliti restano conservati.
 
-**Tredici criteri chiusi localmente, 20 aperti.** V06 conserva il canary prezzi: deployment v17 verificato, prova QA ancora da concludere. Flag globali invariati, nessuna pubblicazione o nuova build R8. Segue **V09, FIRE**.
+**Quattordici criteri chiusi localmente, 19 aperti.** Il canary V06 sul servizio v17 passa: AAPL USD aggiornato dal form, BTC USD rifiutato per valuta incompatibile e baseline QA ripristinato. Flag globali invariati, nessuna pubblicazione o nuova build R8. Segue **V09, FIRE**.
 
 ## Consuntivo Patrimonio V07
 
@@ -14,9 +14,9 @@ Alla chiusura di V07 erano **dodici criteri chiusi localmente e 21 aperti**. Fla
 
 ## Consuntivo Portafoglio V06 — candidata locale 0.1.17-alpha
 
-[V06](docs/PORTFOLIO_QUALIFICATION.md) passa 586 JVM per variante, 14/14 fixture API 31 e 17 verifiche native sul release firmato, con baseline QA ripristinato. Il servizio v16 poteva applicare quotazioni nella valuta errata. La correzione `ca97547`, verificata offline/Deno, è [distribuita come v17 con bundle verificato](backend-proposals/update-prices/DEPLOYMENT_REPORT.md). **Resta aperto il canary QA dei prezzi.** La CI `38567179309` passa build e 222/224 Android; due timeout iniziali restano falliti, con causa non dimostrata e diagnostica aggiunta solo ai test.
+[V06](docs/PORTFOLIO_QUALIFICATION.md) passa 586 JVM per variante, 14/14 fixture API 31 e 17 verifiche native sul release firmato, con baseline QA ripristinato. Il servizio v16 poteva applicare quotazioni nella valuta errata. La correzione `ca97547`, verificata offline/Deno, è [distribuita come v17 con bundle verificato](backend-proposals/update-prices/DEPLOYMENT_REPORT.md). Il canary separato passa tre metodi nativi API 31 e il rifiuto host B: asset/storico AAPL entrambi 345,53 USD, BTC invariato salvo il log atteso. Sei record adottati eliminati con CAS; alle 14:25:22,917393 UTC del 14 ottobre 2026 sessioni/fattori zero, 33 categorie e sei snapshot conservati. **V06 è PASS LOCALE.** La CI `38567179309` passa build e 222/224 Android; due timeout iniziali restano falliti, con causa non dimostrata e diagnostica aggiunta solo ai test.
 
-**Undici criteri chiusi localmente, 22 aperti.** Nessuna pubblicazione; flag globali invariati. Il lavoro prosegue su **V07, Patrimonio**, mentre la prova prezzi rimane distinta.
+Al checkpoint CRUD erano **undici criteri chiusi localmente e 22 aperti**. Con V07, V08 e il canary V06 conclusi sono **14 chiusi e 19 aperti**. Nessuna pubblicazione; flag globali invariati. Nella nuova CI `38580288372` il job build è fallito e il job UI è ancora in corso; questo campione locale non ne cambia gli esiti. Segue **V09, FIRE**.
 
 ## Consuntivo Grafici V05 — candidata locale 0.1.16-alpha
 

@@ -1,6 +1,6 @@
 # V06 — Qualifica del Portafoglio
 
-**V06 resta aperto sull'aggiornamento reale dei prezzi.** Passano le fixture locali e 17 verifiche dei form sul release firmato, con baseline QA ripristinato. Nessuna pubblicazione o parità globale deriva dai risultati sotto.
+**V06 è PASS LOCALE nel perimetro Portafoglio.** Alle fixture e alle 17 verifiche CRUD sul release firmato si aggiunge il canary prezzi: AAPL USD aggiornato dal form, BTC USD rifiutato per valuta incompatibile, baseline QA ripristinato. I due run restano distinti. Sono chiusi localmente 14 criteri, 19 restano aperti; nessuna pubblicazione o parità globale deriva dai risultati sotto.
 
 ## Sorgenti e correzioni
 
@@ -51,6 +51,34 @@ Il primo run `93f54276-eda8-43b0-980c-64e622d3b63f` passa 13/14: l'assert della 
 
 ## Prezzi: difetto del servizio condiviso
 
-Il bundle distribuito di `update-prices`, versione 16, è stato letto senza modificarlo: SHA-256 `1348961e3f0e8f62a38d2fd16277da38a97b0d55b17283cb32cf47b669d3b01d`. Il servizio salva la quotazione Yahoo senza verificare la valuta e prova ticker su altre borse. Può quindi applicare un prezzo USD a una posizione EUR. La ricerca crypto può selezionare il primo risultato diverso dall'identità richiesta. Un successo HTTP non qualifica questi prezzi.
+Il bundle distribuito di `update-prices`, versione 16, è stato letto senza modificarlo: SHA-256 `1348961e3f0e8f62a38d2fd16277da38a97b0d55b17283cb32cf47b669d3b01d`. Quella versione salvava la quotazione Yahoo senza verificare la valuta e provava ticker su altre borse. Poteva quindi applicare un prezzo USD a una posizione EUR. La ricerca crypto poteva selezionare il primo risultato diverso dall'identità richiesta. Un successo HTTP non qualifica questi prezzi.
 
-La [proposta revisionabile](../backend-proposals/update-prices/README.md) verifica simbolo/valuta, rifiuta mismatch, elimina fallback ambigui e conserva cash FX e autorizzazione JWT/cron. I test offline non qualificano il servizio distribuito. Non sono stati modificati prezzi reali per aggirare il controllo. Il [deployment autorizzato](../backend-proposals/update-prices/DEPLOYMENT_REPORT.md) è concluso: versione 17 ACTIVE, `verify_jwt=false`, moduli del bundle identici alla proposta. **V06 richiede ancora il canary QA verificato.** Il codice e il backup sono identificati; nessun prezzo reale è stato ancora aggiornato durante questa qualifica.
+La [proposta revisionabile](../backend-proposals/update-prices/README.md) verifica simbolo/valuta, rifiuta mismatch, elimina fallback ambigui e conserva cash FX e autorizzazione JWT/cron. Il [deployment autorizzato e il canary](../backend-proposals/update-prices/DEPLOYMENT_REPORT.md) sono conclusi: versione 17 ACTIVE, `verify_jwt=false`, moduli del bundle identici alla proposta. Il campione reale seguente verifica una quotazione accettata e un rifiuto; i test offline conservano il proprio perimetro sintetico.
+
+## Canary prezzi reale — 14 ottobre 2026
+
+Run separato `artifacts/v06-price-canary/1216fd9d-fa37-409f-afff-00280e208259`, sullo stesso release `bf86519c…` e harness `e7d28ff3…` della tabella, riletti dopo l'installazione. L'AVD dedicato è SavelyReleaseQA31/API 31; lingua EN. Il primo aggiornamento del pacchetto debug non è riuscito prima di qualsiasi login o chiamata prezzi: il motivo non è stato acquisito. Conservata la failure, il solo debug sintetico è stato identificato tramite SHA/flag e sostituito con il release congelato. L'harness e i report precedenti sono rimasti presenti. È una nuova installazione, non una prova di upgrade autenticato.
+
+Le 13 guardie host finali passano in 0,204 s, senza rete. I primi 11 controlli e la successiva correzione del ramo con `assets_updated=0` nel manual update restano conservati. Quel ramo consente cleanup solo con asset immutato, storico assente e log d'errore esattamente riferito al seed; il percorso positivo richiede sempre aggiornamento 1 ed errori vuoti. La revisione indipendente identifica gli hash del runner e delle guardie prima del run reale.
+
+| Passaggio | Osservato |
+| --- | --- |
+| Baseline, 14:23:58,889417 UTC | Tre QA verificati; zero sessioni/fattori, asset/storico/manual update/log prezzi. 33 categorie e sei snapshot preesistenti da conservare. |
+| Seed host | Due soli nuovi UUID riservati prima dell'INSERT: A stock AAPL USD, B crypto BTC USD; quantità 1, acquisto 0,01, corrente 0,02. Nessun retry. |
+| A, form nativo | Login 12,923 s, singola azione prezzi 23,360 s e logout 17,004 s: tre metodi PASS, 53,287 s complessivi di instrumentation. Cooldown visibile. |
+| A, server alle 14:24:47,964580 UTC | Asset e unica riga storico entrambi **345,53 USD**; quantità 1. Log `checked=1`, `updated=1`, `errors=[]`; un manual update. B ancora immutato. Il servizio arrotonda HALF_UP a due decimali; la coincidenza osservata non è una verifica indipendente del tick grezzo Yahoo. |
+| B, client host in RAM | Identità e sessione B verificate; una sola chiamata JWT alla funzione. HTTP 200, versione contratto 2, `checked=1`, `updated=0`, unico errore `QUOTE_CURRENCY_MISMATCH` per l'esatto UUID BTC. Asset ancora 0,02: nessuna scrittura B su asset, storico o manual update. È presente il solo log prezzi B atteso. Il login B e questo rifiuto non sono prove del form Android. |
+| Cleanup, 14:25:22,917393 UTC | Sei DELETE con preimmagine completa e prenotazione durevole: due asset, uno storico, un manual update e due log. Verificata l'assenza di ciascun UUID; baseline ripristinato, zero sessioni/fattori QA, 33 categorie e sei snapshot conservati. |
+
+`evidence/result.json` riporta `passed=true`, `baseline_restored=true`, `cleanup_pending=false`, `native_positive=true`, `negative_mismatch=true`; nessun rollback eseguito. Il logout B è locale e vincolato alla sola sessione creata dal runner. Non sono state modificate registrazioni, schema, cron, segreti, ruoli o fattori esistenti. Ogni seed, chiamata prezzi e cancellazione ha una prenotazione precedente; nessuna mutazione viene ripetuta dopo un esito ambiguo.
+
+| Evidenza locale ignorata | SHA-256 |
+| --- | --- |
+| `evidence/result.json` | `f7784c397790cd0125fa41e6a9bf32f6b695c80805e701b3a8732b82cce5241c` |
+| `evidence/a-prices-observed.json` | `70f1076e5466f7fc0492f1837af62a6b83e306783027ad3cd669f8388a9950b7` |
+| `evidence/b-prices-observed.json` | `5580e729a22d45c2d38afe5379d76b3480a621be19eefa1e07f60376baf971f0` |
+| Ultimo `cleanup-price_update_logs-…-observed.json` | `519e772b5272bd5fac290938c4773a0cbe59accd442857b79cc0456f7d0482a9` |
+| Runner `run-canary.py` | `0c601cd144cd7b7dbb781e43f82947c8c2afeef4c268cb0b4ce130a57be4d993` |
+| Guardie `canary_guards.py` | `3e6e5eab0080800360a8973cbad999ad5b71cc2fcf687f807de216c9237d782f` |
+
+I tre metodi del canary si aggiungono alle 17 verifiche CRUD storiche: non costituiscono un unico run continuo del protocollo originale. Il campione non qualifica tutti i simboli, valute, provider, disponibilità futura o cron. Yahoo può fornire la chiusura precedente; i vecchi prezzi errati non sono riparati. La sorgente web resta da allineare prima di un futuro deployment. La CI storica 222/224 resta fallita; la nuova [CI 38580288372](https://github.com/GoryNickel9/Savely-Android/actions/runs/38580288372) ha il job build fallito e il job UI ancora in corso. Il canary locale non modifica questi esiti. Flag globali e release pubblica invariati.

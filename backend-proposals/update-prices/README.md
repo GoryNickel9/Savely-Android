@@ -1,8 +1,8 @@
 # Proposta per il contratto delle quotazioni
 
-**28/28 test offline, 18/18 Deno e controllo del gestore superati. Deployment autorizzato e verificato: versione 17 ACTIVE, `verify_jwt=false`, moduli identici alla proposta. La prova QA dei prezzi resta aperta; [rapporto](DEPLOYMENT_REPORT.md).**
+**28/28 test offline, 18/18 Deno e controllo del gestore superati. Deployment autorizzato e verificato: versione 17 ACTIVE, `verify_jwt=false`, moduli identici alla proposta. Il canary QA passa: AAPL USD dal form e rifiuto BTC USD dal client host, con baseline ripristinato; [rapporto](DEPLOYMENT_REPORT.md).**
 
-La versione 16 precedente salvava il prezzo Yahoo senza leggerne la valuta e può cambiare borsa tramite fallback. Un prezzo USD può quindi finire in una posizione EUR. Anche il fallback CoinGecko alla prima ricerca può scegliere un'altra criptovaluta. La baseline web è `1cfcf6297e85d56bfafe3522362ceecef6f6b281`; il responsabile dell'integrazione ha verificato separatamente la stessa semantica nel bundle distribuito.
+La versione 16 precedente salvava il prezzo Yahoo senza leggerne la valuta e poteva cambiare borsa tramite fallback. Un prezzo USD poteva quindi finire in una posizione EUR. Anche il fallback CoinGecko alla prima ricerca poteva scegliere un'altra criptovaluta. La baseline web è `1cfcf6297e85d56bfafe3522362ceecef6f6b281`; il responsabile dell'integrazione ha verificato separatamente la stessa semantica nel bundle distribuito.
 
 ## Contenuto
 
@@ -12,7 +12,7 @@ La versione 16 precedente salvava il prezzo Yahoo senza leggerne la valuta e pu�
 - `.gitattributes`: mantiene LF nel pacchetto, anche sui checkout Windows.
 - `run-offline.mjs`: runner senza rete con provider, database, JWT e secret cron sintetici. Usa il TypeScript già installato nel repository fratello `Savely`, in sola lettura, e transpila in memoria.
 - `verification.json`: esiti, runtime, hash dei file e riferimenti ai log locali conservati.
-- `DEPLOYMENT_PLAN.md`: preimmagine versione 16, backup ESZIP, invio singolo e rollback; piano non eseguito.
+- `DEPLOYMENT_PLAN.md`: preimmagine versione 16, backup ESZIP, invio singolo eseguito e rollback preparato ma non eseguito.
 
 ## Comportamento proposto
 
@@ -70,4 +70,4 @@ I comandi completi e gli hash dei log sono in `verification.json`. Un primo invi
 
 La proposta non ripara prezzi o storici già salvati nella valuta errata. Lo storico non ha una colonna valuta e non consente di ricostruire automaticamente la provenienza. Asset, storico e log restano scritture separate: un errore non implica rollback. Yahoo può fornire la chiusura precedente anziché un prezzo corrente, sempre dello stesso simbolo e nella valuta verificata. La lettura cron conserva la paginazione del servizio esistente; i dataset oltre il limite REST del progetto non sono qualificati.
 
-Il deployment autorizzato è concluso e il bundle Edge è identificato nel [rapporto](DEPLOYMENT_REPORT.md). Restano la prova QA e i provider reali. Il piano operativo conserva `verify_jwt: false`, il backup della versione 16 e il confine JWT/cron esistente. La patch non è ancora applicata al repository web.
+Il deployment autorizzato e il canary QA sono conclusi; bundle, prezzo AAPL USD 345,53 e rifiuto BTC USD sono identificati nel [rapporto](DEPLOYMENT_REPORT.md). Il cleanup elimina soltanto sei record adottati e lascia zero sessioni/fattori QA, conservando 33 categorie e sei snapshot. Il campione non qualifica altri strumenti/valute, disponibilità futura o cron. Il piano operativo conserva `verify_jwt: false`, il backup della versione 16 e il confine JWT/cron esistente. La patch non è ancora applicata al repository web.
