@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.15-alpha candidata locale — Ricorrenze V04 qualificate localmente, 14 ottobre 2026
+
+Ricorrenze: importo, data e identificatore sono validati prima dell'autenticazione e delle letture HTTP. Un aggiornamento con risposta incerta richiede una lettura completa prima di altre modifiche. L'ignore locale verifica la sessione prima e dopo la scrittura; tutti i comandi di modifica restano disabilitati durante la riconciliazione. Aggiunte nove regressioni JVM e una fixture Android di cancellazione; rafforzata la fixture di errore parziale con refresh 503/200. Isolati i client della fixture di cancellazione logout e aggiunto lo scroll mancante della seconda metrica Barista, conservando le prove dei fallimenti CI.
+
+La [qualifica V04](docs/RECURRING_FORM_QUALIFICATION.md) passa nel perimetro locale: 14 form ricorrenze e login/logout sullo stesso release firmato, nove operazioni ledger incluse due pulizie CAS. Il parser host fallisce prima del primo DELETE; la ripresa usa Decimal, conserva quel fallimento e completa soltanto il cleanup. Passano 567 JVM per variante, 38 Finance + una preferenze API 31 e la [CI completa API 35: 213/213](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173), lint senza errori. Baseline QA ripristinato, fattori/sessioni zero ed emulatore locale spento. Dieci criteri chiusi localmente, 23 aperti; nessuna pubblicazione o parità globale.
+
 ## 0.1.14-alpha candidata locale — Finance V03 qualificata localmente, 13 ottobre 2026
 
 Vincolati repository e dialoghi Finance alla sessione che ha caricato i dati; una vecchia callback non può salvare dopo un cambio account o un nuovo login dello stesso utente. Anche paginazione e letture accessorie rifiutano la sessione sostitutiva. Importo, data e cambio manuale vengono validati prima dell'HTTP. Aggiunti sei test JVM e nove fixture UI, inclusa la lettura dei valori Dashboard dall'accessibilità nativa entro i limiti della Card, più registro host e driver esterno per il release firmato.

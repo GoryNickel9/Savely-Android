@@ -1,12 +1,20 @@
 # Piano di completamento della stabile
 
-## Qualifica Finance V03 — candidata locale 0.1.14-alpha
+## Qualifica Ricorrenze V04 — candidata locale 0.1.15-alpha
+
+**[V04 è PASS LOCALE](RECURRING_FORM_QUALIFICATION.md).** Sul release firmato code 16, sorgente `a73d313`, passano 14 verifiche dei form e login/logout: creazione in pausa, modifica, calendario, ripresa, elaborazione `1/0/1`, reset della data, deduplica `0/1/1`, elaborazione vuota, pausa e annullamento della cancellazione. Il coordinatore host originale resta fallito per il parsing dei decimali REST; la ripresa corregge solo il parser, elimina i due record con CAS esatto e completa le nove operazioni del ledger, senza ripetere i form.
+
+Passano **567 JVM per variante**, **38/38 Finance e 1/1 preferenze per account su API 31**, **35 guardie ledger e otto CAS**. La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173), sullo stesso sorgente, passa build/lint/JVM e la suite completa di **213/213 test Android 15/API 35**, zero failure/skip. Gli APK UI della CI non sono archiviati: la parità dei byte con gli APK locali non è attestata. Lint locale senza errori. La cancellazione logica è provata nella fixture TLS; sul backend reale la ricorrenza resta visibile e in pausa fino al CAS, perché la RLS nasconde i record eliminati logicamente.
+
+Baseline QA ripristinato alle **10:47:31,815004 UTC del 14 ottobre 2026**: 33 categorie e zero transazioni/budget/ricorrenze/sessioni/fattori; emulatore locale QA31 spento. **Dieci criteri chiusi localmente, 23 aperti**. Nessuna pubblicazione; `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V05, Grafici**.
+
+## Consuntivo Finance V03 — candidata locale 0.1.14-alpha
 
 **[V03 è PASS LOCALE](FINANCE_FORM_QUALIFICATION.md) nel perimetro Dashboard, Transazioni, Categorie e Budget.** Produzione Finance `8b86ff2`, release firmato code 15/SHA-256 `3844b1717d194fe4bfacb4fe57ea2932056d1d0bbf2d2bb93584defd9c589b2f`. Nel run `cfec2d56` passano 18 verifiche dai form API 31/EN, con 14 operazioni CRUD osservate sul server. Il logout originale termina in timeout e resta fallito; il solo recupero UI, con driver `96f7598`, passa in 15,571 s. Seguono due eliminazioni host dei soli record adottati, con confronto dei valori originali. Il coordinatore originale conserva `passed=false`; il risultato finale certifica il perimetro Finance e il ripristino QA.
 
 Passano **558 JVM per variante**, **34 guardie host**, **37/37 Finance e 13/13 navigazione su ciascuna API 31/35** sul test APK `e4e96d21…`, più dieci controlli delle condizioni del recupero. Lint senza errori. Sono gruppi Android selezionati, non una nuova suite completa dell'app. Alle **20:01:17,787380 UTC del 13 ottobre 2026** le proiezioni QA e i record baseline sono ripristinati: 33 categorie, zero transazioni/budget/sessioni/fattori. Gli AVD QA31/QA35 sono spenti. **Nove criteri chiusi localmente, 24 aperti**; nessuna CI o pubblicazione. `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati.
 
-Prossimo blocco autonomo: **V04, Ricorrenze**.
+Dopo V03 il blocco successivo era **V04**, ora qualificato nel perimetro descritto sopra.
 
 ## Consuntivo V02 — 13 ottobre 2026
 

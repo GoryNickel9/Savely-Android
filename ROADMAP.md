@@ -1,10 +1,18 @@
 # Roadmap Savely Android
 
-## Stato corrente — Finance V03 conclusa localmente, candidata 0.1.14-alpha
+## Stato corrente — Ricorrenze V04 concluse localmente, candidata 0.1.15-alpha
+
+[V04 è PASS LOCALE](docs/RECURRING_FORM_QUALIFICATION.md): 14 form sul release firmato API 31/EN, con calendario, pausa/ripresa, prima creazione, reset della data, deduplica e annullamento della cancellazione. Corretti validazione prima dell'HTTP, PATCH ambigui, isolamento dell'ignore e controlli durante riconciliazione. Passano 567 JVM per variante, 38 Finance + una preferenze API 31 e la [CI finale: 213/213 Android 15](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173); lint senza errori.
+
+Il coordinatore host originale resta fallito per il parser numerico; la ripresa completa solo i due CAS e ripristina il baseline QA. Zero transazioni/budget/ricorrenze/sessioni/fattori QA; 33 categorie originali ed emulatore locale spento. La RLS richiede di provare il soft delete nella fixture locale e pulire sul backend la ricorrenza ancora in pausa e visibile. Nessuna policy modificata.
+
+**V01/V02/V03/V04/R01/C01/C02/A04/A05/D01: dieci righe chiuse localmente, 23 aperte.** Parità globale non qualificata e nessuna pubblicazione. Prossimo blocco autonomo: **V05, Grafici**.
+
+## Consuntivo Finance V03 — candidata 0.1.14-alpha
 
 [V03 è PASS LOCALE](docs/FINANCE_FORM_QUALIFICATION.md) nel perimetro Finance: 18 verifiche dai form API 31/EN e 14 CRUD con riletture sul server. Corretti i confini della sessione per letture/salvataggi e la validazione prima dell'HTTP. Il logout originale resta fallito per timeout; il recupero UI separato passa in 15,571 s, poi due cleanup host esatti ripristinano il baseline. Passano 558 JVM per variante, 34 guardie host, 37/37 Finance e 13/13 navigazione per ciascuna API 31/35; lint senza errori. QA originali, sessioni/fattori zero e AVD di qualifica spenti.
 
-**V01/V02/V03/R01/C01/C02/A04/A05/D01: nove righe chiuse localmente, 24 aperte.** Parità globale non qualificata, nessuna CI o pubblicazione. Prossimo blocco autonomo: **V04, Ricorrenze**.
+**V01/V02/V03/R01/C01/C02/A04/A05/D01: nove righe chiuse localmente, 24 aperte.** Parità globale non qualificata, nessuna CI o pubblicazione. Dopo V03 il blocco successivo era **V04**, ora qualificato nel perimetro descritto sopra.
 
 Consuntivo V02 sulla precedente candidata locale 0.1.13-alpha:
 

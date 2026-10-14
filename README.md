@@ -1,6 +1,10 @@
 # Savely Android
 
-La [qualifica Finance V03](docs/FINANCE_FORM_QUALIFICATION.md) è **PASS LOCALE** sulla candidata **0.1.14-alpha/code 15**: 18 verifiche dai form, 14 CRUD osservati sul server e baseline QA ripristinata. Il logout originale resta fallito; il recupero UI separato passa e la pulizia elimina i soli due record residui. Passano **558 JVM per variante, 34 guardie host e 37 casi Finance più 13 di navigazione su ciascuna API 31/35**; lint senza errori e AVD QA spenti. **Nove righe chiuse localmente, 24 aperte**. La candidata resta alpha e locale; segue V04, Ricorrenze.
+La [qualifica Ricorrenze V04](docs/RECURRING_FORM_QUALIFICATION.md) è **PASS LOCALE** sulla candidata **0.1.15-alpha/code 16**: 14 form firmati, calendario, pausa/ripresa ed elaborazione senza duplicare la transazione. Passano **567 JVM per variante**, 38 Finance più un test preferenze su Android 12 e la [CI completa Android 15: 213/213](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173). Il parser del cleanup host è stato corretto dopo il fallimento originale, conservato; baseline QA ripristinato ed emulatore locale spento. **Dieci righe chiuse localmente, 23 aperte**. La candidata resta alpha e locale; segue **V05, Grafici**.
+
+Consuntivo V03:
+
+La [qualifica Finance V03](docs/FINANCE_FORM_QUALIFICATION.md) è **PASS LOCALE** sulla candidata **0.1.14-alpha/code 15**: 18 verifiche dai form, 14 CRUD osservati sul server e baseline QA ripristinata. Il logout originale resta fallito; il recupero UI separato passa e la pulizia elimina i soli due record residui. Passano **558 JVM per variante, 34 guardie host e 37 casi Finance più 13 di navigazione su ciascuna API 31/35**; lint senza errori e AVD QA spenti. **Nove righe chiuse localmente, 24 aperte**. Alla chiusura di V03 il criterio successivo era V04, ora qualificato sopra.
 
 Consuntivo V02:
 
@@ -47,6 +51,7 @@ Per compilare: JDK 17 o superiore, Android SDK 36 e Gradle wrapper incluso. Copi
 | Documento | Contenuto |
 |---|---|
 | [ROADMAP.md](ROADMAP.md) | Fasi, attività, dipendenze, subagent, stime e criteri di completamento |
+| [docs/RECURRING_FORM_QUALIFICATION.md](docs/RECURRING_FORM_QUALIFICATION.md) | Form ricorrenze firmati, calendario, elaborazione, deduplica, CI e pulizia QA |
 | [docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md) | Inventario delle funzioni e procedura per confrontare Android e web |
 | [docs/PARITY_0_1_9.md](docs/PARITY_0_1_9.md) | Lacune completate nella candidata e condizioni della 1.0 stabile |
 | [docs/QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md) | Account dedicati, prove reali e correzioni successive alla release pubblica |
