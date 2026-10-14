@@ -1,6 +1,12 @@
 # Roadmap Savely Android
 
-## Stato corrente — Grafici V05 — candidata locale 0.1.16-alpha
+## Stato corrente — Portafoglio V06 — candidata locale 0.1.17-alpha
+
+[V06](docs/PORTFOLIO_QUALIFICATION.md) passa 586 JVM per variante, 14/14 fixture API 31 e 17 verifiche native sul release firmato, con baseline QA ripristinato. **Resta aperto sui prezzi reali:** il servizio distribuito può applicare una quotazione nella valuta errata. La proposta correttiva è committata in `ca97547`, verificata con 28 test offline, 18 Deno e controllo del gestore; distribuzione condivisa in attesa di autorizzazione. La CI `38567179309` passa build e 222/224 Android; due timeout iniziali restano falliti, con causa non dimostrata e diagnostica aggiunta solo ai test.
+
+**Undici criteri chiusi localmente, 22 aperti.** Nessuna pubblicazione; flag globali invariati. Il lavoro prosegue su **V07, Patrimonio**, mentre la prova prezzi rimane distinta.
+
+## Consuntivo Grafici V05 — candidata locale 0.1.16-alpha
 
 **[V05 è PASS LOCALE](docs/CHARTS_QUALIFICATION.md)** nel criterio delle fixture comuni e acquisizioni IT/EN. Corretti i filtri rimasti su categorie/valute rimosse, aggiunto il tasso di risparmio decimale per valuta e sistemati i pulsanti dei grafici a font 200%. Produzione `522051c`, code 17; passano **570 JVM per variante**, lint senza errori e **13/13 Grafici API 31 in 107,677 s**. I test finali riproducono i due difetti sulle rispettive build precedenti.
 

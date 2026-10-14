@@ -31,6 +31,8 @@ import java.time.OffsetDateTime
 import java.util.Currency
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Real module UI and common synthetic inputs. No external catalog, cover, price or backend writes. */
 @RunWith(AndroidJUnit4::class)
@@ -41,6 +43,7 @@ class CommonModuleVisualTest {
     private var backend: CommonVisualBackend? = null
     private var owner = ""
     private val tables = mutableMapOf<String, JSONArray>()
+    private val fixtureReads = ConcurrentHashMap<String, AtomicInteger>()
     private var firePreferences: SharedPreferences? = null
     private var fireOriginal: String? = null
     private var fireSeeded = false
@@ -292,8 +295,31 @@ class CommonModuleVisualTest {
     private fun awaitText(text: String, substring: Boolean = false) = compose.waitUntil(15_000) {
         compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
     }
-    private fun awaitEnabled(text: String) = compose.waitUntil(15_000) {
-        compose.onAllNodes(hasText(text) and hasClickAction() and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+    private fun awaitEnabled(text: String) {
+        try {
+            compose.waitUntil(15_000) {
+                compose.onAllNodes(hasText(text) and hasClickAction() and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (failure: ComposeTimeoutException) {
+            val control = when (text) { "Aggiorna", "Update" -> "REFRESH"; "Aggiungi", "Add" -> "ADD"; else -> "CONTROL" }
+            val ui = runCatching {
+                val candidates = compose.onAllNodes(hasText(text) and hasClickAction()).fetchSemanticsNodes()
+                val progress = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+                    .fetchSemanticsNodes().size
+                val errors = listOf(
+                    "NETWORK" to "Connessione non disponibile. Controlla la rete e riprova.",
+                    "NETWORK_INTERRUPTED" to "Connessione interrotta. Riprova.",
+                    "SERVER" to "Servizio temporaneamente non disponibile. Riprova.",
+                    "AUTH" to "Sessione scaduta. Accedi di nuovo.",
+                    "PERMISSION" to "Non hai il permesso per questa operazione.",
+                    "OWNER" to "Account cambiato. Riapri la schermata.",
+                ).filter { (_, label) -> compose.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty() }.map { it.first }
+                "AVAILABLE controls=${candidates.size}, enabled=${candidates.count { !it.config.contains(SemanticsProperties.Disabled) }}, progress=$progress, fixedErrors=$errors"
+            }.getOrElse { "UNAVAILABLE:${it.javaClass.simpleName}" }
+            val requests = fixtureReads.entries.sortedBy { it.key }.joinToString { "${it.key}=${it.value.get()}" }
+            throw AssertionError("CommonModule readiness timeout stage=$control, fixtureReads=[$requests], " +
+                "fixtureAccepted=${backend?.allowedRequests?.get()}, fixtureRejected=${backend?.rejected?.get()}, UI=$ui", failure)
+        }
     }
     private fun render(section: String, profile: CommonVisualProfile) {
         compose.setContent { CommonVisualContent(profile) { ModuleScreen(backend!!.api, section, Modifier.fillMaxSize()) } }
@@ -351,6 +377,7 @@ class CommonModuleVisualTest {
         val table = url.encodedPath.removePrefix("/rest/v1/")
         if (table !in setOf("transactions", "poker_next_cut", "poker_manual_expenses", "poker_hourly_earnings", "poker_rakeback",
                 "cbd", "thc", "liquido_sigaretta", "tgc_cards", "library_items")) return null
+        fixtureReads.computeIfAbsent(table) { AtomicInteger() }.incrementAndGet()
         val rows = tables[table] ?: JSONArray()
         val category = url.queryParameter("category")?.removePrefix("eq.")
         val selected = (0 until rows.length()).map { rows.getJSONObject(it) }

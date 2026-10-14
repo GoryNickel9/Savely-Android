@@ -38,6 +38,7 @@ import org.junit.Test
 import org.junit.rules.Timeout
 import java.util.Base64
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -53,6 +54,7 @@ class SettingsProfileRecreationTest {
     private val visible = mutableStateOf(true)
     private val store = MemorySessionStore(first)
     private val reads = AtomicInteger()
+    private val profileReplies = ConcurrentHashMap<Int, AtomicInteger>()
     private val denied = AtomicInteger()
     private val writes = CopyOnWriteArrayList<Pair<String, JSONObject>>()
     private val releaseRead = CountDownLatch(1)
@@ -251,8 +253,31 @@ class SettingsProfileRecreationTest {
     private fun clearInput() = compose.runOnIdle { focus.clearFocus(force = true); keyboard?.hide() }
 
     private fun awaitProfile(name: String, currency: String, minimumReads: Int = 1) {
-        compose.waitUntil(15_000) {
-            reads.get() >= minimumReads && compose.onAllNodes(hasText("Salva profilo") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        try {
+            compose.waitUntil(15_000) {
+                reads.get() >= minimumReads && compose.onAllNodes(hasText("Salva profilo") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (failure: ComposeTimeoutException) {
+            val ui = runCatching {
+                val saves = compose.onAllNodes(hasText("Salva profilo")).fetchSemanticsNodes()
+                val fields = compose.onAllNodes(hasText("Nome completo") and hasSetTextAction()).fetchSemanticsNodes()
+                val progress = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+                    .fetchSemanticsNodes().size
+                val errors = listOf(
+                    "NETWORK" to "Connessione non disponibile. Controlla la rete e riprova.",
+                    "NETWORK_INTERRUPTED" to "Connessione interrotta. Riprova.",
+                    "SERVER" to "Servizio temporaneamente non disponibile. Riprova.",
+                    "AUTH" to "Sessione scaduta. Accedi di nuovo.",
+                    "PERMISSION" to "Non hai il permesso per questa operazione.",
+                    "OWNER" to "La sessione è cambiata. Aggiorna la schermata prima di continuare.",
+                ).filter { (_, label) -> compose.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty() }.map { it.first }
+                "AVAILABLE saves=${saves.size}, enabledSaves=${saves.count { !it.config.contains(SemanticsProperties.Disabled) }}, " +
+                    "nameFields=${fields.size}, enabledFields=${fields.count { !it.config.contains(SemanticsProperties.Disabled) }}, progress=$progress, fixedErrors=$errors"
+            }.getOrElse { "UNAVAILABLE:${it.javaClass.simpleName}" }
+            val replies = profileReplies.entries.sortedBy { it.key }.joinToString { "${it.key}=${it.value.get()}" }
+            throw AssertionError("Settings profile readiness timeout stage=PROFILE_READY, minimumReads=$minimumReads, " +
+                "fixtureReads=${reads.get()}, fixtureReplies=[$replies], fixtureRejected=${denied.get()}, writes=${writes.size}, " +
+                "fixtureStatus=$profileStatus, missingProfile=$missingProfile, mounted=$mounted, UI=$ui", failure)
         }
         assertDraft(name, currency)
         compose.onNodeWithText(currency, substring = false).performScrollTo().assertIsSelected().assertIsEnabled()
@@ -300,9 +325,9 @@ class SettingsProfileRecreationTest {
                 request.getHeader("apikey") != "profile-public-fixture") return reject()
             if (request.method == "GET" && url.queryParameter("select") == "*") {
                 reads.incrementAndGet()
-                if (gateReads && !releaseRead.await(15, TimeUnit.SECONDS)) return json("{}", 504)
-                if (profileStatus != 200) return json("{}", profileStatus)
-                return json(if (missingProfile) "[]" else profile(identity.userId))
+                if (gateReads && !releaseRead.await(15, TimeUnit.SECONDS)) return profileReply("{}", 504)
+                if (profileStatus != 200) return profileReply("{}", profileStatus)
+                return profileReply(if (missingProfile) "[]" else profile(identity.userId), 200)
             }
             if (request.method == "PATCH") {
                 val body = runCatching { JSONObject(request.body.readUtf8()) }.getOrElse { return reject() }
@@ -319,6 +344,10 @@ class SettingsProfileRecreationTest {
         """[{"full_name":"Profile A","default_currency":"EUR"}]""" else
         """[{"full_name":"Profile B","default_currency":"CHF"}]"""
     private fun reject(): MockResponse { denied.incrementAndGet(); return json("{}", 403) }
+    private fun profileReply(body: String, status: Int): MockResponse {
+        profileReplies.computeIfAbsent(status) { AtomicInteger() }.incrementAndGet()
+        return json(body, status)
+    }
     private fun json(body: String, status: Int = 200) = MockResponse().setResponseCode(status).setHeader("Content-Type", "application/json").setBody(body)
     private fun session(owner: String, login: String): Session {
         val payload = Base64.getUrlEncoder().withoutPadding().encodeToString("""{"session_id":"$login"}""".toByteArray())

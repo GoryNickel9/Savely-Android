@@ -1,5 +1,9 @@
 # Savely Android
 
+La [qualifica Portafoglio V06](docs/PORTFOLIO_QUALIFICATION.md) passa **586 JVM per variante, 14/14 fixture Android 12 e 17 verifiche dei form sul release firmato 0.1.17-alpha/code 18**. Record QA rimossi e baseline ripristinato; revisionati 22 PNG IT/EN. **V06 resta aperto sui prezzi reali:** il servizio condiviso non verifica la valuta della quotazione. La correzione proposta passa 28 test offline e 18 Deno, ma non è distribuita. CI: build riuscita, Android 222/224 con due timeout iniziali conservati. Restano **11 criteri chiusi localmente e 22 aperti**; prosegue V07, Patrimonio. Nessuna nuova pubblicazione o parità globale.
+
+## Consuntivo Grafici V05
+
 La [qualifica Grafici V05](docs/CHARTS_QUALIFICATION.md) è **PASS LOCALE** sulla candidata **0.1.16-alpha/code 17**: filtri aggiornati dopo refresh, tasso di risparmio per valuta, grafici e tabelle coerenti, controlli leggibili a font 200%. Passano **570 JVM per variante**, **13/13 Grafici Android 12** e la [CI completa Android 15: 219/219](https://github.com/GoryNickel9/Savely-Android/actions/runs/38558425255). Revisionati 20 PNG IT/EN; emulatore locale spento, nessun accesso al backend QA. **Undici righe chiuse localmente, 22 aperte**. La candidata resta alpha e locale; segue **V06, Portafoglio**.
 
 Consuntivo V03:

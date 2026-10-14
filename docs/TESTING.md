@@ -1,5 +1,11 @@
 # Verifica Savely Android
 
+## Portafoglio V06 — candidata locale 0.1.17-alpha
+
+[Rapporto V06](PORTFOLIO_QUALIFICATION.md): produzione `41f2098`, 586 JVM per variante e lint senza errori; 14/14 fixture API 31, 22 PNG IT/EN revisionati, 14 guardie host e 17 verifiche native sul release firmato, tutte superate. Baseline QA ripristinato alle 13:40:19,710710 UTC del 14 ottobre 2026, con 33 categorie e sei snapshot preesistenti conservati. **Nessuna richiesta prezzi reale eseguita**: il contratto del servizio distribuito non verifica la valuta; proposta `ca97547` verificata offline/Deno, non distribuita. V06 rimane aperto.
+
+La [CI sulla stessa produzione](https://github.com/GoryNickel9/Savely-Android/actions/runs/38567179309) passa il job build; UI **222/224 PASS, due timeout iniziali, zero skip**. Causa non dimostrata; la successiva diagnostica test-only non modifica deadline, asserzioni o retry. Gli APK UI della CI non sono archiviati. Non è una CI completamente riuscita né una qualifica globale della candidata.
+
 ## Qualifica Grafici V05 — candidata locale 0.1.16-alpha
 
 **[V05 è PASS LOCALE](CHARTS_QUALIFICATION.md)** nel criterio delle fixture comuni e acquisizioni IT/EN. Corretti i filtri rimasti su categorie/valute rimosse, aggiunto il tasso di risparmio decimale per valuta e sistemati i pulsanti dei grafici a font 200%. Produzione `522051c`, code 17; passano **570 JVM per variante**, lint senza errori e **13/13 Grafici API 31 in 107,677 s**. I test finali riproducono i due difetti sulle rispettive build precedenti.

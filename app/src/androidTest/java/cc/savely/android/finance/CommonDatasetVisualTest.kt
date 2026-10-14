@@ -5,10 +5,13 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cc.savely.android.data.BackendConfig
@@ -19,6 +22,10 @@ import cc.savely.android.visual.CommonVisualArtifacts
 import cc.savely.android.visual.CommonVisualContent
 import cc.savely.android.visual.CommonVisualProfile
 import java.time.LocalDate
+import java.math.BigDecimal
+import java.io.File
+import kotlin.math.ceil
+import kotlin.math.floor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import okhttp3.OkHttpClient
@@ -183,6 +190,7 @@ class CommonDatasetVisualTest {
         capture("portfolio", "eur-summary", profile)
         visibleAmount(if (english) "Open positions" else "Posizioni aperte", "25,00")
         capture("portfolio", "usd-summary", profile)
+        portfolioUsdRasterGuard(english, profile)
         scroll(text(if (english) "Investment history" else "Andamento investimenti"))
         // The final reconstructed date uses the saved current prices, not historical market quotes.
         visibleAmount(if (english) "Value:" else "Valore:", "300,00")
@@ -245,6 +253,109 @@ class CommonDatasetVisualTest {
     }
 
     private fun list() = compose.onNode(hasScrollToIndexAction())
+
+    /** Semantics can contain the full text while an oversized lazy item loses painted glyphs. */
+    private fun portfolioUsdRasterGuard(english: Boolean, profile: CommonVisualProfile) {
+        val expected = listOf(
+            (if (english) "Open positions" else "Posizioni aperte") to "25.00",
+            (if (english) "Cost" else "Costo") to "20.00",
+            (if (english) "Unrealised profit" else "Profitto non realizzato") to "5.00",
+            (if (english) "Realised profit" else "Profitto realizzato") to "0.00",
+        ).map { (label, amount) -> "$label ${formatMoney(BigDecimal(amount), "USD")}" }
+        val matchers = expected.map { hasText(it, substring = false) }
+        var repositioned = false
+        var positioned = false
+        // Position the four complete Texts together, without changing their layout or font.
+        for (attempt in 0 until 16) {
+            val viewport = compose.onNodeWithTag(CommonVisualArtifacts.VIEWPORT).fetchSemanticsNode().boundsInRoot
+            val boxes = matchers.map { matcher ->
+                val node = compose.onNode(matcher, useUnmergedTree = true).fetchSemanticsNode()
+                Rect(node.positionInRoot.x, node.positionInRoot.y,
+                    node.positionInRoot.x + node.size.width, node.positionInRoot.y + node.size.height)
+            }
+            val group = Rect(boxes.minOf { it.left }, boxes.minOf { it.top }, boxes.maxOf { it.right }, boxes.maxOf { it.bottom })
+            assertTrue("The four USD Texts must fit together in the actual viewport: $group / $viewport",
+                group.width <= viewport.width && group.height <= viewport.height)
+            if (group.left >= viewport.left && group.top >= viewport.top && group.right <= viewport.right && group.bottom <= viewport.bottom) {
+                positioned = true
+                break
+            }
+            repositioned = true
+            list().performSemanticsAction(SemanticsActions.ScrollBy) { action ->
+                action(0f, (group.center.y - viewport.center.y).coerceIn(-viewport.height / 2, viewport.height / 2))
+            }
+            compose.waitForIdle()
+        }
+        assertTrue("The complete USD summary must be inside the viewport before sampling ink", positioned)
+        capture("portfolio", "usd-full-stats-before-frames", profile)
+        val before = usdGlyphInk(expected, english)
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeByFrame()
+        compose.waitForIdle()
+        val after = usdGlyphInk(expected, english)
+        // Save diagnostics even when the pixel assertion fails. No user text is sampled.
+        capture("portfolio", "usd-full-stats-after-frames", profile)
+        val suffix = if (english) "en-dark-200" else "it-light-100"
+        val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "common-dataset-visual")
+        File(directory, "finance-portfolio-$suffix-usd-glyph-ink.json").writeText(JSONObject()
+            .put("scope", "synthetic-fixed-usd-summary-raster")
+            .put("profile", profile.suffix).put("repositionedBeforeSampling", repositioned)
+            .put("beforeTwoFrames", before).put("afterTwoFrames", after)
+            .put("correctedByTwoFrames", !before.getBoolean("allVisible") && after.getBoolean("allVisible"))
+            .toString(2), Charsets.UTF_8)
+        assertTrue("Every non-space character of the literal USD labels and values must have painted ink. " +
+            "See finance-portfolio-$suffix-usd-glyph-ink.json", after.getBoolean("allVisible"))
+    }
+
+    private fun usdGlyphInk(expected: List<String>, dark: Boolean): JSONObject {
+        val viewport = compose.onNodeWithTag(CommonVisualArtifacts.VIEWPORT)
+        val origin = viewport.fetchSemanticsNode().boundsInRoot
+        val pixels = viewport.captureToImage().toPixelMap()
+        val rows = JSONArray()
+        var allVisible = true
+        expected.forEach { value ->
+            val interaction = compose.onNode(hasText(value, substring = false), useUnmergedTree = true)
+            interaction.assertIsDisplayed().assertTextEquals(value)
+            val layouts = mutableListOf<TextLayoutResult>()
+            interaction.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
+                assertTrue("The actual Text must expose its layout for this raster assertion", action(layouts))
+            }
+            assertEquals(1, layouts.size)
+            val layout = layouts.single()
+            assertEquals(value, layout.layoutInput.text.text)
+            val position = interaction.fetchSemanticsNode().positionInRoot
+            val glyphs = JSONArray()
+            value.forEachIndexed { index, char ->
+                if (!char.isWhitespace() && !Character.isSpaceChar(char)) {
+                    var local = layout.getBoundingBox(index)
+                    // Android can report zero advance for the second character of a ligature.
+                    val sharedGlyph = local.width == 0f && index > 0
+                    if (sharedGlyph) local = layout.getBoundingBox(index - 1)
+                    val box = Rect(position.x + local.left - origin.left, position.y + local.top - origin.top,
+                        position.x + local.right - origin.left, position.y + local.bottom - origin.top)
+                    val unclipped = box.left >= 0 && box.top >= 0 && box.right <= pixels.width && box.bottom <= pixels.height
+                    var ink = 0
+                    if (unclipped) for (y in floor(box.top).toInt() until ceil(box.bottom).toInt().coerceAtMost(pixels.height)) {
+                        for (x in floor(box.left).toInt() until ceil(box.right).toInt().coerceAtMost(pixels.width)) {
+                            val luminance = pixels[x, y].luminance()
+                            if (if (dark) luminance > 0.65f else luminance < 0.35f) ink++
+                        }
+                    }
+                    val visible = unclipped && ink > 0
+                    allVisible = allVisible && visible
+                    glyphs.put(JSONObject().put("index", index).put("character", char.toString())
+                        .put("sharedGlyphWithPreviousCharacter", sharedGlyph)
+                        .put("unclipped", unclipped).put("inkPixels", ink).put("visible", visible)
+                        .put("left", box.left.toDouble()).put("top", box.top.toDouble())
+                        .put("right", box.right.toDouble()).put("bottom", box.bottom.toDouble()))
+                }
+            }
+            rows.put(JSONObject().put("text", value).put("glyphs", glyphs))
+        }
+        return JSONObject().put("allVisible", allVisible).put("rows", rows)
+    }
+
     private fun text(value: String) = hasText(value, substring = true)
     private fun scroll(matcher: SemanticsMatcher) {
         list().performScrollToNode(matcher)
