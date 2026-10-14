@@ -235,7 +235,7 @@ private fun TimeGraphic(points: List<FinanceChartPoint>, currency: String, kind:
     val grid = MaterialTheme.colorScheme.outlineVariant
     Text(localized("Scala {{min}} – {{max}}", "min" to formatMoney(minimum, currency), "max" to formatMoney(maximum, currency)), style = MaterialTheme.typography.bodySmall)
     if (!cumulative) Text("${localized("Entrate")} · ${localized("Uscite")}", style = MaterialTheme.typography.labelSmall)
-    Canvas(Modifier.fillMaxWidth().height(180.dp).clearAndSetSemantics { }) {
+    Canvas(Modifier.fillMaxWidth().height(180.dp).testTag(if (cumulative) "chart-cumulative-graphic" else "chart-time-graphic").clearAndSetSemantics { }) {
         val margin = 8.dp.toPx()
         val plotWidth = (size.width - 2 * margin).coerceAtLeast(1f)
         val plotHeight = (size.height - 2 * margin).coerceAtLeast(1f)
@@ -328,7 +328,7 @@ private fun CategoryCumulativeComparison(
     val span = (maximum - minimum).takeIf { it.signum() > 0 } ?: BigDecimal.ONE
     Text(localized("Scala {{min}} – {{max}}", "min" to formatMoney(minimum, currency), "max" to formatMoney(maximum, currency)), style = MaterialTheme.typography.bodySmall)
     val grid = MaterialTheme.colorScheme.outlineVariant
-    Canvas(Modifier.fillMaxWidth().height(200.dp).clearAndSetSemantics { }) {
+    Canvas(Modifier.fillMaxWidth().height(200.dp).testTag("chart-category-lines").clearAndSetSemantics { }) {
         val margin = 8.dp.toPx()
         val width = (size.width - 2 * margin).coerceAtLeast(1f)
         val height = (size.height - 2 * margin).coerceAtLeast(1f)
@@ -374,7 +374,7 @@ private fun CategoryGraphic(slices: List<FinanceChartCategory>, currency: String
         Text(localized("La torta richiede importi non negativi e un totale positivo. Usa Barre o il dettaglio."))
         return
     }
-    if (kind == FinanceChartGraphic.PIE) Canvas(Modifier.fillMaxWidth().height(200.dp).clearAndSetSemantics { }) {
+    if (kind == FinanceChartGraphic.PIE) Canvas(Modifier.fillMaxWidth().height(200.dp).testTag("chart-category-pie").clearAndSetSemantics { }) {
         val diameter = minOf(size.width, size.height) - 12.dp.toPx()
         var angle = -90f
         visible.forEach { slice ->
