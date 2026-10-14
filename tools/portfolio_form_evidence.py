@@ -2,7 +2,7 @@
 import copy
 import datetime as dt
 import json
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 import recurring_form_evidence as recurring
 import finance_form_evidence as finance
@@ -164,6 +164,11 @@ def transition(op, before, after, registry, run):
                 need(len(added) <= 3 and len({row["asset_id"] for row in added}) == len(added) and
                      all(row["asset_id"] in owned and row["recorded_at"] == day and start <= instant(row["created_at"]) <= end for row in added),
                      "PORTFOLIO_HISTORY_INVALID")
+                for history in added:
+                    asset = next(row for row in after["rows"]["portfolio_assets"] if row["id"] == history["asset_id"])
+                    raw = finance.decimal(history["price"])
+                    need(raw > 0 and raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) == finance.decimal(asset["current_price"]),
+                         "PORTFOLIO_HISTORY_QUOTE_MISMATCH")
             else:
                 need(len(added) == 1 and added[0]["assets_checked"] == 3 and added[0]["assets_updated"] <= 3 and
                      start <= instant(added[0]["updated_at"]) <= end, "PORTFOLIO_PRICE_LOG_INVALID")

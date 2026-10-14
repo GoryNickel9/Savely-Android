@@ -54,7 +54,7 @@ class PortfolioPositionsScreenTest {
         val field = compose.onNodeWithText("Prezzo unitario vendita in EUR")
         field.performScrollTo().performTextReplacement("0")
         compose.onNodeWithText("Conferma chiusura").performClick()
-        compose.onNodeWithText("Prezzo vendita richiesto tra 0,01 e 1.000.000").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Inserisci un importo maggiore di zero").performScrollTo().assertIsDisplayed()
         assertEquals("Invalid input must not invoke a closure", 0, submissions)
         field.performScrollTo().performTextReplacement("12,50")
         compose.onNodeWithText("Conferma chiusura").performClick()

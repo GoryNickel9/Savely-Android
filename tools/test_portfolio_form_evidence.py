@@ -165,6 +165,13 @@ class PortfolioEvidenceTest(unittest.TestCase):
         value["rows"]["manual_price_updates"][0]["assets_updated"] = 2
         self.reject("PORTFOLIO_PRICE_COUNTS_CHANGED", lambda: p.transition("prices", self.before, value, self.registry, RUN))
 
+    def test_current_quotes_must_match_positive_raw_history_rounded_by_database(self):
+        value = self.prices()
+        for raw in ("0", "-1", "250.124"):
+            changed = copy.deepcopy(value)
+            changed["rows"]["asset_price_history"][0]["price"] = raw
+            self.reject("PORTFOLIO_HISTORY_QUOTE_MISMATCH", lambda: p.transition("prices", self.before, changed, self.registry, RUN))
+
     def test_cleanup_is_limited_to_one_adopted_qa_log_full_preimage(self):
         value = self.prices()
         for table in ("manual_price_updates", "price_update_logs"):

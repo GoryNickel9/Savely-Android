@@ -25,9 +25,9 @@ import cc.savely.android.ui.localized
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-// Portfolio.tsx palette; stable type indices keep each swatch consistent with its legend.
+// Extend the web palette for TCG: adjacent stock/TCG slices must remain distinguishable.
 private val allocationColors = listOf(Color(0xFF22C55E), Color(0xFF8B5CF6), Color(0xFFF59E0B),
-    Color(0xFF3B82F6), Color(0xFFEC4899), Color(0xFF14B8A6), Color(0xFF6B7280))
+    Color(0xFF3B82F6), Color(0xFFEC4899), Color(0xFF14B8A6), Color(0xFF6B7280), Color(0xFF06B6D4))
 
 private data class AllocationSlice(val key: String, val label: String, val value: BigDecimal,
     val percent: BigDecimal?, val color: Color)
@@ -36,7 +36,7 @@ private data class AllocationSlice(val key: String, val label: String, val value
 @Composable
 internal fun PortfolioAllocationCharts(currency: String, rows: List<PortfolioAllocation>, composition: PortfolioComposition?) {
     val types = rows.map { row -> AllocationSlice(row.type?.wire ?: "tcg", localized(row.type?.label ?: "TCG"),
-        row.value, row.percent, allocationColors[(row.type?.ordinal ?: allocationColors.size) % allocationColors.size]) }
+        row.value, row.percent, allocationColors[(row.type?.ordinal ?: FinanceAssetType.entries.size) % allocationColors.size]) }
     AllocationPie(localized("Allocazione per tipo"), currency, "type", types)
     if (composition != null) {
         fun percent(value: BigDecimal): BigDecimal? = if (composition.total.signum() > 0)
