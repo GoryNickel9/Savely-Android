@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -215,8 +217,9 @@ private fun GranularitySelection(current: FinanceChartGranularity, range: Dashbo
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun GraphicSelection(selected: FinanceChartGraphic, includePie: Boolean, choose: (FinanceChartGraphic) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FinanceChartGraphic.entries.filter { includePie || it != FinanceChartGraphic.PIE }.forEach { graphic ->
             FilterChip(selected == graphic, { choose(graphic) }, label = { Text(localized(graphic.label)) })
         }

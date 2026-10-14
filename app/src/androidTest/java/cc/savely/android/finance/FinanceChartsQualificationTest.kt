@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -109,6 +110,7 @@ class FinanceChartsQualificationTest {
             val panel = "chart-category-EUR-expense"
             categoryDetails(panel, food.name, "1,00", "25%")
             categoryDetails(panel, travel.name, "3,00", "75%")
+            assertGraphicLabelsSingleLine(panel, english)
             captureAt("category-bars", profile, inPanel(panel, exact("${travel.name}: ${eur("3,00")}")))
             click(inPanel(panel, exact(if (english) "Pie" else "Torta") and hasClickAction()))
             captureGraphic("category-pie", profile, panel, "chart-category-pie", listOf(0xff22c55e.toInt(), 0xfff59e0b.toInt()))
@@ -117,6 +119,7 @@ class FinanceChartsQualificationTest {
             assertFullyVisible(last)
             capture("category-pie-details", profile)
             click(inPanel(panel, exact(if (english) "Line" else "Linea") and hasClickAction()))
+            assertGraphicLabelsSingleLine(panel, english)
             captureGraphic("category-lines", profile, panel, "chart-category-lines", listOf(0xff22c55e.toInt(), 0xfff59e0b.toInt()))
             show(inPanel(panel, exact("${travel.name}: ${eur("3,00")}")))
             show(inPanel(panel, exact("${food.name}: ${eur("1,00")}")))
@@ -263,6 +266,21 @@ class FinanceChartsQualificationTest {
         val matcher = inPanel(panel, exact(name) and exact(eur(amount)) and exact(percent))
         show(matcher)
         return matcher
+    }
+
+    private fun assertGraphicLabelsSingleLine(panel: String, english: Boolean) {
+        val labels = if (english) listOf("Bars", "Pie", "Line") else listOf("Barre", "Torta", "Linea")
+        labels.forEach { label ->
+            show(inPanel(panel, exact(label) and hasClickAction()))
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNode(inPanel(panel, exact(label)), useUnmergedTree = true)
+                .assertIsDisplayed()
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
+                    assertTrue("Text layout must be available for $panel / $label", action(layouts))
+                }
+            assertEquals("Exactly one text layout is required for $panel / $label", 1, layouts.size)
+            assertEquals("The graphic label must not split across lines: $panel / $label", 1, layouts.single().lineCount)
+        }
     }
 
     private fun click(matcher: SemanticsMatcher) {
