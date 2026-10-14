@@ -1,0 +1,773 @@
+--- a/supabase/functions/update-prices/index.ts
++++ b/supabase/functions/update-prices/index.ts
+@@ -1,5 +1,6 @@
+ // @ts-ignore - Supabase Edge Functions don't have complete type definitions
+ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
++import { assetCurrency, fetchStockQuote, fetchCryptoQuote, fetchCashRate, priceForAsset, roundedAssetPrice, QuoteFailure, QUOTE_CONTRACT_VERSION } from './quote-contract.ts';
+ 
+ // @ts-ignore - Deno is available in Supabase Edge Functions
+ const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGIN') || '')
+@@ -23,187 +24,11 @@
+ interface Asset {
+   id: string;
+   user_id: string;
+-  symbol: string | null;
++  symbol: string;
+   type: string;
+-  current_price: number;
+-}
+-
+-// Exchange suffixes to try for stocks/ETFs (ordered by popularity)
+-const EXCHANGE_SUFFIXES = [
+-  '',      // US stocks
+-  '.DE',   // Xetra (Germany)
+-  '.MI',   // Milan
+-  '.PA',   // Paris
+-  '.AS',   // Amsterdam
+-  '.L',    // London
+-  '.SW',   // Swiss
+-  '.VI',   // Vienna
+-  '.BR',   // Brussels
+-  '.HK',   // Hong Kong
+-  '.T',    // Tokyo
+-  '.TO',   // Toronto
+-];
+-
+-// Fetch stock/ETF prices from Yahoo Finance with multiple exchange fallbacks
+-async function fetchStockPrice(symbol: string): Promise<number | null> {
+-  // Remove any existing suffix to get base symbol
+-  const baseSymbol = symbol.replace(/\.[A-Z]{1,2}$/i, '').toUpperCase();
+-
+-  // Validate: only allow safe ticker characters to prevent URL injection
+-  if (!/^[A-Z0-9\-]{1,12}$/.test(baseSymbol)) {
+-    console.log(`✗ Invalid symbol format: ${symbol}`);
+-    return null;
+-  }
+-
+-  // If user already specified a suffix, try that first
+-  const userSuffix = symbol.match(/\.[A-Z]{1,2}$/i)?.[0] || '';
+-  const suffixesToTry = userSuffix 
+-    ? [userSuffix, ...EXCHANGE_SUFFIXES.filter(s => s !== userSuffix)]
+-    : EXCHANGE_SUFFIXES;
+-  
+-  for (const suffix of suffixesToTry) {
+-    const trySymbol = baseSymbol + suffix;
+-    try {
+-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(trySymbol)}?interval=1d&range=1d`;
+-      const response = await fetch(url, {
+-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+-      });
+-      
+-      if (!response.ok) {
+-        continue; // Try next suffix
+-      }
+-      
+-      const data = await response.json();
+-      const result = data?.chart?.result?.[0];
+-      
+-      if (!result) continue;
+-      
+-      // Try multiple price sources
+-      const price = result.meta?.regularMarketPrice 
+-        || result.indicators?.quote?.[0]?.close?.slice(-1)[0]
+-        || result.meta?.previousClose;
+-      
+-      if (price && price > 0) {
+-        console.log(`✓ Found price for ${trySymbol}: €${price}`);
+-        return price;
+-      }
+-    } catch (error) {
+-      console.error(`Error fetching ${trySymbol}:`, error);
+-    }
+-    
+-    // Small delay between requests to avoid rate limiting
+-    await new Promise(resolve => setTimeout(resolve, 100));
+-  }
+-  
+-  console.log(`✗ No price found for ${symbol} on any exchange`);
+-  return null;
+-}
+-
+-// CoinGecko ID mappings for common cryptos
+-const CRYPTO_ID_MAP: Record<string, string> = {
+-  'BTC': 'bitcoin',
+-  'ETH': 'ethereum',
+-  'SOL': 'solana',
+-  'ADA': 'cardano',
+-  'DOT': 'polkadot',
+-  'AVAX': 'avalanche-2',
+-  'MATIC': 'polygon',
+-  'LINK': 'chainlink',
+-  'UNI': 'uniswap',
+-  'XRP': 'ripple',
+-  'DOGE': 'dogecoin',
+-  'LTC': 'litecoin',
+-  'BNB': 'binancecoin',
+-  'USDT': 'tether',
+-  'USDC': 'usd-coin',
+-  'ATOM': 'cosmos',
+-  'NEAR': 'near',
+-  'APT': 'aptos',
+-  'ARB': 'arbitrum',
+-  'OP': 'optimism',
+-  'INJ': 'injective-protocol',
+-  'SUI': 'sui',
+-  'SEI': 'sei-network',
+-  'TIA': 'celestia',
+-  'PEPE': 'pepe',
+-  'SHIB': 'shiba-inu',
+-  'XLM': 'stellar',
+-  'ALGO': 'algorand',
+-  'VET': 'vechain',
+-  'FTM': 'fantom',
+-  'SAND': 'the-sandbox',
+-  'MANA': 'decentraland',
+-  'AXS': 'axie-infinity',
+-  'AAVE': 'aave',
+-  'MKR': 'maker',
+-  'CRV': 'curve-dao-token',
+-  'LDO': 'lido-dao',
+-  'RETH': 'rocket-pool-eth',
+-  'STETH': 'staked-ether',
+-};
+-
+-// Fetch crypto prices from CoinGecko
+-async function fetchCryptoPrice(symbol: string): Promise<number | null> {
+-  try {
+-    // Clean up symbol
+-    const cleanSymbol = symbol.toUpperCase().replace(/[-\/].*/, '').trim();
+-    const coinId = CRYPTO_ID_MAP[cleanSymbol] || cleanSymbol.toLowerCase();
+-
+-    // Validate: only allow safe characters for CoinGecko IDs/symbols
+-    if (!/^[a-z0-9\-]{1,64}$/.test(coinId)) {
+-      console.log(`✗ Invalid coin ID format: ${coinId}`);
+-      return null;
+-    }
+-
+-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(coinId)}&vs_currencies=eur`;
+-    
+-    const response = await fetch(url, {
+-      headers: { 'Accept': 'application/json' }
+-    });
+-    
+-    if (!response.ok) {
+-      console.log(`CoinGecko error for ${symbol}: ${response.status}`);
+-      
+-      // Try searching by symbol if ID lookup failed
+-      const searchUrl = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(cleanSymbol)}`;
+-      const searchResponse = await fetch(searchUrl);
+-      
+-      if (searchResponse.ok) {
+-        const searchData = await searchResponse.json();
+-        const coin = searchData.coins?.[0];
+-        
+-        if (coin?.id) {
+-          await new Promise(resolve => setTimeout(resolve, 200));
+-          const priceUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(coin.id)}&vs_currencies=eur`;
+-          const priceResponse = await fetch(priceUrl);
+-          
+-          if (priceResponse.ok) {
+-            const priceData = await priceResponse.json();
+-            const price = priceData[coin.id]?.eur;
+-            if (price) {
+-              console.log(`✓ Found crypto price for ${symbol} (${coin.id}): €${price}`);
+-              return price;
+-            }
+-          }
+-        }
+-      }
+-      
+-      return null;
+-    }
+-    
+-    const data = await response.json();
+-    const price = data[coinId]?.eur;
+-    
+-    if (price) {
+-      console.log(`✓ Found crypto price for ${symbol}: €${price}`);
+-      return price;
+-    }
+-    
+-    return null;
+-  } catch (error) {
+-    console.error(`Error fetching crypto price for ${symbol}:`, error);
+-    return null;
+-  }
++  current_price: number | null;
++  currency: string | null;
++  updated_at: string;
+ }
+ 
+ // @ts-ignore - Deno is available in Edge Functions
+@@ -284,190 +109,113 @@
+       }
+     }
+ 
+-    // Fetch assets that need price updates
++    // Each security is quoted in its stored unit. Cash FX remains a separate EUR conversion.
+     let query = supabase
+       .from('portfolio_assets')
+-      .select('id, user_id, symbol, type, current_price')
++      .select('id, user_id, symbol, type, current_price, currency, updated_at')
++      .in('type', ['stock', 'etf', 'crypto'])
+       .not('symbol', 'is', null)
+       .neq('symbol', '');
+-
+-    if (userId) {
+-      query = query.eq('user_id', userId);
+-    }
+-
++    if (userId) query = query.eq('user_id', userId);
+     const { data: assets, error: fetchError } = await query;
+-
+-    if (fetchError) {
+-      console.error('Error fetching assets:', fetchError);
+-      throw fetchError;
+-    }
+-
+-    if (!assets || assets.length === 0) {
+-      console.log('No assets to update');
+-      
+-      // Log the update attempt
+-      await supabase.from('price_update_logs').insert({
+-        user_id: userId,
+-        assets_checked: 0,
+-        assets_updated: 0,
+-        errors: [],
+-      });
+-      
+-      return new Response(
+-        JSON.stringify({ message: 'No assets to update', updated: 0, errors: [] }),
+-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+-      );
+-    }
+-
+-    console.log(`Found ${assets.length} assets to update`);
+-
+-    const updates: { id: string; user_id: string; price: number; symbol: string }[] = [];
+-    const errors: { symbol: string; error: string }[] = [];
+-
+-    for (const asset of assets as Asset[]) {
+-      if (!asset.symbol) continue;
+-
+-      let newPrice: number | null = null;
+-
+-      if (asset.type === 'crypto') {
+-        newPrice = await fetchCryptoPrice(asset.symbol);
+-      } else if (['stock', 'etf'].includes(asset.type)) {
+-        newPrice = await fetchStockPrice(asset.symbol);
+-      }
+-
+-      if (newPrice !== null && newPrice > 0) {
+-        updates.push({ id: asset.id, user_id: asset.user_id, price: newPrice, symbol: asset.symbol });
+-      } else {
+-        errors.push({ symbol: asset.symbol, error: 'Price not found on any exchange' });
+-      }
+-
+-      // Rate limiting
++    if (fetchError) throw new Error('ASSET_READ_FAILED');
++
++    // Complete both database reads before provider calls or any possible price commit.
++    let cashQuery = supabase.from('portfolio_assets').select('id,user_id,currency,updated_at')
++      .eq('type', 'cash').not('currency', 'is', null).neq('currency', 'EUR').is('sold_at', null);
++    if (userId) cashQuery = cashQuery.eq('user_id', userId);
++    const { data: cashAssets, error: cashReadError } = await cashQuery;
++    if (cashReadError) throw new Error('CASH_READ_FAILED');
++
++    const updates: { asset: Asset; price: string }[] = [];
++    const errors: { asset_id?: string; symbol: string; error: string }[] = [];
++    for (const asset of (assets ?? []) as Asset[]) {
++      try {
++        // In particular, a USD crypto holding must not receive the provider's EUR price.
++        const currency = assetCurrency(asset.currency);
++        if (asset.type === 'crypto' && currency !== 'EUR')
++          throw new QuoteFailure('QUOTE_CURRENCY_MISMATCH');
++        const quote = asset.type === 'crypto'
++          ? await fetchCryptoQuote(asset.symbol) : await fetchStockQuote(asset.symbol);
++        updates.push({ asset, price: priceForAsset(asset, quote) });
++      } catch (error) {
++        errors.push({ asset_id: asset.id, symbol: asset.symbol,
++          error: error instanceof QuoteFailure ? error.code : 'PRICE_LOOKUP_FAILED' });
++      }
+       await new Promise(resolve => setTimeout(resolve, 250));
+     }
+ 
+-    // Batch update prices and save to history
+     let updatedCount = 0;
+     const today = new Date().toISOString().split('T')[0];
+-
+     for (const update of updates) {
+-      // Update current price
+-      const { error: updateError } = await supabase
+-        .from('portfolio_assets')
++      const asset = update.asset;
++      // A concurrent edit of symbol, currency or row version must not change the unit after lookup.
++      let write = supabase.from('portfolio_assets')
+         .update({ current_price: update.price, updated_at: new Date().toISOString() })
+-        .eq('id', update.id);
+-
+-      if (updateError) {
+-        console.error(`Error updating ${update.symbol}:`, updateError);
+-        errors.push({ symbol: update.symbol, error: 'Database update failed' });
+-      } else {
+-        updatedCount++;
+-        console.log(`Updated ${update.symbol} to €${update.price}`);
+-
+-        // Save to price history (upsert to handle one price per day)
+-        const { error: historyError } = await supabase
+-          .from('asset_price_history')
+-          .upsert({
+-            asset_id: update.id,
+-            user_id: update.user_id,
+-            price: update.price,
+-            recorded_at: today,
+-          }, {
+-            onConflict: 'asset_id,recorded_at',
+-          });
+-
+-        if (historyError) {
+-          console.error(`Error saving history for ${update.symbol}:`, historyError);
+-        } else {
+-          console.log(`Saved price history for ${update.symbol}`);
+-        }
+-      }
+-    }
+-
+-    // Update forex rates for non-EUR cash assets
+-    let cashQuery = supabase
+-      .from('portfolio_assets')
+-      .select('id, user_id, currency, quantity')
+-      .eq('type', 'cash')
+-      .not('currency', 'is', null)
+-      .neq('currency', 'EUR')
+-      .is('sold_at', null);
+-
+-    if (userId) {
+-      cashQuery = cashQuery.eq('user_id', userId);
+-    }
+-
+-    const { data: cashAssets } = await cashQuery;
+-
+-    if (cashAssets && cashAssets.length > 0) {
+-      const uniqueCurrencies = [...new Set(cashAssets.map((a: any) => a.currency as string))] as string[];
+-      const forexRates: Record<string, number> = {};
+-
+-      // Validate ISO 4217 currency codes before using in URL
+-      const validCurrencies = uniqueCurrencies.filter(c => /^[A-Z]{3}$/.test(c));
+-
+-      for (const currency of validCurrencies) {
+-        try {
+-          const url = `https://api.frankfurter.app/latest?from=${encodeURIComponent(currency)}&to=EUR`;
+-          const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+-          if (resp.ok) {
+-            const data = await resp.json();
+-            const rate = data.rates?.EUR;
+-            if (rate && rate > 0) {
+-              forexRates[currency] = rate;
+-              console.log(`✓ Forex ${currency}/EUR: ${rate}`);
+-            }
+-          }
+-        } catch (err) {
+-          console.error(`Error fetching forex for ${currency}:`, err);
+-        }
+-      }
+-
+-      for (const asset of cashAssets as any[]) {
+-        const rate = forexRates[asset.currency];
+-        if (rate) {
+-          const { error: fxError } = await supabase
+-            .from('portfolio_assets')
+-            .update({ current_price: rate, updated_at: new Date().toISOString() })
+-            .eq('id', asset.id);
+-          if (!fxError) {
+-            updatedCount++;
+-            console.log(`Updated cash ${asset.currency} rate to €${rate}`);
+-          }
+-        }
+-      }
+-    }
+-
+-    // Log the price update
++        .eq('id', asset.id).eq('user_id', asset.user_id).eq('symbol', asset.symbol)
++        .eq('type', asset.type).eq('updated_at', asset.updated_at);
++      write = asset.currency === null ? write.is('currency', null) : write.eq('currency', asset.currency);
++      const { data: written, error: updateError } = await write
++        .select('id,user_id,current_price,currency,symbol,type').maybeSingle();
++      let confirmed = false;
++      try {
++        confirmed = !updateError && written?.id === asset.id && written?.user_id === asset.user_id &&
++          written?.symbol === asset.symbol && written?.type === asset.type &&
++          assetCurrency(written?.currency) === assetCurrency(asset.currency) &&
++          typeof written?.current_price === 'number' && roundedAssetPrice(written.current_price) === update.price;
++      } catch { confirmed = false; }
++      if (!confirmed) {
++        errors.push({ asset_id: asset.id, symbol: asset.symbol, error: 'ASSET_WRITE_NOT_CONFIRMED' });
++        continue;
++      }
++      updatedCount++;
++      // NUMERIC(15,2) and history receive the same pre-rounded decimal string, not raw provider units.
++      const { error: historyError } = await supabase.from('asset_price_history').upsert({
++        asset_id: asset.id, user_id: asset.user_id, price: update.price, recorded_at: today,
++      }, { onConflict: 'asset_id,recorded_at' });
++      if (historyError) errors.push({ asset_id: asset.id, symbol: asset.symbol, error: 'PRICE_HISTORY_WRITE_FAILED' });
++    }
++
++    // Cash is included even if there are no stock/ETF/crypto symbols. No security currency is rewritten.
++    const rates = new Map<string, string>();
++    const failedRates = new Map<string, string>();
++    for (const cash of cashAssets ?? []) {
++      const currency = cash.currency as string;
++      if (!rates.has(currency) && !failedRates.has(currency)) {
++        try { rates.set(currency, await fetchCashRate(currency)); }
++        catch (error) { failedRates.set(currency, error instanceof QuoteFailure ? error.code : 'FX_LOOKUP_FAILED'); }
++      }
++      const rate = rates.get(currency);
++      if (rate === undefined) {
++        errors.push({ asset_id: cash.id, symbol: `${currency}/EUR`, error: failedRates.get(currency) ?? 'FX_LOOKUP_FAILED' });
++        continue;
++      }
++      const { data: written, error: fxError } = await supabase.from('portfolio_assets')
++        .update({ current_price: rate, updated_at: new Date().toISOString() })
++        .eq('id', cash.id).eq('user_id', cash.user_id).eq('type', 'cash').eq('currency', currency)
++        .eq('updated_at', cash.updated_at).is('sold_at', null).select('id,user_id,current_price').maybeSingle();
++      let confirmed = false;
++      try {
++        confirmed = !fxError && written?.id === cash.id && written?.user_id === cash.user_id &&
++          typeof written?.current_price === 'number' && roundedAssetPrice(written.current_price) === rate;
++      } catch { confirmed = false; }
++      if (confirmed) updatedCount++;
++      else errors.push({ asset_id: cash.id, symbol: `${currency}/EUR`, error: 'FX_WRITE_NOT_CONFIRMED' });
++    }
++
++    const checked = (assets ?? []).length;
+     const { error: logError } = await supabase.from('price_update_logs').insert({
+-      user_id: userId,
+-      assets_checked: assets.length,
+-      assets_updated: updatedCount,
+-      errors: errors,
++      user_id: userId, assets_checked: checked, assets_updated: updatedCount, errors,
+     });
+-
+-    if (logError) {
+-      console.error('Error logging price update:', logError);
+-    }
+-
+-    console.log(`\n=== SUMMARY ===`);
+-    console.log(`Checked: ${assets.length}`);
+-    console.log(`Updated: ${updatedCount}`);
+-    if (errors.length > 0) {
+-      console.log(`Errors: ${errors.map(e => e.symbol).join(', ')}`);
+-    }
+-
+-    return new Response(
+-      JSON.stringify({ 
+-        message: 'Price update complete', 
+-        checked: assets.length,
+-        updated: updatedCount,
+-        errors 
+-      }),
+-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+-    );
++    if (logError) throw new Error('PRICE_LOG_WRITE_FAILED');
++    const noAssets = checked === 0 && (cashAssets ?? []).length === 0;
++    return new Response(JSON.stringify({
++      message: noAssets ? 'No assets to update' : 'Price update complete',
++      checked, updated: updatedCount, errors, quote_contract_version: QUOTE_CONTRACT_VERSION,
++    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+ 
+   } catch (error) {
+-    console.error('Error in update-prices function:', error);
++    console.error('Error in update-prices function');
+     return new Response(
+       JSON.stringify({ error: 'Internal error' }),
+       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+--- /dev/null
++++ b/supabase/functions/update-prices/quote-contract.ts
+@@ -0,0 +1,158 @@
++/** Pure quote contract plus one exact provider request. No credentials, database client or retries. */
++export const QUOTE_CONTRACT_VERSION = 2;
++const CURRENCIES = new Set(['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'CNY', 'IDR']);
++const CRYPTO_IDS: Record<string, string> = {
++  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano', DOT: 'polkadot',
++  AVAX: 'avalanche-2', MATIC: 'polygon', LINK: 'chainlink', UNI: 'uniswap', XRP: 'ripple',
++  DOGE: 'dogecoin', LTC: 'litecoin', BNB: 'binancecoin', USDT: 'tether', USDC: 'usd-coin',
++  ATOM: 'cosmos', NEAR: 'near', APT: 'aptos', ARB: 'arbitrum', OP: 'optimism',
++  INJ: 'injective-protocol', SUI: 'sui', SEI: 'sei-network', TIA: 'celestia', PEPE: 'pepe',
++  SHIB: 'shiba-inu', XLM: 'stellar', ALGO: 'algorand', VET: 'vechain', FTM: 'fantom',
++  SAND: 'the-sandbox', MANA: 'decentraland', AXS: 'axie-infinity', AAVE: 'aave', MKR: 'maker',
++  CRV: 'curve-dao-token', LDO: 'lido-dao', RETH: 'rocket-pool-eth', STETH: 'staked-ether',
++};
++export type QuoteCode = 'SYMBOL_INVALID' | 'CRYPTO_SYMBOL_UNSUPPORTED' | 'CURRENCY_INVALID' |
++  'QUOTE_CURRENCY_MISSING' | 'QUOTE_CURRENCY_UNSUPPORTED' | 'QUOTE_MINOR_UNIT_UNSUPPORTED' |
++  'QUOTE_CURRENCY_MISMATCH' | 'QUOTE_SYMBOL_MISMATCH' | 'QUOTE_PRICE_INVALID' |
++  'QUOTE_PRICE_UNREPRESENTABLE' | 'PROVIDER_HTTP_ERROR' | 'PROVIDER_UNAVAILABLE' |
++  'PROVIDER_RESPONSE_INVALID' | 'ASSET_TYPE_UNSUPPORTED';
++export class QuoteFailure extends Error {
++  constructor(readonly code: QuoteCode) { super(code); this.name = 'QuoteFailure'; }
++}
++export interface Quote {
++  price: number;
++  providerCurrency: string;
++  resolvedSymbol: string;
++  provider: 'yahoo' | 'coingecko';
++}
++export interface QuotedAsset { symbol: string; type: string; currency: string | null; }
++type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
++function record(value: unknown): Record<string, unknown> {
++  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
++}
++function positive(value: unknown): value is number {
++  return typeof value === 'number' && Number.isFinite(value) && value > 0;
++}
++export function assetCurrency(value: unknown): string {
++  // Schema and both clients treat legacy NULL currency as EUR; missing/malformed fields are not NULL.
++  if (value === null) return 'EUR';
++  if (typeof value !== 'string' || !CURRENCIES.has(value)) throw new QuoteFailure('CURRENCY_INVALID');
++  return value;
++}
++export function stockSymbol(value: string): string {
++  const symbol = value.trim().toUpperCase();
++  if (!/^[A-Z0-9][A-Z0-9.-]{0,31}$/.test(symbol)) throw new QuoteFailure('SYMBOL_INVALID');
++  return symbol;
++}
++export function cryptoId(symbol: string): string {
++  // A known ticker mapping is explicit; arbitrary search/first-result resolution is forbidden.
++  const clean = symbol.trim();
++  const mapped = CRYPTO_IDS[clean.toUpperCase()];
++  if (mapped) return mapped;
++  if (clean === clean.toLowerCase() && /^[a-z0-9][a-z0-9-]{0,63}$/.test(clean)) return clean;
++  throw new QuoteFailure('CRYPTO_SYMBOL_UNSUPPORTED');
++}
++function providerCurrency(value: unknown): string {
++  if (typeof value !== 'string' || !value) throw new QuoteFailure('QUOTE_CURRENCY_MISSING');
++  // GBp is pence, not GBP. Uppercasing first would change the monetary unit by 100.
++  if (value === 'GBp' || value === 'GBX') throw new QuoteFailure('QUOTE_MINOR_UNIT_UNSUPPORTED');
++  if (!CURRENCIES.has(value)) throw new QuoteFailure('QUOTE_CURRENCY_UNSUPPORTED');
++  return value;
++}
++export function yahooQuote(requestedSymbol: string, payload: unknown): Quote {
++  const chart = record(record(payload).chart);
++  const results = chart.result;
++  if (chart.error != null || !Array.isArray(results) || results.length !== 1)
++    throw new QuoteFailure('PROVIDER_RESPONSE_INVALID');
++  const result = record(results[0]);
++  const meta = record(result.meta);
++  const requested = stockSymbol(requestedSymbol);
++  if (typeof meta.symbol !== 'string' || meta.symbol !== requested) throw new QuoteFailure('QUOTE_SYMBOL_MISMATCH');
++  const currency = providerCurrency(meta.currency);
++  const quotes = record(result.indicators).quote;
++  const closes = Array.isArray(quotes) ? record(quotes[0]).close : undefined;
++  const lastClose = Array.isArray(closes) ? closes[closes.length - 1] : undefined;
++  const price = [meta.regularMarketPrice, lastClose, meta.previousClose].find(positive);
++  if (!positive(price)) throw new QuoteFailure('QUOTE_PRICE_INVALID');
++  return { price, providerCurrency: currency, resolvedSymbol: requested, provider: 'yahoo' };
++}
++export function coinGeckoQuote(requestedSymbol: string, payload: unknown): Quote {
++  const id = cryptoId(requestedSymbol);
++  const price = record(record(payload)[id]).eur;
++  if (!positive(price)) throw new QuoteFailure('QUOTE_PRICE_INVALID');
++  return { price, providerCurrency: 'EUR', resolvedSymbol: id, provider: 'coingecko' };
++}
++/** Decimal HALF_UP into NUMERIC(15,2), using the provider Number's shortest decimal representation. */
++export function roundedAssetPrice(price: number): string {
++  if (!positive(price)) throw new QuoteFailure('QUOTE_PRICE_INVALID');
++  const [mantissa, exponent = '0'] = price.toString().split(/[eE]/);
++  const [whole, fraction = ''] = mantissa.split('.');
++  const scale = fraction.length - Number(exponent);
++  const digits = BigInt(whole + fraction);
++  const divisor = scale > 2 ? 10n ** BigInt(scale - 2) : 1n;
++  const cents = scale > 2 ? (digits + divisor / 2n) / divisor : digits * 10n ** BigInt(2 - scale);
++  if (cents <= 0n || cents > 999999999999999n) throw new QuoteFailure('QUOTE_PRICE_UNREPRESENTABLE');
++  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, '0')}`;
++}
++export function priceForAsset(asset: QuotedAsset, quote: Quote): string {
++  const currency = assetCurrency(asset.currency);
++  if (asset.type === 'stock' || asset.type === 'etf') {
++    if (quote.provider !== 'yahoo' || quote.resolvedSymbol !== stockSymbol(asset.symbol))
++      throw new QuoteFailure('QUOTE_SYMBOL_MISMATCH');
++  } else if (asset.type === 'crypto') {
++    if (quote.provider !== 'coingecko' || quote.resolvedSymbol !== cryptoId(asset.symbol))
++      throw new QuoteFailure('QUOTE_SYMBOL_MISMATCH');
++  } else throw new QuoteFailure('ASSET_TYPE_UNSUPPORTED');
++  const quotedCurrency = providerCurrency(quote.providerCurrency);
++  if (currency !== quotedCurrency) throw new QuoteFailure('QUOTE_CURRENCY_MISMATCH');
++  return roundedAssetPrice(quote.price);
++}
++export function cashRate(currency: string, payload: unknown): string {
++  if (assetCurrency(currency) === 'EUR') throw new QuoteFailure('CURRENCY_INVALID');
++  const data = record(payload);
++  if (data.base !== currency) throw new QuoteFailure('QUOTE_CURRENCY_MISMATCH');
++  const rate = record(data.rates).EUR;
++  if (!positive(rate)) throw new QuoteFailure('QUOTE_PRICE_INVALID');
++  return roundedAssetPrice(rate);
++}
++async function providerJson(url: string, fetcher: Fetcher): Promise<unknown> {
++  try {
++    const response = await fetcher(url, { headers: { Accept: 'application/json', 'User-Agent': 'Savely quote contract/2' },
++      redirect: 'error', signal: AbortSignal.timeout(10_000) });
++    if (!response.ok) { await response.body?.cancel(); throw new QuoteFailure('PROVIDER_HTTP_ERROR'); }
++    if (!response.body) throw new QuoteFailure('PROVIDER_RESPONSE_INVALID');
++    const reader = response.body.getReader();
++    const decoder = new TextDecoder();
++    let size = 0, text = '';
++    try {
++      while (true) {
++        const chunk = await reader.read();
++        if (chunk.done) break;
++        size += chunk.value.byteLength;
++        if (size > 1_048_576) { await reader.cancel(); throw new QuoteFailure('PROVIDER_RESPONSE_INVALID'); }
++        text += decoder.decode(chunk.value, { stream: true });
++      }
++      text += decoder.decode();
++      try { return JSON.parse(text); }
++      catch { throw new QuoteFailure('PROVIDER_RESPONSE_INVALID'); }
++    } finally { reader.releaseLock(); }
++  } catch (error) {
++    if (error instanceof QuoteFailure) throw error;
++    throw new QuoteFailure('PROVIDER_UNAVAILABLE');
++  }
++}
++export async function fetchStockQuote(symbol: string, fetcher: Fetcher = fetch): Promise<Quote> {
++  const requested = stockSymbol(symbol);
++  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(requested)}?interval=1d&range=1d`;
++  return yahooQuote(requested, await providerJson(url, fetcher));
++}
++export async function fetchCryptoQuote(symbol: string, fetcher: Fetcher = fetch): Promise<Quote> {
++  const id = cryptoId(symbol);
++  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=eur`;
++  return coinGeckoQuote(symbol, await providerJson(url, fetcher));
++}
++export async function fetchCashRate(currency: string, fetcher: Fetcher = fetch): Promise<string> {
++  if (assetCurrency(currency) === 'EUR') throw new QuoteFailure('CURRENCY_INVALID');
++  const url = `https://api.frankfurter.app/latest?from=${encodeURIComponent(currency)}&to=EUR`;
++  return cashRate(currency, await providerJson(url, fetcher));
++}
+--- /dev/null
++++ b/supabase/functions/update-prices/quote-contract_test.ts
+@@ -0,0 +1,126 @@
++import { assetCurrency, stockSymbol, cryptoId, yahooQuote, coinGeckoQuote, priceForAsset,
++  roundedAssetPrice, cashRate, fetchStockQuote, fetchCryptoQuote, fetchCashRate, QuoteFailure } from './quote-contract.ts';
++
++function equal(actual: unknown, expected: unknown) {
++  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('SYNTHETIC_EXPECTATION_MISMATCH');
++}
++function fails(code: string, action: () => unknown) {
++  try { action(); } catch (error) {
++    if (error instanceof QuoteFailure && error.code === code) return;
++    throw new Error('SYNTHETIC_FAILURE_CODE_MISMATCH');
++  }
++  throw new Error('SYNTHETIC_REJECTION_MISSING');
++}
++async function rejects(code: string, action: () => Promise<unknown>) {
++  try { await action(); } catch (error) {
++    if (error instanceof QuoteFailure && error.code === code) return;
++    throw new Error('SYNTHETIC_FAILURE_CODE_MISMATCH');
++  }
++  throw new Error('SYNTHETIC_REJECTION_MISSING');
++}
++function yahoo(symbol = 'AAPL', currency: unknown = 'USD', price: unknown = 173.325) {
++  return { chart: { error: null, result: [{ meta: { symbol, currency, regularMarketPrice: price } }] } };
++}
++const asset = { symbol: 'AAPL', type: 'stock', currency: 'EUR' };
++
++Deno.test('USD Yahoo quote must not be persisted as an EUR security price', () => {
++  fails('QUOTE_CURRENCY_MISMATCH', () => priceForAsset(asset, yahooQuote('AAPL', yahoo())));
++});
++Deno.test('matching security currency preserves identity and yields one canonical decimal', () => {
++  const quote = yahooQuote('AAPL', yahoo());
++  equal([quote.resolvedSymbol, quote.providerCurrency, quote.provider], ['AAPL', 'USD', 'yahoo']);
++  equal(priceForAsset({ ...asset, currency: 'USD' }, quote), '173.33');
++});
++Deno.test('an exchange suffix is part of identity, never a fallback', async () => {
++  const calls: string[] = [];
++  await rejects('PROVIDER_HTTP_ERROR', () => fetchStockQuote('AAPL.MI', async url => {
++    calls.push(url); return new Response('{}', { status: 404 });
++  }));
++  equal(calls, ['https://query1.finance.yahoo.com/v8/finance/chart/AAPL.MI?interval=1d&range=1d']);
++});
++Deno.test('provider symbol changes are rejected even with a matching EUR currency', () => {
++  fails('QUOTE_SYMBOL_MISMATCH', () => yahooQuote('AAPL', yahoo('AAPL.DE', 'EUR')));
++});
++Deno.test('GBp and GBX are explicitly rejected instead of becoming GBP', () => {
++  for (const currency of ['GBp', 'GBX']) fails('QUOTE_MINOR_UNIT_UNSUPPORTED', () => yahooQuote('VOD.L', yahoo('VOD.L', currency)));
++  equal(priceForAsset({ symbol: 'VOD.L', type: 'stock', currency: 'GBP' }, yahooQuote('VOD.L', yahoo('VOD.L', 'GBP', 1.25))), '1.25');
++});
++Deno.test('missing unsupported and malformed provider currencies fail closed', () => {
++  for (const value of [undefined, null, '']) {
++    const payload = yahoo(); payload.chart.result[0].meta.currency = value;
++    fails('QUOTE_CURRENCY_MISSING', () => yahooQuote('AAPL', payload));
++  }
++  for (const value of ['usd', ' EUR ', 'GBx', 'UNKNOWN']) fails('QUOTE_CURRENCY_UNSUPPORTED', () => yahooQuote('AAPL', yahoo('AAPL', value)));
++});
++Deno.test('only an explicit legacy NULL uses EUR, not a missing or empty DB currency', () => {
++  equal(assetCurrency(null), 'EUR');
++  equal(priceForAsset({ ...asset, currency: null }, yahooQuote('AAPL', yahoo('AAPL', 'EUR'))), '173.33');
++  fails('QUOTE_CURRENCY_MISMATCH', () => priceForAsset({ ...asset, currency: null }, yahooQuote('AAPL', yahoo())));
++  for (const value of [undefined, '', 'usd', 'GBp']) fails('CURRENCY_INVALID', () => assetCurrency(value));
++});
++Deno.test('crypto EUR prices cannot be written into USD holdings', () => {
++  const quote = coinGeckoQuote('BTC', { bitcoin: { eur: 12345.675 } });
++  equal([quote.resolvedSymbol, quote.providerCurrency], ['bitcoin', 'EUR']);
++  equal(priceForAsset({ symbol: 'BTC', type: 'crypto', currency: 'EUR' }, quote), '12345.68');
++  fails('QUOTE_CURRENCY_MISMATCH', () => priceForAsset({ symbol: 'BTC', type: 'crypto', currency: 'USD' }, quote));
++});
++Deno.test('crypto provider failure makes one request and never searches a different coin', async () => {
++  const calls: string[] = [];
++  await rejects('PROVIDER_HTTP_ERROR', () => fetchCryptoQuote('BTC', async url => {
++    calls.push(url); return new Response('{}', { status: 503 });
++  }));
++  equal(calls, ['https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur']);
++  fails('QUOTE_PRICE_INVALID', () => coinGeckoQuote('BTC', { ethereum: { eur: 123 } }));
++});
++Deno.test('crypto IDs are explicit and pairs cannot silently discard their suffix', () => {
++  equal(cryptoId('btc'), 'bitcoin');
++  equal(cryptoId('rocket-pool-eth'), 'rocket-pool-eth');
++  for (const symbol of ['BTC/USD', 'BTC-EUR', 'UNKNOWN', '../bitcoin'])
++    fails('CRYPTO_SYMBOL_UNSUPPORTED', () => cryptoId(symbol));
++});
++Deno.test('same-instrument close sources may be used only with verified metadata', () => {
++  const payload = { chart: { result: [{ meta: { symbol: 'AAPL', currency: 'USD', previousClose: 9.5 },
++    indicators: { quote: [{ close: [8, 9.25] }] } }] } };
++  equal(yahooQuote('AAPL', payload).price, 9.25);
++  payload.chart.result[0].indicators.quote[0].close = [];
++  equal(yahooQuote('AAPL', payload).price, 9.5);
++});
++Deno.test('prices must be finite positive JSON numbers, never numeric strings', () => {
++  for (const price of [0, -1, null, '1.25', NaN, Infinity])
++    fails('QUOTE_PRICE_INVALID', () => yahooQuote('AAPL', yahoo('AAPL', 'USD', price)));
++});
++Deno.test('HALF_UP cents are shared by current price and history, including decimal ties', () => {
++  equal([roundedAssetPrice(1.005), roundedAssetPrice(2.675), roundedAssetPrice(.005)], ['1.01', '2.68', '0.01']);
++  equal(roundedAssetPrice(1.234e2), '123.40');
++  for (const price of [.0049, 1e-20, 1e13, 1e308]) fails('QUOTE_PRICE_UNREPRESENTABLE', () => roundedAssetPrice(price));
++});
++Deno.test('cash FX remains one foreign-currency unit in EUR with the schema rounding', () => {
++  equal(cashRate('USD', { base: 'USD', rates: { EUR: .92345 } }), '0.92');
++  equal(cashRate('JPY', { base: 'JPY', rates: { EUR: .006 } }), '0.01');
++  fails('QUOTE_CURRENCY_MISMATCH', () => cashRate('USD', { base: 'EUR', rates: { EUR: 1 } }));
++  fails('QUOTE_PRICE_UNREPRESENTABLE', () => cashRate('IDR', { base: 'IDR', rates: { EUR: .00006 } }));
++});
++Deno.test('cash lookup performs exactly one EUR conversion request', async () => {
++  const calls: string[] = [];
++  equal(await fetchCashRate('USD', async url => { calls.push(url); return Response.json({ base: 'USD', rates: { EUR: .92 } }); }), '0.92');
++  equal(calls, ['https://api.frankfurter.app/latest?from=USD&to=EUR']);
++});
++Deno.test('provider redirects are not followed and no caller authorization is sent', async () => {
++  let count = 0;
++  await rejects('PROVIDER_HTTP_ERROR', () => fetchStockQuote('AAPL', async (_url, init) => {
++    count++; equal(init?.redirect, 'error');
++    equal(new Headers(init?.headers).get('Authorization'), null);
++    equal(new Headers(init?.headers).get('apikey'), null);
++    return new Response('', { status: 302, headers: { Location: 'https://other.invalid' } });
++  }));
++  equal(count, 1);
++});
++Deno.test('oversized malformed and transport-failed provider responses remain safe errors', async () => {
++  await rejects('PROVIDER_RESPONSE_INVALID', () => fetchStockQuote('AAPL', async () => new Response('x'.repeat(1_048_577))));
++  await rejects('PROVIDER_RESPONSE_INVALID', () => fetchStockQuote('AAPL', async () => new Response('not json')));
++  await rejects('PROVIDER_UNAVAILABLE', () => fetchStockQuote('AAPL', async () => { throw new Error('synthetic private provider body'); }));
++});
++Deno.test('invalid symbols and non-security assets cannot produce a security update', () => {
++  for (const symbol of ['', '../AAPL', 'AAPL?token=secret', 'AAPL/USD']) fails('SYMBOL_INVALID', () => stockSymbol(symbol));
++  fails('ASSET_TYPE_UNSUPPORTED', () => priceForAsset({ ...asset, type: 'cash' }, yahooQuote('AAPL', yahoo())));
++});
