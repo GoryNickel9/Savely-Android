@@ -1,9 +1,18 @@
 package cc.savely.android.finance
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.StateRestorationTester
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cc.savely.android.ui.SavelyTheme
 import java.io.IOException
@@ -17,6 +26,83 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PortfolioPositionsScreenTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun singleClosureAtLargeFontKeepsSubmittedStateAndRequiresRefreshAfterAnUncertainResult() {
+        val today = LocalDate.now()
+        val asset = FinanceAsset("single-qa", "Titolo QA", "QA", FinanceAssetType.STOCK,
+            "2".toBigDecimal(), "10".toBigDecimal(), "12".toBigDecimal(), "EUR", today.minusDays(30), null, null, "")
+        val saving = mutableStateOf(false)
+        val failure = mutableStateOf<PositionCloseException?>(null)
+        var submissions = 0
+        var refreshes = 0
+        var dismissals = 0
+        var submittedDate = ""
+        var submittedPrice = ""
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { SavelyTheme("light") {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+                CloseAssetDialog(asset, saving.value, failure.value?.message, failure.value,
+                    dismiss = { dismissals++ }, refreshAndDismiss = { refreshes++ }) { date, price ->
+                    submissions++
+                    submittedDate = date
+                    submittedPrice = price
+                    saving.value = true
+                }
+            }
+        } }
+        val field = compose.onNodeWithText("Prezzo unitario vendita in EUR")
+        field.performScrollTo().performTextReplacement("0")
+        compose.onNodeWithText("Conferma chiusura").performClick()
+        compose.onNodeWithText("Prezzo vendita richiesto tra 0,01 e 1.000.000").performScrollTo().assertIsDisplayed()
+        assertEquals("Invalid input must not invoke a closure", 0, submissions)
+        field.performScrollTo().performTextReplacement("12,50")
+        compose.onNodeWithText("Conferma chiusura").performClick()
+        assertEquals(1, submissions)
+        assertEquals(today.toString(), submittedDate)
+        assertEquals("12,50", submittedPrice)
+        field.assertIsNotEnabled()
+        compose.onNodeWithText("Salvataggio…").assertIsNotEnabled()
+        compose.onNodeWithText("Annulla").assertIsNotEnabled()
+        compose.runOnIdle {
+            failure.value = PositionCloseException(1, 1, asset.id, IOException("synthetic response lost"))
+            saving.value = false
+        }
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithText("Conferma chiusura").assertDoesNotExist()
+        compose.onNodeWithText("Prezzo unitario vendita in EUR").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Chiusure confermate: 1 su 1. Verifica anche l’acquisto single-qa dopo il refresh.")
+            .performScrollTo().assertIsDisplayed()
+        assertEquals("Restoring an uncertain submission must not invoke it again", 1, submissions)
+        compose.onNodeWithText("Aggiorna e verifica").assertIsEnabled().performClick()
+        assertEquals(1, refreshes)
+        assertEquals(1, submissions)
+        assertEquals(0, dismissals)
+        assertEquals("2", asset.quantity.toPlainString())
+        assertEquals("10", asset.purchasePrice.toPlainString())
+    }
+
+    @Test fun negativeAndZeroAllocationsKeepTheirNumericDetailWithoutDrawingInvalidPies() {
+        val today = LocalDate.now()
+        fun asset(id: String, type: FinanceAssetType, current: String) = FinanceAsset(id, id, null, type,
+            "1".toBigDecimal(), "1".toBigDecimal(), current.toBigDecimal(), "EUR", today, null, null, "")
+        val assets = mutableStateOf(listOf(asset("cash", FinanceAssetType.CASH, "20"), asset("estate", FinanceAssetType.REAL_ESTATE, "-10")))
+        compose.setContent { SavelyTheme("light") {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                PortfolioSummary(FinanceData(assets = assets.value), false, {})
+            }
+        } }
+        val unavailable = "Distribuzione non disponibile: servono importi non negativi e un totale positivo."
+        compose.onAllNodesWithText(unavailable).assertCountEquals(2)
+        compose.onNodeWithText("Immobili: -10,00\u00a0€ · -100%").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("portfolio-type-pie-EUR").assertDoesNotExist()
+        compose.onNodeWithTag("portfolio-liquidity-pie-EUR").assertDoesNotExist()
+        compose.runOnIdle { assets.value = listOf(asset("zero", FinanceAssetType.STOCK, "0")) }
+        compose.onAllNodesWithText(unavailable).assertCountEquals(2)
+        compose.onNodeWithText("Azioni: 0,00\u00a0€ · Non disponibile").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("portfolio-type-pie-EUR").assertDoesNotExist()
+        compose.onNodeWithTag("portfolio-liquidity-pie-EUR").assertDoesNotExist()
+    }
 
     @Test fun differentQuotesRequireExplicitPriceAndPartialFailurePreventsSecondSubmission() {
         val today = LocalDate.now()

@@ -362,7 +362,25 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
             .put("purchase_price", parseMoney(purchasePrice, allowZero = true).toPlainString())
             .put("current_price", if (currentPrice.isBlank()) JSONObject.NULL else parseMoney(currentPrice, allowZero = true).toPlainString())
             .put("currency", currency).put("purchase_date", LocalDate.parse(date).toString()).put("notes", notes.ifBlank { null } ?: JSONObject.NULL)
-        save("portfolio_assets", id, body, owner)
+        if (id == null) save("portfolio_assets", null, body, owner)
+        else {
+            val uuid = UUID.fromString(id).toString()
+            checkOwner(owner)
+            assetMutation {
+                api.update("portfolio_assets", uuid, body, "user_id=eq.${owner.id}",
+                    expectedOwner = owner.id, expectedRevision = owner.revision)
+            }
+        }
+    }
+
+    private suspend fun assetMutation(operation: suspend () -> Unit) {
+        try { operation() }
+        catch (error: CancellationException) { throw error }
+        catch (error: Exception) {
+            if (explicitWriteRejection(error)) throw error
+            throw FinancePendingRefreshException(
+                "Operazione sul portafoglio non confermata. Aggiorna i dati e verifica la posizione prima di continuare.", error)
+        }
     }
 
     suspend fun closeAsset(asset: FinanceAsset, soldAt: String, soldPrice: String) {
@@ -446,22 +464,38 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
                 expectedOwner = user, expectedRevision = revision) as? JSONObject
                 ?: error("Il servizio prezzi ha restituito una risposta non valida")
             check(userId() == user && api.sessionOwnerRevision() == revision) { "Account cambiato durante l’aggiornamento prezzi" }
+            val errors = result.optJSONArray("errors") ?: error("Il servizio prezzi ha restituito una risposta non valida")
+            check(!result.has("error") || result.isNull("error")) { "Il servizio prezzi ha restituito una risposta non valida" }
+            val updated = priceUpdateCount(result, "updated")
+            val checked = if (result.has("checked")) priceUpdateCount(result, "checked") else {
+                // The backend's no-assets response omits checked, while nonempty outcomes include it.
+                check(updated == 0 && errors.length() == 0 && result.opt("message") == "No assets to update") {
+                    "Il servizio prezzi ha restituito una risposta non valida"
+                }
+                0
+            }
             api.insert("manual_price_updates", JSONObject().put("user_id", user)
-                .put("assets_updated", result.optInt("updated", 0)).put("assets_checked", result.optInt("checked", 0)),
+                .put("assets_updated", updated).put("assets_checked", checked),
                 expectedOwner = user, expectedRevision = revision)
             check(userId() == user && api.sessionOwnerRevision() == revision) { "Account cambiato durante l’aggiornamento prezzi" }
-            val errors = result.optJSONArray("errors")
-            if (errors != null && errors.length() > 0) {
+            if (errors.length() > 0) {
                 val symbols = (0 until minOf(errors.length(), 5)).mapNotNull { index ->
                     errors.optJSONObject(index)?.nullableString("symbol")?.take(40)
                 }.joinToString(", ")
-                error("Aggiornamento parziale: ${result.optInt("updated", 0)} prezzi aggiornati, ${errors.length()} errori" +
+                error("Aggiornamento parziale: $updated prezzi aggiornati, ${errors.length()} errori" +
                     (if (symbols.isBlank()) "." else " ($symbols).") + " Aggiorna la schermata per leggere i prezzi salvati.")
             }
         } catch (error: CancellationException) { throw error }
         catch (error: Exception) {
             throw FinancePendingRefreshException(error.message ?: "Aggiornamento prezzi non confermato. Aggiorna i dati prima di continuare.", error)
         }
+    }
+
+    private fun priceUpdateCount(result: JSONObject, key: String): Int {
+        val value = result.opt(key)
+        val count = if (value is Number) runCatching { value.toString().toBigDecimal().intValueExact() }.getOrNull() else null
+        check(count != null && count >= 0) { "Il servizio prezzi ha restituito una risposta non valida" }
+        return count
     }
 
     suspend fun delete(table: String, id: String) {
@@ -495,7 +529,9 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
                 expectedOwner = user, expectedRevision = identity.revision)
         } else {
             checkOwner(identity)
-            api.delete(table, uuid, "user_id=eq.$user", expectedOwner = user, expectedRevision = identity.revision)
+            if (table == "portfolio_assets") assetMutation {
+                api.delete(table, uuid, "user_id=eq.$user", expectedOwner = user, expectedRevision = identity.revision)
+            } else api.delete(table, uuid, "user_id=eq.$user", expectedOwner = user, expectedRevision = identity.revision)
         }
     }
 }

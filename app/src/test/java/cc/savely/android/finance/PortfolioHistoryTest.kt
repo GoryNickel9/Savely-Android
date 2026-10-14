@@ -260,6 +260,23 @@ class PortfolioHistoryTest {
         assertTrue(portfolioReturnSummaries(emptyList()).isEmpty())
     }
 
+    @Test fun `invested including estate excludes cash other closures and separates currency without changing return`() {
+        val rows = listOf(asset(quantity = "1", purchase = "100", current = "125"),
+            asset("estate", FinanceAssetType.REAL_ESTATE, "1", "200", "250"),
+            asset("cash", FinanceAssetType.CASH, "50", "1", "1"),
+            asset("other", FinanceAssetType.OTHER, "1", "30", "30"),
+            asset("closed", quantity = "1", purchase = "999", sold = "2024-01-04", soldPrice = "999"),
+            asset("usd", quantity = "1", purchase = "500", current = "600", currency = "USD"))
+        val summaries = portfolioReturnSummaries(rows)
+        val eur = summaries.single { it.currency == "EUR" }
+        decimal("300", eur.investedIncludingEstate)
+        decimal("100", eur.invested); decimal("125", eur.investmentValue)
+        decimal("25", eur.returnPercent!!); decimal("75", eur.gainIncludingEstate)
+        decimal("380", portfolioTotals(rows).single { it.currency == "EUR" }.cost)
+        decimal("500", summaries.single { it.currency == "USD" }.investedIncludingEstate)
+        decimal("20", summaries.single { it.currency == "USD" }.returnPercent!!)
+    }
+
     @Test fun `allocation separates currencies values foreign cash in EUR and includes only safely priced TCG`() {
         val rows = listOf(asset(quantity = "1", current = "100"), asset("cash", FinanceAssetType.CASH, "100", "1", "0.5", "USD"),
             asset("estate", FinanceAssetType.REAL_ESTATE, "1", "100", "200"), asset("other", FinanceAssetType.OTHER, "1", "50", "50"),

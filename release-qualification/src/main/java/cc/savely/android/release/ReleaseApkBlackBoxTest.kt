@@ -1131,7 +1131,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun loginDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13, 14, 15, 16), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14, 15, 16, 18), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val report = baseReport(run, code, "couple-login").put("user_id", user)
@@ -1166,7 +1166,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun logoutDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13, 14, 15, 16), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14, 15, 16, 18), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
@@ -1178,7 +1178,7 @@ class ReleaseApkBlackBoxTest {
         val report = baseReport(run, code, "couple-logout").put("user_id", user)
         try {
             report.put("pid", launch())
-            if (code in setOf(15, 16)) financeOpenProfile() else openSettings()
+            if (code in setOf(15, 16, 18)) financeOpenProfile() else openSettings()
             scrollAccountToTop()
             await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
             requireEmail(email)
@@ -1192,6 +1192,224 @@ class ReleaseApkBlackBoxTest {
             report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("cleanup_pending", true)
             throw AssertionError(safeFailure(failure))
         } finally { writeReport(run, "couple-logout", report) }
+    }
+
+    /** V06: only native form controls mutate data; the host owns exact-row adoption and reconciliation. */
+    @Test fun qualifyReservedPortfolioForm() {
+        val run = preflight(18)
+        requireCode(dedicatedQaAccount().first == QA_USER, "PORTFOLIO_ACCOUNT_INVALID")
+        val op = InstrumentationRegistry.getArguments().getString("portfolioOperation").orEmpty()
+        requireCode(op in setOf("create-cancel", "create-single", "edit-cancel", "edit-single", "single-close-cancel",
+            "close-single", "create-first", "create-second", "group-close-cancel", "close-group", "delete-cancel",
+            "delete-single", "delete-first", "delete-second", "closed-read", "prices"), "PORTFOLIO_OPERATION_INVALID")
+        val phase = "portfolio-$op"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val inputName = "release-qualification-$run-$phase-input.json"
+        val input = readJson(inputName, 4_096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id", "day") &&
+            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("operation") == op,
+            "PORTFOLIO_INPUT_INVALID")
+        val loginRun = input.optString("login_run_id")
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false) && loginRun != run,
+            "PORTFOLIO_LOGIN_REFERENCE_INVALID")
+        val login = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(login.optString("run_id") == loginRun && login.optString("user_id") == QA_USER &&
+            login.optInt("target_code") == 18 && login.optString("target_package") == TARGET &&
+            login.optString("phase") == "couple-login" && login.optString("stage") == "passed" &&
+            login.optBoolean("settings_identity") && login.optBoolean("profile_read") && login.optBoolean("english_selected"),
+            "PORTFOLIO_LOGIN_INVALID")
+        val day = runCatching { java.time.LocalDate.parse(input.optString("day")) }.getOrNull()
+        requireCode(day != null && day.toString() == input.optString("day") && java.time.LocalDate.now() == day &&
+            java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")) == day, "PORTFOLIO_DEVICE_DAY_MISMATCH")
+        val today = requireNotNull(day)
+        val marker = "android-portfolio-form-$run"
+        val single = "$marker-single"
+        val first = "$marker-first"
+        val second = "$marker-second"
+        writeReport(run, "$phase-reservation", input.put("stage", "reserved"))
+        requireCode(privateFile(inputName).delete(), "PORTFOLIO_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 18, phase).put("login_run_id", loginRun).put("operation", op)
+            .put("day", today.toString()).put("mutation_attempted", false).put("cleanup_pending", true)
+        try {
+            report.put("pid", launch())
+            financeOpenProfile()
+            requireEmail(QA_EMAIL)
+            awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true)
+            financeEnter("Portfolio")
+            portfolioTop()
+            await("PORTFOLIO_READ_NOT_READY") {
+                exists { label(it, setOf("Refresh data")) && visible(it) && hasClickableAncestor(it) }
+            }
+            when (op) {
+                "create-cancel", "create-single", "create-first", "create-second", "edit-cancel", "edit-single" -> {
+                    val editing = op.startsWith("edit-")
+                    portfolioClosed(false)
+                    portfolioTop()
+                    if (editing) clickLabel(setOf("Edit $single"), "PORTFOLIO_EDIT_MISSING", true)
+                    else clickLabel(setOf("New purchase"), "PORTFOLIO_CREATE_MISSING")
+                    await("PORTFOLIO_EDITOR_MISSING") { hasText(if (editing) "Edit purchase" else "New purchase") }
+                    if (!editing) {
+                        val name = when (op) { "create-first" -> first; "create-second" -> second; else -> single }
+                        financeSetField("Name", name)
+                        seekLabel(setOf("Type: Stocks"), "PORTFOLIO_STOCK_TYPE_MISSING", true).recycle()
+                        financeCurrencyEur()
+                        financeSetField("Optional symbol", "AAPL")
+                        financeSetField("Quantity", if (op == "create-second") "3" else "2")
+                        financeSetField("Purchase price per unit", "0.01")
+                        financeSetField("Optional current price", "0.02")
+                        seekLabel(setOf("Purchase: $today"), "PORTFOLIO_PURCHASE_DAY_MISMATCH", true).recycle()
+                        financeSetField("Optional notes", marker)
+                    } else financeSetField("Optional current price", if (op == "edit-cancel") "0.99" else "0.03")
+                    if (op.endsWith("cancel")) {
+                        hideKeyboardIfShown()
+                        clickLabel(setOf("Cancel"), "PORTFOLIO_CANCEL_MISSING")
+                        await("PORTFOLIO_CANCEL_NOT_CONFIRMED") { portfolioEditorClosed() }
+                        report.put("dialog_closed", true)
+                    } else {
+                        portfolioSubmit(run, phase, report, "Save") { portfolioEditorClosed() }
+                        report.put("form_closed", true)
+                    }
+                }
+                "single-close-cancel", "close-single" -> {
+                    portfolioClosed(false)
+                    seekLabel(setOf(single), "PORTFOLIO_SINGLE_MISSING", true).recycle()
+                    clickLabel(setOf("Close position"), "PORTFOLIO_SINGLE_CLOSE_MISSING", true)
+                    await("PORTFOLIO_CLOSE_DIALOG_MISSING") { hasText("Close $single") }
+                    seekLabel(setOf("Closing applies to this purchase of 2 units."), "PORTFOLIO_CLOSE_QUANTITY_MISMATCH", true).recycle()
+                    portfolioSaleDay(today, report)
+                    financeSetField("Sale price per unit in EUR", if (op == "single-close-cancel") "0.99" else "0.03")
+                    if (op == "single-close-cancel") {
+                        hideKeyboardIfShown()
+                        clickLabel(setOf("Cancel"), "PORTFOLIO_CANCEL_MISSING")
+                        await("PORTFOLIO_CANCEL_NOT_CONFIRMED") { !hasText("Close $single") }
+                        report.put("dialog_closed", true)
+                    } else {
+                        portfolioSubmit(run, phase, report, "Confirm closing") { !hasText("Close $single") && !hasText("Saving…") }
+                        report.put("form_closed", true)
+                    }
+                }
+                "group-close-cancel", "close-group" -> {
+                    portfolioClosed(false)
+                    portfolioTop()
+                    clickLabel(setOf("Close all purchases"), "PORTFOLIO_GROUP_CLOSE_MISSING", true)
+                    await("PORTFOLIO_GROUP_DIALOG_MISSING") { hasText("Close $first") || hasText("Close $second") }
+                    seekLabel(setOf("2 purchases, totalling 5 units, will be closed. Each purchase will receive the same sale date and unit price."),
+                        "PORTFOLIO_GROUP_QUANTITY_MISMATCH", true).recycle()
+                    portfolioSaleDay(today, report)
+                    financeSetField("Sale price per unit in EUR", if (op == "group-close-cancel") "0.99" else "0.03")
+                    if (op == "group-close-cancel") {
+                        hideKeyboardIfShown()
+                        clickLabel(setOf("Cancel"), "PORTFOLIO_CANCEL_MISSING")
+                        await("PORTFOLIO_CANCEL_NOT_CONFIRMED") { !hasText("Close $first") && !hasText("Close $second") }
+                        report.put("dialog_closed", true)
+                    } else {
+                        portfolioSubmit(run, phase, report, "Confirm closing all purchases") {
+                            !hasText("Close $first") && !hasText("Close $second") && !hasText("Saving…")
+                        }
+                        report.put("form_closed", true)
+                    }
+                }
+                "delete-cancel", "delete-single", "delete-first", "delete-second" -> {
+                    val name = when (op) { "delete-first" -> first; "delete-second" -> second; else -> single }
+                    portfolioClosed(true)
+                    clickLabel(setOf("Delete $name"), "PORTFOLIO_DELETE_MISSING", true)
+                    await("PORTFOLIO_DELETE_DIALOG_MISSING") { hasText("Delete $name?") }
+                    if (op == "delete-cancel") {
+                        clickLabel(setOf("Cancel"), "PORTFOLIO_CANCEL_MISSING")
+                        await("PORTFOLIO_CANCEL_NOT_CONFIRMED") { !hasText("Delete $name?") }
+                        report.put("dialog_closed", true)
+                    } else {
+                        financeDelete(run, phase, report)
+                        report.put("form_closed", true)
+                    }
+                }
+                "closed-read" -> {
+                    portfolioClosed(true)
+                    for (name in listOf(single, first, second)) {
+                        portfolioTop()
+                        seekLabel(setOf(name), "PORTFOLIO_CLOSED_PURCHASE_MISSING", true).recycle()
+                    }
+                    report.put("closed_markers_seen", 3)
+                }
+                "prices" -> {
+                    portfolioTop()
+                    portfolioBeforeSubmit(run, phase, report)
+                    clickLabel(setOf("Refresh prices"), "PORTFOLIO_PRICES_CONTROL_MISSING", true)
+                    portfolioTop()
+                    await("PORTFOLIO_PRICES_NOT_CONFIRMED") {
+                        if (hasText("Retry") || hasText("Changes are blocked until the data refresh succeeds."))
+                            throw IllegalStateException("PORTFOLIO_PRICES_FAILED")
+                        if (exists { visible(it) && it.text?.toString()?.startsWith("Update available from ") == true }) true
+                        else {
+                            val container = find {
+                                val bounds = Rect().also(it::getBoundsInScreen)
+                                it.isScrollable && visible(it) && bounds.height() > bounds.width() &&
+                                    it.className?.toString() != "android.widget.EditText"
+                            }
+                            val moved = container?.let {
+                                try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) }
+                                finally { it.recycle() }
+                            } ?: false
+                            // A newly loaded cooldown may be above a retained scroll position.
+                            if (!moved) portfolioTop()
+                            false
+                        }
+                    }
+                    portfolioTop()
+                    requireCode(!hasText("Retry") && !hasText("Changes are blocked until the data refresh succeeds."), "PORTFOLIO_PRICES_FAILED")
+                    report.put("cooldown_visible", true)
+                }
+            }
+            requireCode(!exists { it.isPassword && visible(it) }, "PORTFOLIO_LOGIN_FALLBACK")
+            report.put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { recordUiFlags(report); writeReport(run, phase, report) }
+    }
+
+    private fun portfolioTop() {
+        hideKeyboardIfShown()
+        repeat(24) {
+            if (hasText("Refresh data")) return
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+            val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+            val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } } ?: false
+            if (!moved) swipe(true, bounds)
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("PORTFOLIO_HEADER_MISSING")
+    }
+
+    private fun portfolioClosed(closed: Boolean) {
+        portfolioTop()
+        val label = if (closed) "Closed" else "Open"
+        val control = seekLabel(setOf(label), "PORTFOLIO_STATUS_FILTER_MISSING", true, true)
+        if (selectedControl(control)) control.recycle() else clickControl(control, "PORTFOLIO_STATUS_FILTER_REJECTED")
+        await("PORTFOLIO_STATUS_FILTER_NOT_SELECTED") { selected(label) }
+    }
+
+    private fun portfolioSaleDay(day: java.time.LocalDate, report: JSONObject) {
+        val node = seekLabel(setOf("Sale: $day", "Vendita: $day"), "PORTFOLIO_SALE_DAY_MISMATCH", true)
+        try { report.put("sale_date_english", label(node, setOf("Sale: $day"))) }
+        finally { node.recycle() }
+    }
+
+    private fun portfolioEditorClosed() = !hasText("Edit purchase") && !hasText("Save") && !hasText("Saving…") &&
+        !exists { visible(it) && it.className?.toString() == "android.widget.EditText" }
+
+    private fun portfolioBeforeSubmit(run: String, phase: String, report: JSONObject) {
+        writeReport(run, "$phase-before-submit", JSONObject().put("run_id", run).put("user_id", QA_USER).put("stage", "before-submit"))
+        report.put("mutation_attempted", true)
+    }
+
+    private fun portfolioSubmit(run: String, phase: String, report: JSONObject, button: String, finished: () -> Boolean) {
+        hideKeyboardIfShown()
+        portfolioBeforeSubmit(run, phase, report)
+        clickLabel(setOf(button), "PORTFOLIO_SUBMIT_MISSING")
+        await("PORTFOLIO_SUBMIT_NOT_CONFIRMED", finished)
     }
 
     /** V04: each invocation consumes one reservation; server evidence is collected by the host. */

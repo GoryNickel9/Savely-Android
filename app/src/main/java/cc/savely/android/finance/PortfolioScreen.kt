@@ -13,7 +13,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,18 +22,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.LocalDate
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.util.Locale
 
 @Composable
 internal fun PortfolioSummary(data: FinanceData, saving: Boolean, updatePrices: () -> Unit, writeAllowed: Boolean = true) {
+    val compositions = portfolioComposition(data.assets, data.tcgCards)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        portfolioComposition(data.assets, data.tcgCards).forEach { total ->
+        compositions.forEach { total ->
             Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(localized("Portafoglio {{value0}}", "value0" to (formatMoney(total.total, total.currency))), style = MaterialTheme.typography.titleLarge)
                 Text(localized("Valore liquido {{value0}}", "value0" to (formatMoney(total.liquid, total.currency))))
@@ -54,6 +53,7 @@ internal fun PortfolioSummary(data: FinanceData, saving: Boolean, updatePrices: 
             Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(localized("Rendimento degli strumenti {{currency}}", "currency" to total.currency), style = MaterialTheme.typography.titleMedium)
                 Text(localized("Investito in strumenti: {{amount}}", "amount" to formatMoney(total.invested, total.currency)))
+                Text(localized("Investito, immobili inclusi: {{amount}}", "amount" to formatMoney(total.investedIncludingEstate, total.currency)))
                 Text(localized("Profitto degli strumenti: {{amount}}", "amount" to formatMoney(total.investmentGain, total.currency)))
                 Text(if (total.returnPercent == null) localized("Rendimento non disponibile: costo degli strumenti zero.")
                     else localized("Rendimento: {{percent}}", "percent" to formatDashboardPercent(total.returnPercent!!)))
@@ -65,21 +65,9 @@ internal fun PortfolioSummary(data: FinanceData, saving: Boolean, updatePrices: 
         if (allocations.isNotEmpty()) {
             Text(localized("Allocazione per valuta"), style = MaterialTheme.typography.titleLarge)
             allocations.groupBy { it.currency }.forEach { (currency, rows) ->
-                Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(Modifier.testTag("portfolio-allocation-$currency")) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(currency, style = MaterialTheme.typography.titleMedium)
-                    rows.forEach { row ->
-                        Text(localized("{{type}}: {{amount}} · {{percent}}", "type" to localized(row.type?.label ?: "TCG"),
-                            "amount" to formatMoney(row.value, currency), "percent" to (row.percent?.let(::formatDashboardPercent) ?: localized("Non disponibile"))))
-                        row.percent?.let { percent -> LinearProgressIndicator(progress = {
-                            percent.divide(BigDecimal("100"), 12, RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f)
-                        }, modifier = Modifier.fillMaxWidth()) }
-                    }
-                    val composition = portfolioComposition(data.assets, data.tcgCards).find { it.currency == currency }
-                    if (composition != null && composition.total.signum() > 0) {
-                        val liquidPercent = composition.liquid.multiply(BigDecimal("100")).divide(composition.total, 12, RoundingMode.HALF_UP)
-                        val illiquidPercent = composition.illiquid.multiply(BigDecimal("100")).divide(composition.total, 12, RoundingMode.HALF_UP)
-                        Text(localized("Liquido {{liquid}} · Illiquido {{illiquid}}", "liquid" to formatDashboardPercent(liquidPercent), "illiquid" to formatDashboardPercent(illiquidPercent)))
-                    }
+                    PortfolioAllocationCharts(currency, rows, compositions.find { it.currency == currency })
                 } }
             }
         }
@@ -161,7 +149,7 @@ internal fun AssetEditor(id: String?, data: FinanceData, saving: Boolean, error:
     }
 
     AlertDialog(onDismissRequest = onDismiss, title = { Text(localized(if (id == null) "Nuovo acquisto" else "Modifica acquisto")) },
-        text = { Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        text = { Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()).testTag("portfolio-asset-editor-body"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (id == null && existing.isNotEmpty()) Selection("Strumento esistente", existingKey,
                 listOf("_new" to localized("Nuovo strumento")) + existing.map { asset ->
                     instrumentKey(asset) to "${asset.name} · ${asset.symbol} · ${localized(asset.type.label)} · ${asset.currency}"
@@ -194,22 +182,34 @@ internal fun AssetEditor(id: String?, data: FinanceData, saving: Boolean, error:
 }
 
 @Composable
-internal fun CloseAssetDialog(asset: FinanceAsset, saving: Boolean, error: String?, dismiss: () -> Unit, confirm: (String, String) -> Unit) {
+internal fun CloseAssetDialog(asset: FinanceAsset, saving: Boolean, error: String?, failure: PositionCloseException?,
+    dismiss: () -> Unit, refreshAndDismiss: () -> Unit, confirm: (String, String) -> Unit) {
     var date by rememberSaveable(asset.id) { mutableStateOf(LocalDate.now().toString()) }
     var price by rememberSaveable(asset.id) { mutableStateOf(asset.marketPrice.toPlainString()) }
     var validationError by rememberSaveable(asset.id) { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = dismiss, title = { Text(localized("Chiudi {{value0}}", "value0" to (asset.name))) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    var submitted by rememberSaveable(asset.id) { mutableStateOf(false) }
+    AlertDialog(onDismissRequest = { if (!saving) dismiss() }, title = { Text(localized("Chiudi {{value0}}", "value0" to (asset.name))) },
+        text = { Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()).testTag("portfolio-close-single-body"),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(localized("La chiusura riguarda questo acquisto di {{value0}} unità.", "value0" to (asset.quantity.stripTrailingZeros().toPlainString())))
-            DateField("Vendita", date, enabled = !saving) { date = it }
+            DateField("Vendita", date, enabled = !saving && !submitted) { date = it }
             OutlinedTextField(price, { price = it }, label = { Text(localized("Prezzo unitario vendita in {{value0}}", "value0" to (asset.valuationCurrency))) },
-                enabled = !saving, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-            (validationError ?: error)?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+                enabled = !saving && !submitted, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+            (validationError ?: error?.takeIf { submitted })?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
+            failure?.takeIf { submitted }?.let {
+                Text(localized("Chiusure confermate: {{confirmed}} su {{total}}. Verifica anche l’acquisto {{id}} dopo il refresh.",
+                    "confirmed" to it.confirmed, "total" to it.total, "id" to it.uncertainId), color = MaterialTheme.colorScheme.error)
+            }
         } },
-        confirmButton = { TextButton(enabled = !saving, onClick = {
-            val validation = runCatching { validatePositionClosure(LocalDate.parse(date), parseMoney(price), asset.purchaseDate) }
-            if (validation.isFailure) validationError = validation.exceptionOrNull()?.message
-            else { validationError = null; confirm(date, price) }
-        }) { Text(localized(if (saving) "Salvataggio…" else "Conferma chiusura")) } },
+        confirmButton = {
+            if (submitted && !saving) TextButton(onClick = refreshAndDismiss) { Text(localized("Aggiorna e verifica")) }
+            else TextButton(enabled = !saving && !submitted, onClick = {
+                if (!saving && !submitted) {
+                    val validation = runCatching { validatePositionClosure(LocalDate.parse(date), parseMoney(price), asset.purchaseDate) }
+                    if (validation.isFailure) validationError = validation.exceptionOrNull()?.message
+                    else { validationError = null; submitted = true; confirm(date, price) }
+                }
+            }) { Text(localized(if (saving) "Salvataggio…" else "Conferma chiusura")) }
+        },
         dismissButton = { TextButton(onClick = dismiss, enabled = !saving) { Text(localized("Annulla")) } })
 }

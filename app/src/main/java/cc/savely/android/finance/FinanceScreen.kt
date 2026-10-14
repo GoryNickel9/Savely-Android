@@ -133,7 +133,10 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
     val data = state.data
     val writeBlocked = state.saving || state.reconciliationRequired
     LaunchedEffect(state.reconciliationRequired) {
-        if (state.reconciliationRequired) { closingId = null; editorOpen = false; deleteRequest = null; removingShare = null }
+        if (state.reconciliationRequired) {
+            if (state.positionCloseFailure == null) closingId = null
+            editorOpen = false; deleteRequest = null; removingShare = null
+        }
     }
     val suggestions = remember(data, section) { if (section == "recurring" && data != null) availableRecurringSuggestions(data) else emptyList() }
     val writable = section in setOf("transactions", "categories", "budget", "recurring", "portfolio")
@@ -285,7 +288,9 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
         onSave = { operation -> model.mutate(operation) { editorOpen = false; suggestionKey = null } },
         suggestion = suggestions.find { it.key == suggestionKey })
     if (data != null) closingId?.let { id -> data.assets.find { it.id == id }?.let { asset ->
-        CloseAssetDialog(asset, state.saving, state.error, { if (!state.saving) closingId = null }) { date, price ->
+        CloseAssetDialog(asset, state.saving, state.error, state.positionCloseFailure,
+            dismiss = { if (!state.saving) closingId = null },
+            refreshAndDismiss = { closingId = null; model.refresh() }) { date, price ->
             model.closePositions(listOf(asset), date, price) { closingId = null }
         }
     } }

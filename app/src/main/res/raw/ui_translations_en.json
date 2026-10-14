@@ -993,6 +993,7 @@
   "Vedi tutte": "View all",
   "Vedi tutti": "View all",
   "Ven": "Fri",
+  "Vendita": "Sale",
   "Vendita {{date}}": "Sold {{date}}",
   "Verifica": "Verify",
   "Verifica degli acquisti non riuscita. Nessuna chiusura inviata: aggiorna i dati prima di continuare.": "Purchase verification failed. No closures sent: refresh before continuing.",
@@ -1248,5 +1249,15 @@
   "Operazione interrotta. Aggiorna i dati e verifica le righe prima di continuare.": "Operation interrupted. Refresh the data and check the rows before continuing.",
   "Distribuzione per Gioco": "Distribution by Game",
   "Aggiungi carte per vedere la distribuzione": "Add cards to see the distribution",
-  "Aggiornamento della ricorrenza non confermato. Aggiorna i dati prima di continuare.": "Recurring expense update not confirmed. Refresh the data before continuing."
+  "Aggiornamento della ricorrenza non confermato. Aggiorna i dati prima di continuare.": "Recurring expense update not confirmed. Refresh the data before continuing.",
+  "Allocazione per tipo": "Allocation by type",
+  "Distribuzione Liquido/Illiquido": "Liquid/illiquid distribution",
+  "Illiquido": "Illiquid",
+  "Distribuzione non disponibile: servono importi non negativi e un totale positivo.": "Distribution unavailable: nonnegative amounts and a positive total are required.",
+  "Investito, immobili inclusi: {{amount}}": "Invested, including real estate: {{amount}}",
+  "Azioni": "Stocks",
+  "Immobili": "Real estate",
+  "Criptovalute": "Cryptocurrencies",
+  "Obbligazioni": "Bonds",
+  "Operazione sul portafoglio non confermata. Aggiorna i dati e verifica la posizione prima di continuare.": "Portfolio operation not confirmed. Refresh the data and check the position before continuing."
 }

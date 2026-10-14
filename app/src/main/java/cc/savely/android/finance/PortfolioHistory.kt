@@ -52,6 +52,7 @@ private val historyInvestmentTypes = setOf(FinanceAssetType.STOCK, FinanceAssetT
 data class PortfolioReturnSummary(
     val currency: String, val invested: BigDecimal, val investmentValue: BigDecimal,
     val gainIncludingEstate: BigDecimal,
+    val investedIncludingEstate: BigDecimal = invested,
 ) {
     val investmentGain: BigDecimal get() = investmentValue - invested
     val returnPercent: BigDecimal? get() = if (invested.signum() > 0)
@@ -65,7 +66,8 @@ fun portfolioReturnSummaries(assets: List<FinanceAsset>): List<PortfolioReturnSu
         val investments = rows.filter { it.type in historyInvestmentTypes }
         PortfolioReturnSummary(currency, investments.fold(BigDecimal.ZERO) { sum, asset -> sum + asset.cost },
             investments.fold(BigDecimal.ZERO) { sum, asset -> sum + asset.marketValue },
-            rows.fold(BigDecimal.ZERO) { sum, asset -> sum + asset.marketValue - asset.cost })
+            rows.fold(BigDecimal.ZERO) { sum, asset -> sum + asset.marketValue - asset.cost },
+            rows.fold(BigDecimal.ZERO) { sum, asset -> sum + asset.cost })
     }
 
 data class PortfolioAllocation(val currency: String, val type: FinanceAssetType?, val value: BigDecimal, val percent: BigDecimal?)
