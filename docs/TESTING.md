@@ -1,5 +1,11 @@
 # Verifica Savely Android
 
+## CI V08 — attesa del secondo invio esplicito
+
+Il job build della [CI `38580288372`](https://github.com/GoryNickel9/Savely-Android/actions/runs/38580288372), sorgente `605e95b`, fallisce con **592/593 JVM**: `FinanceInsertUncertaintyTest` attende due POST espliciti dopo HTTP 403 e ne osserva uno. Il report HTML e il log sono conservati in `artifacts/v08-ci-build-review/` e `artifacts/v08-preparation/ci-build-38580288372.log`. Il sorgente pubblica l'errore prima del rilascio finale della guardia busy; con il dispatcher Unconfined la sola osservazione dello stato non garantisce che l'operazione precedente sia conclusa.
+
+La fixture ora attende anche il completamento della coroutine prima del secondo invio. Restano i due POST attesi e tutte le verifiche di riconciliazione; nessuna pausa arbitraria o modifica di produzione. La verifica locale passa **593 JVM debug e i cinque casi della classe release**, zero failure/error/skip, in 1m41s. Risultati e XML: `artifacts/v08-preparation/ci-guard-fix-results/`; sorgente test SHA-256 `3d65c8bb99a9f62b5e1a2587e203a641007a951189e57ca1da4823453cd72aef`. Questo controllo locale non modifica il fallimento della CI originale.
+
 ## Prezzi V06 — canary reale concluso
 
 **[V06 PASS LOCALE](PORTFOLIO_QUALIFICATION.md): 14 criteri chiusi localmente, 19 aperti.** Sul release congelato code 18/SHA `bf86519c…`, tre metodi nativi API 31/EN passano login, singola azione prezzi e logout (12,923/23,360/17,004 s). Il servizio v17 salva AAPL USD 345,53 nell'asset e nello storico, `checked=1`, `updated=1`, errori vuoti. Un client host B in RAM riceve HTTP 200 con `QUOTE_CURRENCY_MISMATCH` per il solo BTC USD: nessuna scrittura B su asset/storico/manual update, solo il log di rifiuto atteso. Non è un secondo form Android.

@@ -115,7 +115,12 @@ class FinanceInsertUncertaintyTest {
         val model = model()
         repeat(2) { attempt ->
             model.mutate({ create("transactions") }) { fail("403 must not confirm success") }
-            withTimeout(10_000) { model.state.first { !it.saving && it.error != null } }
+            withTimeout(10_000) {
+                model.state.first { !it.saving && it.error != null }
+                // Unconfined collectors can resume before mutate's finally releases its busy guard.
+                // The second explicit submission belongs after completion of the previous operation.
+                model.viewModelScope.coroutineContext[Job]!!.children.toList().joinAll()
+            }
             assertFalse(model.state.value.reconciliationRequired)
             assertEquals(attempt + 1, posts.get())
         }
