@@ -65,10 +65,13 @@ private fun number(value: String): Double {
     return normalized.trim().toDoubleOrNull()?.takeIf { it.isFinite() } ?: error("Inserisci un numero valido")
 }
 private fun JSONArray.rows() = (0 until length()).map { getJSONObject(it) }
-private suspend fun SupabaseApi.userRows(table: String, extra: String = ""): List<JSONObject> {
+private suspend fun SupabaseApi.userRows(table: String, extra: String = "",
+    expectedOwner: String? = null, expectedRevision: Long? = null): List<JSONObject> {
     val snapshot = session() ?: error("Accedi per leggere i tuoi dati")
     val userId = snapshot.userId
     val ownerRevision = requireNotNull(sessionOwnerRevision(snapshot))
+    check((expectedOwner == null && expectedRevision == null) ||
+        (expectedOwner == userId && expectedRevision == ownerRevision)) { "Account cambiato. Riapri la schermata." }
     fun checkPage(page: List<JSONObject>) {
         check(isSessionOwnerCurrent(ownerRevision)) { "Account cambiato. Riapri la schermata." }
         check(page.all { it.optString("user_id") == userId }) { "Dati di un altro account rifiutati" }
@@ -110,6 +113,7 @@ private fun FireScreen(api: SupabaseApi, modifier: Modifier) {
     val context = LocalContext.current.applicationContext
     var loading by remember { mutableStateOf(true) }
     var account by remember { mutableStateOf("") }
+    var ownerRevision by remember { mutableStateOf<Long?>(null) }
     var preferences by remember { mutableStateOf<SharedPreferences?>(null) }
     var initial by remember { mutableStateOf(FireParameters()) }
     var hasSavedParameters by remember { mutableStateOf(false) }
@@ -119,19 +123,25 @@ private fun FireScreen(api: SupabaseApi, modifier: Modifier) {
     LaunchedEffect(api, retry) {
         loading = true
         try {
-            val userId = api.session()?.userId ?: error("Accedi per usare i parametri FIRE del tuo account")
+            val session = api.session() ?: error("Accedi per usare i parametri FIRE del tuo account")
+            val userId = session.userId
+            val revision = requireNotNull(api.sessionOwnerRevision(session))
             val local = withContext(Dispatchers.IO) {
                 context.getSharedPreferences(FireParameters.preferencesName(userId), Context.MODE_PRIVATE)
             }
             val restored = withContext(Dispatchers.IO) {
                 runCatching { local.getString(FireParameters.STORAGE_KEY, null)?.let { FireParameters.decode(it) } }
             }
-            account = userId
-            preferences = local
-            initial = restored.getOrNull() ?: FireParameters()
-            hasSavedParameters = restored.getOrNull() != null
-            restoreWarning = if (restored.isFailure) "Parametri locali non leggibili o versione non supportata. Sono mostrati valori di esempio; usa Ripristina per sostituire il salvataggio." else null
-            loadError = null
+            check(api.isSessionOwnerCurrent(revision)) { "Account cambiato. Riapri FIRE per continuare." }
+            api.withCurrentSessionOwner(revision) {
+                account = userId
+                ownerRevision = revision
+                preferences = local
+                initial = restored.getOrNull() ?: FireParameters()
+                hasSavedParameters = restored.getOrNull() != null
+                restoreWarning = if (restored.isFailure) "Parametri locali non leggibili o versione non supportata. Sono mostrati valori di esempio; usa Ripristina per sostituire il salvataggio." else null
+                loadError = null
+            }
         } catch (failure: CancellationException) { throw failure }
         catch (failure: Exception) { loadError = failure.message ?: "Impossibile aprire i parametri FIRE locali"; preferences = null }
         finally { loading = false }
@@ -147,11 +157,11 @@ private fun FireScreen(api: SupabaseApi, modifier: Modifier) {
             Text(localized(loadError ?: "Parametri locali non disponibili"), color = MaterialTheme.colorScheme.error)
             Button({ retry++ }) { Text(localized("Riprova")) }
         }
-    } else key(account, retry) { FireForm(api, account, preferences!!, initial, hasSavedParameters, restoreWarning, modifier) }
+    } else key(account, ownerRevision, retry) { FireForm(api, account, requireNotNull(ownerRevision), preferences!!, initial, hasSavedParameters, restoreWarning, modifier) }
 }
 
 @Composable
-private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPreferences, initial: FireParameters, hasSavedParameters: Boolean, restoreWarning: String?, modifier: Modifier) {
+private fun FireForm(api: SupabaseApi, ownerId: String, ownerRevision: Long, preferences: SharedPreferences, initial: FireParameters, hasSavedParameters: Boolean, restoreWarning: String?, modifier: Modifier) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val shareChooserTitle = localized("Condividi configurazione FIRE")
@@ -182,6 +192,20 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
     var sharingOpen by remember { mutableStateOf(false) }
     var sharingBaseline by remember { mutableStateOf(initial) }
     var sharingError by remember { mutableStateOf<String?>(null) }
+    suspend fun requireFireOwner() {
+        val session = api.session()
+        check(session != null && session.userId == ownerId && api.sessionOwnerRevision(session) == ownerRevision) {
+            "Account cambiato. Riapri FIRE per continuare."
+        }
+    }
+    fun commitParameters(snapshot: String, failure: String) {
+        var committed = false
+        api.withCurrentSessionOwner(ownerRevision) {
+            check(preferences.edit().putString(FireParameters.STORAGE_KEY, snapshot).commit()) { failure }
+            committed = true
+        }
+        check(committed) { "Account cambiato. Riapri FIRE per continuare." }
+    }
     fun currentParameters(): FireParameters {
         require(number(age) % 1 == 0.0 && number(retirement) % 1 == 0.0) { "Usa età intere" }
         fun annual(raw: String, monthly: Boolean) = number(if (monthly) fireMonthlyToAnnual(raw) else raw)
@@ -230,7 +254,7 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
             val saved = withContext(NonCancellable + Dispatchers.IO) {
                 writes.withLock {
                     if (writeGeneration.get() != renderedGeneration || latestEncoded.value != snapshot) false else {
-                        check(preferences.edit().putString(FireParameters.STORAGE_KEY, snapshot).commit()) { "Salvataggio locale FIRE non riuscito" }
+                        commitParameters(snapshot, "Salvataggio locale FIRE non riuscito")
                         true
                     }
                 }
@@ -243,11 +267,9 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
         scope.launch {
             importing = true
             try {
-                val snapshot = requireNotNull(api.session())
-                check(snapshot.userId == ownerId) { "Account cambiato. Riapri FIRE per continuare." }
-                val ownerRevision = requireNotNull(api.sessionOwnerRevision(snapshot))
-                val holdings = api.userRows("portfolio_assets")
-                val transactions = api.userRows("transactions", "&deleted_at=is.null")
+                requireFireOwner()
+                val holdings = api.userRows("portfolio_assets", expectedOwner = ownerId, expectedRevision = ownerRevision)
+                val transactions = api.userRows("transactions", "&deleted_at=is.null", expectedOwner = ownerId, expectedRevision = ownerRevision)
                 val defaults = requireNotNull(fireDatabaseDefaults(holdings, transactions, java.time.ZonedDateTime.now())) { "Nessuna transazione negli ultimi 24 mesi" }
                 check(api.isSessionOwnerCurrent(ownerRevision)) { "Account cambiato. Riapri FIRE per continuare." }
                 api.withCurrentSessionOwner(ownerRevision) {
@@ -284,15 +306,17 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                 if (storageError != null) OutlinedButton({ saveRetry++ }) { Text(localized("Riprova salvataggio")) }
                 OutlinedButton(onClick = {
                     scope.launch {
-                        // Reset invalidates queued writes from the previous draft before taking the disk lock.
-                        writeGeneration.incrementAndGet()
                         resetting = true
                         try {
+                            check(api.isSessionOwnerCurrent(ownerRevision)) { "Account cambiato. Riapri FIRE per continuare." }
+                            // Reset invalidates queued writes from the previous draft before taking the disk lock.
+                            writeGeneration.incrementAndGet()
                             val defaults = FireParameters()
                             val reset = defaults.encode()
                             withContext(NonCancellable + Dispatchers.IO) { writes.withLock {
-                                check(preferences.edit().putString(FireParameters.STORAGE_KEY, reset).commit()) { "Ripristino locale non riuscito" }
+                                commitParameters(reset, "Ripristino locale non riuscito")
                             } }
+                            check(api.isSessionOwnerCurrent(ownerRevision)) { "Account cambiato. Riapri FIRE per continuare." }
                             age = defaults.inputs.currentAge.toString(); retirement = defaults.inputs.retirementAge.toString()
                             contributionMonthly = false; incomeMonthly = false; expensesMonthly = false
                             savings = defaults.inputs.currentSavings.toString(); contribution = defaults.inputs.annualContribution.toString()
@@ -322,11 +346,16 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                     if (importing || resetting) return@launch
                     importing = true
                     try {
-                        check(api.session()?.userId == ownerId) { "Account cambiato. Riapri FIRE per continuare." }
+                        requireFireOwner()
                         val current = currentParameters()
                         val link = FireSharing.link(BuildConfig.WEB_URL, if (tab == 0) FireCalculator.STANDARD else FireCalculator.BARISTA, current)
                         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link)
-                        context.startActivity(Intent.createChooser(send, shareChooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        var dispatched = false
+                        api.withCurrentSessionOwner(ownerRevision) {
+                            context.startActivity(Intent.createChooser(send, shareChooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            dispatched = true
+                        }
+                        check(dispatched) { "Account cambiato. Riapri FIRE per continuare." }
                         error = null
                     } catch (failure: CancellationException) { throw failure }
                     catch (_: Exception) { error = "Impossibile condividere il link FIRE. Controlla i parametri e riprova." }
@@ -378,17 +407,14 @@ private fun FireForm(api: SupabaseApi, ownerId: String, preferences: SharedPrefe
                 importing = true
                 var applied = false
                 try {
-                    check(api.session()?.userId == ownerId) { "Account cambiato. Riapri FIRE per continuare." }
+                    requireFireOwner()
                     val snapshot = shared.parameters.encode()
                     // Applying is explicit, including replacing a corrupt account-specific snapshot.
                     writeGeneration.incrementAndGet()
                     withContext(NonCancellable + Dispatchers.IO) { writes.withLock {
-                        check(api.session()?.userId == ownerId) { "Account cambiato. Riapri FIRE per continuare." }
-                        check(preferences.edit().putString(FireParameters.STORAGE_KEY, snapshot).commit()) {
-                            "Configurazione non applicata: salvataggio locale FIRE non riuscito."
-                        }
+                        commitParameters(snapshot, "Configurazione non applicata: salvataggio locale FIRE non riuscito.")
                     } }
-                    check(api.session()?.userId == ownerId) { "Account cambiato. Riapri FIRE per continuare." }
+                    requireFireOwner()
                     val imported = shared.parameters.inputs
                     contributionMonthly = false; incomeMonthly = false; expensesMonthly = false
                     age = imported.currentAge.toString(); retirement = imported.retirementAge.toString()

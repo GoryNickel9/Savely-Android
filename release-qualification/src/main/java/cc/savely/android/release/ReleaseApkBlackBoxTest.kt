@@ -1194,6 +1194,385 @@ class ReleaseApkBlackBoxTest {
         } finally { writeReport(run, "couple-logout", report) }
     }
 
+    /** V09/F04: known QA local drafts only. The host owns process death and server-session evidence. */
+    @Test fun qualifyReservedFireForm() {
+        val run = preflight(18)
+        val (user, email) = dedicatedQaAccount()
+        requireCode(user in setOf(QA_USER, QA_USER_B), "FIRE_ACCOUNT_INVALID")
+        val actor = if (user == QA_USER) "a" else "b"
+        val op = InstrumentationRegistry.getArguments().getString("fireOperation").orEmpty()
+        requireCode(op in setOf("baseline", "prepare-draft", "verify-after-process-death", "share-cancel", "cancel-import",
+            "read-retained", "reset-own-draft", "verify-clean"), "FIRE_OPERATION_INVALID")
+        val phase = "fire-$actor-$op"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val inputName = "release-qualification-$run-$phase-input.json"
+        val input = readJson(inputName, 4_096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id") &&
+            input.optString("run_id") == run && input.optString("user_id") == user && input.optString("operation") == op,
+            "FIRE_INPUT_INVALID")
+        val loginRun = input.optString("login_run_id")
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false) && loginRun != run,
+            "FIRE_LOGIN_REFERENCE_INVALID")
+        fireRequireLogin(loginRun, user)
+        writeReport(run, "$phase-reservation", input.put("stage", "reserved"))
+        requireCode(privateFile(inputName).delete(), "FIRE_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 18, phase).put("user_id", user).put("login_run_id", loginRun)
+            .put("operation", op).put("local_only", true).put("mutation_scope", "local-fire-preferences")
+            .put("mutation_attempted", false).put("local_cleanup_pending", true).put("cleanup_pending", true)
+        val defaults = fireDefaultValues()
+        val draft = fireDraftValues(user)
+        try {
+            val pid = launch()
+            report.put("pid", pid)
+            financeOpenProfile()
+            requireEmail(email)
+            awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true).put("session_retained", true)
+            financeEnter("FIRE")
+            fireTop()
+            when (op) {
+                "baseline" -> {
+                    fireRequireValues(defaults)
+                    fireAwaitSaved()
+                    report.put("baseline_confirmed", true).put("parameters_seen", 10)
+                }
+                "prepare-draft" -> {
+                    val baseline = firePrior(run, actor, "baseline", user)
+                    requireCode(baseline.optBoolean("baseline_confirmed") && baseline.optString("login_run_id") == loginRun,
+                        "FIRE_BASELINE_INVALID")
+                    fireRequireValues(defaults)
+                    var before = defaults.toMap()
+                    for ((index, entry) in draft.entries.withIndex()) {
+                        val after = before + (entry.key to entry.value)
+                        writeReport(run, "$phase-field-$index", JSONObject().put("run_id", run).put("user_id", user)
+                            .put("login_run_id", loginRun).put("stage", "reserved").put("field", entry.key)
+                            .put("before", JSONObject(before)).put("after", JSONObject(after)))
+                        report.put("mutation_attempted", true)
+                        fireTop()
+                        fireLocateField(fireFieldLabels().getValue(entry.key)).recycle()
+                        financeSetField(fireFieldLabels().getValue(entry.key), entry.value)
+                        before = after
+                    }
+                    fireRequireValues(draft)
+                    fireAwaitSaved()
+                    report.put("valid_draft_saved", true).put("parameters_seen", 10)
+                    fireTab("Standard")
+                    fireMetric("FIRE target", if (user == QA_USER) "750000" else "900000")
+                    fireTab("Barista")
+                    fireMetric("Barista target", "600000")
+                    fireMetric("Full FIRE target", if (user == QA_USER) "750000" else "900000")
+                    report.put("standard_barista_seen", true)
+                    writeReport(run, "$phase-before-invalid", JSONObject().put("run_id", run).put("user_id", user)
+                        .put("login_run_id", loginRun).put("stage", "reserved").put("valid_draft", JSONObject(draft)))
+                    fireTop()
+                    fireLocateField("Annual expenses (€)").recycle()
+                    financeSetField("Annual expenses (€)", "abc")
+                    fireTop()
+                    seekLabel(setOf("Incomplete or invalid values: the last valid configuration remains saved."),
+                        "FIRE_INVALID_DRAFT_STATUS_MISSING", true).recycle()
+                    seekLabel(setOf("Enter a valid number"), "FIRE_INVALID_DRAFT_ERROR_MISSING", true).recycle()
+                    report.put("invalid_draft_seen", true)
+                }
+                "verify-after-process-death", "read-retained" -> {
+                    val prepared = firePrior(run, actor, "prepare-draft", user)
+                    requireCode(prepared.optBoolean("valid_draft_saved") && prepared.optBoolean("invalid_draft_seen"),
+                        "FIRE_PREPARE_INVALID")
+                    if (op == "verify-after-process-death") {
+                        requireCode(prepared.optString("login_run_id") == loginRun && prepared.optInt("pid") > 0 &&
+                            prepared.optInt("pid") != pid, "FIRE_NEW_PROCESS_NOT_CONFIRMED")
+                        report.put("previous_app_pid", prepared.getInt("pid")).put("new_process", true)
+                    } else requireCode(prepared.optString("login_run_id") != loginRun, "FIRE_NEW_LOGIN_REQUIRED")
+                    fireRequireValues(draft)
+                    fireAwaitSaved()
+                    fireTab("Standard")
+                    fireMetric("FIRE target", if (user == QA_USER) "750000" else "900000")
+                    fireTab("Barista")
+                    fireMetric("Barista target", "600000")
+                    report.put("parameters_seen", 10).put("valid_draft_restored", true)
+                }
+                "share-cancel" -> {
+                    val prepared = firePrior(run, actor, "prepare-draft", user)
+                    requireCode(prepared.optBoolean("valid_draft_saved"), "FIRE_PREPARE_INVALID")
+                    fireRequireValues(draft)
+                    fireTab("Standard")
+                    fireTop()
+                    writeReport(run, "$phase-before-chooser", JSONObject().put("run_id", run).put("user_id", user)
+                        .put("login_run_id", loginRun).put("stage", "reserved").put("valid_draft", JSONObject(draft)))
+                    clickLabel(setOf("Share FIRE link"), "FIRE_SHARE_CONTROL_MISSING", true)
+                    await("FIRE_SYSTEM_CHOOSER_MISSING") { fireChooserVisible(requirePreview = true) }
+                    report.put("system_chooser_seen", true).put("synthetic_link_preview_seen", true)
+                    // ACTION_SEND/text/plain is a source contract; accessibility cannot inspect the inner intent.
+                    report.put("inner_send_intent_inspected", false)
+                    readShell("input keyevent KEYCODE_BACK", 256)
+                    await("FIRE_CHOOSER_CANCEL_NOT_CONFIRMED") {
+                        !fireChooserVisible(requirePreview = false) && exists {
+                            visible(it) && label(it, setOf("FIRE", "Standard", "Barista"))
+                        }
+                    }
+                    fireRequireValues(draft)
+                    fireAwaitSaved()
+                    report.put("cancelled_without_send", true).put("parameters_seen", 10)
+                }
+                "cancel-import" -> {
+                    val prepared = firePrior(run, actor, "prepare-draft", user)
+                    requireCode(prepared.optBoolean("valid_draft_saved"), "FIRE_PREPARE_INVALID")
+                    fireRequireValues(draft)
+                    fireTop()
+                    clickLabel(setOf("Import FIRE link"), "FIRE_IMPORT_CONTROL_MISSING", true)
+                    await("FIRE_IMPORT_DIALOG_MISSING") { hasText("Import FIRE configuration") }
+                    val preview = fireDraftValues(if (user == QA_USER) QA_USER_B else QA_USER)
+                    val query = preview.entries.joinToString("&") { (key, value) ->
+                        val wire = when (key) { "retirement" -> "retire"; "contribution" -> "contrib";
+                            "withdrawal" -> "swr"; else -> key }
+                        val number = if (key in setOf("return", "inflation", "withdrawal"))
+                            java.math.BigDecimal(value).movePointLeft(2).toPlainString() else value
+                        "$wire=$number"
+                    }
+                    financeSetField("Shared FIRE link", "https://savely.cc/fire/barista?$query")
+                    hideKeyboardIfShown()
+                    clickLabel(setOf("Preview"), "FIRE_PREVIEW_MISSING", true)
+                    seekLabel(setOf("Configuration preview"), "FIRE_PREVIEW_NOT_CONFIRMED", true).recycle()
+                    seekLabel(setOf("Annual part-time income (€): ${preview.getValue("parttime")}"),
+                        "FIRE_PREVIEW_VALUES_MISSING", true).recycle()
+                    clickLabel(setOf("Cancel"), "FIRE_CANCEL_MISSING", true)
+                    await("FIRE_CANCEL_NOT_CONFIRMED") { !hasText("Import FIRE configuration") }
+                    fireRequireValues(draft)
+                    fireAwaitSaved()
+                    report.put("preview_seen", true).put("cancelled_without_apply", true).put("parameters_seen", 10)
+                }
+                "reset-own-draft" -> {
+                    val baseline = firePrior(run, actor, "baseline", user)
+                    requireCode(baseline.optBoolean("baseline_confirmed"), "FIRE_BASELINE_INVALID")
+                    val current = fireReadValues()
+                    val basis = fireOwnedResetBasis(run, actor, user, current)
+                    writeReport(run, "$phase-before-reset", JSONObject().put("run_id", run).put("user_id", user)
+                        .put("login_run_id", loginRun).put("stage", "reserved").put("basis", basis))
+                    fireTop()
+                    report.put("mutation_attempted", true)
+                    clickLabel(setOf("Restore example values"), "FIRE_RESET_MISSING", true)
+                    fireAwaitSaved()
+                    fireRequireValues(defaults)
+                    fireAwaitSaved()
+                    report.put("baseline_restored", true).put("parameters_seen", 10).put("cleanup_basis", basis)
+                        .put("local_cleanup", true)
+                }
+                "verify-clean" -> {
+                    val reset = firePrior(run, actor, "reset-own-draft", user)
+                    requireCode(reset.optBoolean("baseline_restored") && reset.optBoolean("local_cleanup"), "FIRE_RESET_INVALID")
+                    fireRequireValues(defaults)
+                    fireAwaitSaved()
+                    report.put("baseline_restored", true).put("parameters_seen", 10).put("local_cleanup", true)
+                }
+            }
+            requireCode(!exists { visible(it) && it.isPassword }, "FIRE_LOGIN_FALLBACK")
+            report.put("stage", "passed")
+            // This describes local preferences only. The host still owns session logout and backend checks.
+            if (op in setOf("baseline", "reset-own-draft", "verify-clean")) report.put("local_cleanup_pending", false)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { recordUiFlags(report); writeReport(run, phase, report) }
+    }
+
+    private fun fireChooserVisible(requirePreview: Boolean): Boolean {
+        // Query only fixed chooser title/domain matches, never enumerate recipients or contacts.
+        for (window in automation.windows) {
+            val root = window.root ?: continue
+            try {
+                if (root.packageName?.toString() !in setOf("android", "com.android.intentresolver")) continue
+                fun fixedMatch(query: String, matches: (String) -> Boolean): Boolean {
+                    val found = root.findAccessibilityNodeInfosByText(query).orEmpty()
+                    return try { found.any { visible(it) && matches(it.text?.toString().orEmpty()) } }
+                    finally { found.forEach { it.recycle() } }
+                }
+                val title = fixedMatch("Share FIRE configuration") { it == "Share FIRE configuration" }
+                val preview = !requirePreview || fixedMatch("savely.cc") {
+                    it == "savely.cc" || it == "www.savely.cc" ||
+                        it.startsWith("https://savely.cc/fire/standard?") || it.startsWith("https://www.savely.cc/fire/standard?")
+                }
+                if (title && preview) return true
+            } finally { root.recycle() }
+        }
+        return false
+    }
+
+    private fun fireRequireLogin(loginRun: String, user: String) {
+        val login = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(login.optString("run_id") == loginRun && login.optString("user_id") == user &&
+            login.optString("phase") == "couple-login" && login.optString("stage") == "passed" &&
+            login.optInt("target_code") == 18 && login.optString("target_package") == TARGET &&
+            login.optBoolean("settings_identity") && login.optBoolean("profile_read") && login.optBoolean("english_selected"),
+            "FIRE_LOGIN_INVALID")
+    }
+
+    private fun firePrior(run: String, actor: String, op: String, user: String): JSONObject {
+        val phase = "fire-$actor-$op"
+        val prior = readJson("release-qualification-$run-$phase.json", 16_384)
+        requireCode(prior.optString("run_id") == run && prior.optString("user_id") == user &&
+            prior.optString("phase") == phase && prior.optString("operation") == op && prior.optString("stage") == "passed" &&
+            prior.optInt("target_code") == 18 && prior.optString("target_package") == TARGET &&
+            prior.optBoolean("settings_identity") && prior.optBoolean("profile_read"), "FIRE_PRIOR_INVALID")
+        fireRequireLogin(prior.getString("login_run_id"), user)
+        return prior
+    }
+
+    private fun fireOwnedResetBasis(run: String, actor: String, user: String, actual: Map<String, String>): String {
+        val phase = "fire-$actor-prepare-draft"
+        val reserved = readJson("release-qualification-$run-$phase-reservation.json", 4_096)
+        requireCode(reserved.optString("run_id") == run && reserved.optString("user_id") == user &&
+            reserved.optString("operation") == "prepare-draft" && reserved.optString("stage") == "reserved", "FIRE_DRAFT_RESERVATION_INVALID")
+        val login = reserved.getString("login_run_id")
+        fireRequireLogin(login, user)
+        val draft = fireDraftValues(user)
+        var before = fireDefaultValues().toMap()
+        var matched: String? = null
+        var count = 0
+        var gap = false
+        for ((index, entry) in draft.entries.withIndex()) {
+            val name = "release-qualification-$run-$phase-field-$index.json"
+            if (!privateFile(name).exists()) { gap = true; continue }
+            requireCode(!gap, "FIRE_DRAFT_CHECKPOINT_GAP")
+            val step = readJson(name, 8_192)
+            val after = before + (entry.key to entry.value)
+            requireCode(step.optString("run_id") == run && step.optString("user_id") == user &&
+                step.optString("login_run_id") == login && step.optString("stage") == "reserved" &&
+                step.optString("field") == entry.key && fireKnownJson(step.optJSONObject("before"), before) &&
+                fireKnownJson(step.optJSONObject("after"), after), "FIRE_DRAFT_CHECKPOINT_INVALID")
+            // Only the last reserved edit's exact before/after can explain an interrupted form.
+            matched = if (actual == before || actual == after) "reserved-prefix" else null
+            before = after
+            count++
+        }
+        if (count == 0 && actual == fireDefaultValues() &&
+            !privateFile("release-qualification-$run-$phase-before-invalid.json").exists()) return "baseline-unchanged"
+        requireCode(count > 0, "FIRE_DRAFT_CHECKPOINT_MISSING")
+        val invalidName = "release-qualification-$run-$phase-before-invalid.json"
+        if (privateFile(invalidName).exists()) {
+            val invalid = readJson(invalidName, 8_192)
+            requireCode(count == 10 && invalid.optString("run_id") == run && invalid.optString("user_id") == user &&
+                invalid.optString("login_run_id") == login && invalid.optString("stage") == "reserved" &&
+                fireKnownJson(invalid.optJSONObject("valid_draft"), draft), "FIRE_INVALID_RESERVATION_INVALID")
+            if (actual == draft + ("expenses" to "abc")) matched = "reserved-invalid-draft"
+        }
+        return matched ?: throw IllegalStateException("FIRE_DRAFT_NOT_OWNED")
+    }
+
+    private fun fireKnownJson(json: JSONObject?, expected: Map<String, String>): Boolean = json != null &&
+        json.keys().asSequence().toSet() == expected.keys && expected.all { (key, value) -> json.opt(key) == value }
+
+    private fun fireDefaultValues() = linkedMapOf("age" to "30", "retirement" to "55", "savings" to "100000",
+        "contribution" to "24000", "income" to "72000", "expenses" to "48000", "return" to "7",
+        "inflation" to "3", "withdrawal" to "4", "parttime" to "20000")
+
+    private fun fireDraftValues(user: String): Map<String, String> = if (user == QA_USER)
+        linkedMapOf("age" to "31", "retirement" to "62", "savings" to "125000", "contribution" to "24000",
+            "income" to "60000", "expenses" to "30000", "return" to "7", "inflation" to "3", "withdrawal" to "4", "parttime" to "6000")
+        else linkedMapOf("age" to "35", "retirement" to "60", "savings" to "50000", "contribution" to "12000",
+            "income" to "60000", "expenses" to "36000", "return" to "6", "inflation" to "2", "withdrawal" to "4", "parttime" to "12000")
+
+    private fun fireFieldLabels() = linkedMapOf("age" to "Current age", "retirement" to "Retirement age",
+        "savings" to "Current savings (€)", "contribution" to "Annual contribution (€)", "income" to "Annual net income (€)",
+        "expenses" to "Annual expenses (€)", "return" to "Nominal return (%)", "inflation" to "Inflation (%)",
+        "withdrawal" to "Annual withdrawal (%)", "parttime" to "Annual part-time income (€)")
+
+    private fun fireTop() {
+        hideKeyboardIfShown()
+        repeat(32) {
+            if (exists { label(it, setOf("Standard", "Barista")) && visible(it) && it.isEnabled && hasClickableAncestor(it) }) return
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+            val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+            val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } } ?: false
+            if (!moved) swipe(true, bounds)
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("FIRE_TABS_MISSING")
+    }
+
+    private fun fireTab(tab: String) {
+        fireTop()
+        val node = seekLabel(setOf(tab), "FIRE_TAB_MISSING", true, true)
+        if (selectedControl(node)) node.recycle() else clickControl(node, "FIRE_TAB_REJECTED")
+        await("FIRE_TAB_NOT_SELECTED") { selected(tab) }
+    }
+
+    private fun fireReadValues(): Map<String, String> {
+        fireTab("Barista")
+        return fireFieldLabels().mapValues { (_, field) ->
+            val labelNode = fireLocateField(field)
+            var current: AccessibilityNodeInfo? = labelNode
+            var value: String? = null
+            try {
+                repeat(5) {
+                    val node = current ?: return@repeat
+                    if (value == null && node.isEditable && node.isEnabled && visible(node)) value = node.text?.toString()
+                    current = if (value == null) node.parent else null
+                    node.recycle()
+                }
+            } finally { current?.recycle() }
+            val raw = value ?: throw IllegalStateException("FIRE_FIELD_MISSING")
+            requireCode(raw.length <= 128, "FIRE_FIELD_VALUE_INVALID")
+            if (raw == "abc") raw else runCatching { java.math.BigDecimal(raw).stripTrailingZeros().toPlainString() }
+                .getOrElse { throw IllegalStateException("FIRE_FIELD_VALUE_INVALID") }
+        }
+    }
+
+    private fun fireRequireValues(expected: Map<String, String>) {
+        requireCode(fireReadValues() == expected, "FIRE_PARAMETERS_MISMATCH")
+    }
+
+    private fun fireLocateField(field: String): AccessibilityNodeInfo {
+        repeat(96) {
+            find { it.isEditable && it.isEnabled && visible(it) && it.hintText?.toString() == field }?.let { return it }
+            find { visible(it) && it.isEnabled && label(it, setOf(field)) }?.let { return it }
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+                ?: throw IllegalStateException("FIRE_FORM_SCROLL_MISSING")
+            val bounds = try { Rect().also(container::getBoundsInScreen) } finally { container.recycle() }
+            // Small gestures cannot skip an uncomposed LazyColumn field between whole-page scrolls.
+            val height = minOf(bounds.height() / 2, (48 * instrumentation.context.resources.displayMetrics.density).toInt())
+            requireCode(height > 0, "FIRE_FORM_SCROLL_MISSING")
+            swipe(false, Rect(bounds.left, bounds.centerY() - height / 2, bounds.right, bounds.centerY() + height / 2), avoidFling = true)
+            SystemClock.sleep(100)
+        }
+        throw IllegalStateException("FIRE_FIELD_LABEL_MISSING")
+    }
+
+    private fun fireAwaitSaved() {
+        fireTop()
+        seekLabel(setOf("Parameters saved on this device for this account."), "FIRE_SAVED_STATUS_MISSING", true).recycle()
+    }
+
+    private fun fireMetric(titleText: String, amount: String) {
+        fireTop()
+        val labelNode = seekLabel(setOf(titleText), "FIRE_METRIC_LABEL_MISSING", true)
+        val expected = java.text.NumberFormat.getCurrencyInstance(java.util.Locale.ITALY).format(java.math.BigDecimal(amount))
+        var parent: AccessibilityNodeInfo? = labelNode.parent
+        labelNode.recycle()
+        var paired = false
+        try {
+            repeat(4) {
+                val node = parent ?: return@repeat
+                if (node.childCount in 2..3) {
+                    var title = false
+                    var value = false
+                    for (index in 0 until node.childCount) {
+                        val child = node.getChild(index) ?: continue
+                        try {
+                            title = title || label(child, setOf(titleText))
+                            value = value || label(child, setOf(expected))
+                        } finally { child.recycle() }
+                    }
+                    paired = paired || title && value
+                }
+                parent = if (paired) null else node.parent
+                node.recycle()
+            }
+        } finally { parent?.recycle() }
+        requireCode(paired, "FIRE_METRIC_CARD_MISMATCH")
+        seekLabel(setOf(expected), "FIRE_METRIC_VALUE_MISSING", true).recycle()
+    }
+
+
     /** V06: only native form controls mutate data; the host owns exact-row adoption and reconciliation. */
     @Test fun qualifyReservedPortfolioForm() {
         val run = preflight(18)
