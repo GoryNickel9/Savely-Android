@@ -187,7 +187,7 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
             }
             "recurring" -> {
                 item { Text(localized("Il servizio automatico esistente elabora le scadenze. Puoi elaborare ora le ricorrenze personali scadute, una scadenza per ricorrenza.")) }
-                item { Button(onClick = model::processDueRecurring, enabled = !state.saving && !state.loading) {
+                item { Button(onClick = model::processDueRecurring, enabled = !writeBlocked && !state.loading) {
                     Text(localized(if (state.saving) "Operazione in corso…" else "Elabora ora"))
                 } }
                 item { Text(localized("Come sul sito, una transazione con lo stesso nome nel mese della scadenza impedisce una nuova creazione, anche per le ricorrenze settimanali."), style = MaterialTheme.typography.bodySmall) }
@@ -202,8 +202,8 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                                 "frequency" to localized(suggestion.frequency.label), "count" to suggestion.occurrenceCount))
                             Text(localized("Corrispondenza {{confidence}} · Prossima scadenza proposta {{date}}", "confidence" to localized(if (suggestion.highConfidence) "alta" else "media"),
                                 "date" to suggestion.nextDueDate))
-                            Button(onClick = { editingId = null; suggestionKey = suggestion.key; editorOpen = true }, enabled = !state.saving && !state.loading) { Text(localized("Crea ricorrenza")) }
-                            TextButton(onClick = { model.dismissRecurringSuggestion(suggestion.key) }, enabled = !state.saving && !state.loading) { Text(localized("Non proporre")) }
+                            Button(onClick = { editingId = null; suggestionKey = suggestion.key; editorOpen = true }, enabled = !writeBlocked && !state.loading) { Text(localized("Crea ricorrenza")) }
+                            TextButton(onClick = { model.dismissRecurringSuggestion(suggestion.key) }, enabled = !writeBlocked && !state.loading) { Text(localized("Non proporre")) }
                         } }
                     }
                     item { Text(localized("Ricorrenze salvate"), style = MaterialTheme.typography.titleLarge) }
@@ -215,13 +215,13 @@ fun FinanceScreen(api: SupabaseApi, section: String, modifier: Modifier = Modifi
                         "${recurring.nextDueDate} · ${localized(recurring.frequency.label)}" +
                             (if (recurring.frequency == RecurringFrequency.WEEKLY) " (${localized("{{count}} settimane", "count" to recurring.weekInterval)})" else "") +
                             " · ${localized(if (recurring.active) "Attiva" else "In pausa")}",
-                        formatMoney(recurring.amount, recurring.currency), !state.saving,
+                        formatMoney(recurring.amount, recurring.currency), !writeBlocked && !state.loading,
                         { edit(recurring.id) }, { deleteRequest = DeleteRequest("recurring_expenses", recurring.id, recurring.name) })
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(localized("{{name}}: {{status}}", "name" to recurring.name, "status" to localized(if (recurring.active) "attiva" else "in pausa")), Modifier.weight(1f))
                         val toggleDescription = localized("Attiva o metti in pausa {{name}}", "name" to recurring.name)
                         Switch(checked = recurring.active, onCheckedChange = { model.setRecurringActive(recurring.id, it) },
-                            enabled = !state.saving && !state.loading,
+                            enabled = !writeBlocked && !state.loading,
                             modifier = Modifier.semantics { contentDescription = toggleDescription })
                     }
                     }

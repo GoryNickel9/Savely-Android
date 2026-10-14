@@ -90,6 +90,8 @@ class FinanceScreenTest {
     private val recurringReadRequests = AtomicInteger()
     private val processingFixture = AtomicBoolean(false)
     private val failRecurringAdvance = AtomicBoolean(false)
+    private val failRecurringRead = AtomicBoolean(false)
+    private val recurringReadFailures = AtomicInteger()
     private val dueQueries = AtomicInteger()
     private val advanceRequests = AtomicInteger()
     private val positionClosureFixture = AtomicBoolean(false)
@@ -701,6 +703,7 @@ class FinanceScreenTest {
 
     @Test fun recurringInsertCommitThenAdvanceFailureShowsPartialErrorWithoutAutomaticRetry() {
         processingFixture.set(true)
+        recurringFixture.set(true)
         failRecurringAdvance.set(true)
         compose.setContent {
             SavelyTheme("light") { FinanceScreen(api, "recurring", Modifier.fillMaxSize(), accountKey = USER_ID) }
@@ -720,11 +723,52 @@ class FinanceScreenTest {
         assertEquals(1, posts.get())
         assertEquals(0, patches.get())
         assertEquals(1, dueQueries.get())
-        failRecurringAdvance.set(false)
+        val mutationControls = listOf(
+            hasText("Nuova ricorrenza"),
+            hasText("Elabora ora"),
+            hasContentDescription("Attiva o metti in pausa $PROCESS_NAME"),
+            hasContentDescription("Modifica $PROCESS_NAME"),
+            hasContentDescription("Elimina $PROCESS_NAME"),
+            hasText("Crea ricorrenza"),
+            hasText("Non proporre"),
+        )
+        mutationControls.forEach { scrollFinanceNode(it).assertIsNotEnabled() }
+        scrollFinanceNode(hasText("Elabora ora")).performTouchInput { click(); click() }
+        compose.waitForIdle()
+        assertEquals("Blocked processing must not read due occurrences again", 1, dueQueries.get())
+        assertEquals("Blocked processing must not retry the failed advance", 1, advanceRequests.get())
+
+        failRecurringRead.set(true)
         recurringTouch(hasText("Riprova"))
-        waitForFinanceCondition("refresh removes partial error") { compose.onAllNodesWithText("Elaborazione interrotta", substring = true).fetchSemanticsNodes().isEmpty() }
-        assertEquals("Retry card refreshes only, without repeating writes", 1, posts.get())
+        transactionList().performScrollToIndex(0)
+        waitForFinanceCondition("failed refresh returns to the retry card") {
+            recurringReadFailures.get() == 1 &&
+                compose.onAllNodesWithText("Riprova").fetchSemanticsNodes().isNotEmpty()
+        }
+        scrollFinanceNode(hasText("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce.")).assertIsDisplayed()
+        mutationControls.forEach { scrollFinanceNode(it).assertIsNotEnabled() }
+        assertEquals("A failed refresh must preserve the original committed insert", 1, posts.get())
+        assertEquals(0, patches.get() + deletes.get())
         assertEquals(1, dueQueries.get())
+        assertEquals(1, advanceRequests.get())
+
+        failRecurringAdvance.set(false)
+        failRecurringRead.set(false)
+        recurringTouch(hasText("Riprova"))
+        transactionList().performScrollToIndex(0)
+        waitForFinanceCondition("successful refresh removes the reconciliation block") {
+            compose.onAllNodesWithText("Riprova").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce.")
+                    .fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText("Elabora ora").fetchSemanticsNodes().singleOrNull()
+                    ?.config?.contains(SemanticsProperties.Disabled) == false
+        }
+        compose.onNodeWithText("Elaborazione interrotta", substring = true).assertDoesNotExist()
+        mutationControls.forEach { scrollFinanceNode(it).assertIsEnabled() }
+        assertEquals("Retry card refreshes only, without repeating writes", 1, posts.get())
+        assertEquals(0, patches.get() + deletes.get())
+        assertEquals(1, dueQueries.get())
+        assertEquals(1, advanceRequests.get())
         transactionList().performScrollToIndex(0)
         recurringTouch(hasText("Elabora ora"))
         waitForFinanceCondition("explicit rerun advances existing occurrence") { patches.get() == 1 }
@@ -732,6 +776,9 @@ class FinanceScreenTest {
         waitForText(RecurringProcessingResult(0, 1, 1).message)
         assertEquals("Explicit rerun must find the committed transaction", 1, posts.get())
         assertEquals(1, patches.get())
+        assertEquals(2, advanceRequests.get())
+        assertEquals(2, dueQueries.get())
+        assertEquals(0, deletes.get())
         assertEquals(0, rejectedRequests.get())
     }
 
@@ -1221,6 +1268,10 @@ class FinanceScreenTest {
                         "GET" -> {
                             if (url.queryParameter("deleted_at") != "is.null" || url.queryParameter("limit") != "500") return reject()
                             if (offset == 0) recurringReadRequests.incrementAndGet()
+                            if (failRecurringRead.get()) {
+                                if (offset == 0) recurringReadFailures.incrementAndGet()
+                                return MockResponse().setResponseCode(503).setHeader("Content-Type", "application/json").setBody("{}")
+                            }
                             if (calendarFixture.get() && recurring.isEmpty()) {
                                 listOf(PROCESS_ID to true, CREATED_ID to false).forEach { (id, active) -> recurring[id] = JSONObject()
                                     .put("id", id).put("name", if (active) "Quota calendario" else "Quota in pausa").put("amount", "12.50").put("currency", "EUR")

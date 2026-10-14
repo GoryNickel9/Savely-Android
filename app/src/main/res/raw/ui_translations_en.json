@@ -1247,5 +1247,6 @@
   "Salvataggio non confermato. Aggiorna i dati e verifica la riga prima di creare un nuovo elemento.": "Save not confirmed. Refresh the data and check the row before creating a new item.",
   "Operazione interrotta. Aggiorna i dati e verifica le righe prima di continuare.": "Operation interrupted. Refresh the data and check the rows before continuing.",
   "Distribuzione per Gioco": "Distribution by Game",
-  "Aggiungi carte per vedere la distribuzione": "Add cards to see the distribution"
+  "Aggiungi carte per vedere la distribuzione": "Add cards to see the distribution",
+  "Aggiornamento della ricorrenza non confermato. Aggiorna i dati prima di continuare.": "Recurring expense update not confirmed. Refresh the data before continuing."
 }

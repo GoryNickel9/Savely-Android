@@ -1131,7 +1131,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun loginDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13, 14, 15), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14, 15, 16), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val report = baseReport(run, code, "couple-login").put("user_id", user)
@@ -1166,7 +1166,7 @@ class ReleaseApkBlackBoxTest {
 
     @Test fun logoutDedicatedQaForCouple() {
         val code = InstrumentationRegistry.getArguments().getString("expectedTargetCode")?.toIntOrNull()
-        requireCode(code in setOf(11, 12, 13, 14, 15), "EXPECTED_TARGET_CODE_INVALID")
+        requireCode(code in setOf(11, 12, 13, 14, 15, 16), "EXPECTED_TARGET_CODE_INVALID")
         val run = preflight(requireNotNull(code))
         val (user, email) = dedicatedQaAccount()
         val previous = readJson("release-qualification-$run-couple-login.json", 16_384)
@@ -1178,7 +1178,7 @@ class ReleaseApkBlackBoxTest {
         val report = baseReport(run, code, "couple-logout").put("user_id", user)
         try {
             report.put("pid", launch())
-            if (code == 15) financeOpenProfile() else openSettings()
+            if (code in setOf(15, 16)) financeOpenProfile() else openSettings()
             scrollAccountToTop()
             await("ACCOUNT_CONTENT_MISSING") { hasProfileContent() }
             requireEmail(email)
@@ -1192,6 +1192,152 @@ class ReleaseApkBlackBoxTest {
             report.put("stage", "failed").put("failure_code", safeFailure(failure)).put("cleanup_pending", true)
             throw AssertionError(safeFailure(failure))
         } finally { writeReport(run, "couple-logout", report) }
+    }
+
+    /** V04: each invocation consumes one reservation; server evidence is collected by the host. */
+    @Test fun qualifyReservedRecurringForm() {
+        val run = preflight(16)
+        requireCode(dedicatedQaAccount().first == QA_USER, "RECURRING_ACCOUNT_INVALID")
+        val op = InstrumentationRegistry.getArguments().getString("recurringOperation").orEmpty()
+        requireCode(op in setOf("create-paused", "edit-amount", "resume", "process-create", "reset-due",
+            "process-dedup", "pause", "delete-soft", "paused-process", "calendar", "calendar-after-process",
+            "calendar-after-dedup", "calendar-paused", "empty-process", "delete-cancel"), "RECURRING_OPERATION_INVALID")
+        val phase = "recurring-$op"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val inputName = "release-qualification-$run-$phase-input.json"
+        val input = readJson(inputName, 4_096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id", "day") &&
+            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("operation") == op,
+            "RECURRING_INPUT_INVALID")
+        val loginRun = input.optString("login_run_id")
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun }.getOrDefault(false) && loginRun != run,
+            "RECURRING_LOGIN_REFERENCE_INVALID")
+        val login = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(login.optString("run_id") == loginRun && login.optString("user_id") == QA_USER &&
+            login.optInt("target_code") == 16 && login.optString("stage") == "passed" &&
+            login.optString("target_package") == TARGET && login.optBoolean("settings_identity"), "RECURRING_LOGIN_INVALID")
+        val day = runCatching { java.time.LocalDate.parse(input.optString("day")) }.getOrNull()
+        requireCode(day != null && day.toString() == input.optString("day") &&
+            java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")) == day && java.time.LocalDate.now() == day,
+            "RECURRING_DEVICE_DAY_MISMATCH")
+        val today = requireNotNull(day)
+        val marker = "android-recurring-form-$run"
+        writeReport(run, "$phase-reservation", input.put("stage", "reserved"))
+        requireCode(privateFile(inputName).delete(), "RECURRING_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 16, phase).put("login_run_id", loginRun).put("operation", op)
+            .put("day", today.toString()).put("mutation_attempted", false).put("cleanup_pending", true)
+        try {
+            report.put("pid", launch())
+            financeOpenProfile()
+            requireEmail(QA_EMAIL)
+            awaitProfileRead()
+            report.put("settings_identity", true)
+            financeEnter("Recurring expenses")
+            recurringTop()
+            await("RECURRING_READ_NOT_READY") {
+                exists { label(it, setOf("Refresh data")) && visible(it) && hasClickableAncestor(it) }
+            }
+            when (op) {
+                "create-paused", "edit-amount", "reset-due" -> {
+                    if (op == "create-paused") clickLabel(setOf("New recurring expense"), "RECURRING_CREATE_MISSING")
+                    else clickLabel(setOf("Edit $marker"), "RECURRING_EDIT_MISSING", true)
+                    await("RECURRING_EDITOR_MISSING") { hasText(if (op == "create-paused") "New item" else "Edit item") }
+                    if (op == "create-paused") {
+                        financeSetField("Name", marker)
+                        financeSetField("Amount", "0.01")
+                        financeCurrencyEur()
+                        financeSelect("Frequency: Monthly", "Weekly")
+                        financeSetField("Every how many weeks", "1")
+                        seekLabel(setOf("Active recurring expense"), "RECURRING_ACTIVE_FIELD_MISSING", true).recycle()
+                        val toggle = find { it.isCheckable && it.isEnabled && visible(it) }
+                            ?: throw IllegalStateException("RECURRING_ACTIVE_SWITCH_MISSING")
+                        requireCode(toggle.isChecked, "RECURRING_DEFAULT_ACTIVE_INVALID")
+                        clickControl(toggle, "RECURRING_ACTIVE_SWITCH_REJECTED")
+                    } else if (op == "edit-amount") financeSetField("Amount", "0.02")
+                    else recurringResetDate(today)
+                    financeSubmit(run, phase, report)
+                    report.put("form_closed", true)
+                }
+                "resume", "pause" -> {
+                    val desired = op == "resume"
+                    val toggle = seekLabel(setOf("Enable or pause $marker"), "RECURRING_TOGGLE_MISSING", true, true)
+                    requireCode(toggle.isCheckable && toggle.isChecked != desired, "RECURRING_TOGGLE_STATE_INVALID")
+                    writeReport(run, "$phase-before-submit", JSONObject().put("run_id", run).put("user_id", QA_USER).put("stage", "before-submit"))
+                    report.put("mutation_attempted", true)
+                    clickControl(toggle, "RECURRING_TOGGLE_REJECTED")
+                    await("RECURRING_TOGGLE_NOT_CONFIRMED") {
+                        exists { label(it, setOf("Enable or pause $marker")) && it.isCheckable && it.isChecked == desired }
+                    }
+                    report.put("active", desired)
+                }
+                "process-create", "process-dedup", "paused-process", "empty-process" -> {
+                    val created = if (op == "process-create") 1 else 0
+                    val existing = if (op == "process-dedup") 1 else 0
+                    val advanced = if (op in setOf("process-create", "process-dedup")) 1 else 0
+                    val expected = "Processing complete: $created transactions created, $existing already present, $advanced due dates updated."
+                    writeReport(run, "$phase-before-submit", JSONObject().put("run_id", run).put("user_id", QA_USER).put("stage", "before-submit"))
+                    report.put("mutation_attempted", true)
+                    clickLabel(setOf("Process now"), "RECURRING_PROCESS_MISSING", true)
+                    recurringTop()
+                    await("RECURRING_PROCESS_RESULT_MISMATCH") { hasText(expected) }
+                    report.put("created", created).put("existing", existing).put("advanced", advanced)
+                }
+                "delete-soft", "delete-cancel" -> {
+                    clickLabel(setOf("Delete $marker"), "RECURRING_DELETE_MISSING", true)
+                    await("RECURRING_DELETE_DIALOG_MISSING") { hasText("Delete") && hasText("Cancel") }
+                    if (op == "delete-cancel") {
+                        clickLabel(setOf("Cancel"), "RECURRING_CANCEL_MISSING")
+                        await("RECURRING_CANCEL_NOT_CONFIRMED") { !hasText("Delete") }
+                    } else financeDelete(run, phase, report)
+                    report.put("dialog_closed", true)
+                }
+                else -> {
+                    val projected = if (op == "calendar") today else today.plusDays(7)
+                    val count = if (op == "calendar-paused") 0 else 1
+                    clickLabel(setOf("Today"), "RECURRING_CALENDAR_TODAY_MISSING", true)
+                    if (java.time.YearMonth.from(projected) != java.time.YearMonth.from(today))
+                        clickLabel(setOf("Next month"), "RECURRING_CALENDAR_NEXT_MISSING", true)
+                    clickLabel(setOf("$projected: $count due items"), "RECURRING_CALENDAR_COUNT_MISMATCH", true)
+                    seekLabel(setOf("Due on $projected"), "RECURRING_CALENDAR_SELECTED_MISSING", true).recycle()
+                    if (count == 0) seekLabel(setOf("Nothing is due on the selected day"), "RECURRING_PAUSED_PROJECTION_PRESENT", true).recycle()
+                    else {
+                        val occurrence = "$marker · 0,02\u00a0€"
+                        seekLabel(setOf(occurrence), "RECURRING_CALENDAR_AMOUNT_MISMATCH", true).recycle()
+                    }
+                    report.put("calendar_date", projected.toString()).put("calendar_count", count)
+                }
+            }
+            report.put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, phase, report) }
+    }
+
+    private fun recurringTop() {
+        hideKeyboardIfShown()
+        repeat(24) {
+            if (hasText("Refresh data")) return
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+            val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+            val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } } ?: false
+            if (!moved) swipe(true, bounds)
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("RECURRING_HEADER_MISSING")
+    }
+
+    private fun recurringResetDate(day: java.time.LocalDate) {
+        clickLabel(setOf("Next due date: ${day.plusDays(7)}"), "RECURRING_DATE_CONTROL_MISSING", true)
+        if (java.time.YearMonth.from(day) != java.time.YearMonth.from(day.plusDays(7)))
+            clickLabel(setOf("Previous month"), "RECURRING_DATE_PREVIOUS_MISSING")
+        val dateNode = find { visible(it) && it.isEnabled && it.text?.toString() == day.dayOfMonth.toString() &&
+            it.contentDescription?.toString()?.contains(day.year.toString()) == true }
+            ?: throw IllegalStateException("RECURRING_DATE_DAY_MISSING")
+        clickControl(dateNode, "RECURRING_DATE_DAY_REJECTED")
+        clickLabel(setOf("OK"), "RECURRING_DATE_OK_MISSING")
+        await("RECURRING_DATE_VALUE_MISMATCH") { hasText("Next due date: $day") }
     }
 
     /** One reserved operation per invocation; the host reads the owner ledger before and after every write. */

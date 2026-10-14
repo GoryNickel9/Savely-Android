@@ -34,7 +34,6 @@ class FinancePendingRefreshException(message: String, cause: Exception) : Illega
 
 class FinanceRepository(private val api: SupabaseApi, private val dismissals: RecurringDismissals = MemoryRecurringDismissals(),
     private val exchangeRates: FinanceExchangeRates = FinanceExchangeRates()) {
-    private var loadedUserId: String? = null
     private var loadedOwner: FinanceOwner? = null
     private suspend fun userId(): String = UUID.fromString(
         api.session()?.userId ?: error("Sessione scaduta. Accedi nuovamente."),
@@ -125,16 +124,17 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
                 .filter { it.isNull("tx_deleted_at") }.map { financeSharedExpenseFromJson(it, connection) }
         }
         check(userId() == user && api.sessionOwnerRevision() == ownerRevision) { "Account cambiato durante il caricamento. Aggiorna i dati." }
-        loadedUserId = user
         loadedOwner = owner
         return FinanceData(transactions, categories, budgets, recurring, currency, assets, snapshots, lastUpdate, ignored, tcgCards, history,
             user, connection, shares)
     }
 
     suspend fun dismissRecurringSuggestion(key: String) {
-        val user = loadedUserId ?: error("Carica le ricorrenze prima di ignorare un suggerimento")
+        val owner = loadedOwner ?: error("Carica le ricorrenze prima di ignorare un suggerimento")
         require(key.isNotBlank()) { "Suggerimento non valido" }
-        withContext(Dispatchers.IO) { dismissals.ignore(user, key) }
+        checkOwner(owner)
+        withContext(Dispatchers.IO) { dismissals.ignore(owner.id, key) }
+        checkOwner(owner)
     }
 
     private suspend fun validateCategory(id: String?, type: TransactionType, owner: FinanceOwner) {
@@ -238,23 +238,40 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
         id: String?, name: String, amount: String, currency: String, categoryId: String?,
         frequency: RecurringFrequency, weekInterval: String, date: String, active: Boolean,
     ) {
-        val owner = ownerSnapshot()
         require(name.trim().isNotEmpty()) { "Inserisci il nome della ricorrenza" }
         require(currency in supportedCurrencies) { "Valuta non supportata" }
         val interval = if (frequency == RecurringFrequency.WEEKLY) weekInterval.toIntOrNull() else 1
         require(interval != null && interval in 1..520) { "Inserisci da 1 a 520 settimane" }
+        val parsedAmount = parseMoney(amount)
+        val parsedDate = LocalDate.parse(date)
+        val existingId = id?.let { UUID.fromString(it).toString() }
+        val owner = ownerSnapshot()
         validateCategory(categoryId, TransactionType.EXPENSE, owner)
-        save("recurring_expenses", id, JSONObject().put("name", name.trim())
-            .put("amount", parseMoney(amount).toPlainString()).put("currency", currency)
+        val body = JSONObject().put("name", name.trim())
+            .put("amount", parsedAmount.toPlainString()).put("currency", currency)
             .put("category_id", categoryId ?: JSONObject.NULL).put("frequency", frequency.wire)
-            .put("week_interval", interval).put("next_due_date", LocalDate.parse(date).toString()).put("is_active", active), owner)
+            .put("week_interval", interval).put("next_due_date", parsedDate.toString()).put("is_active", active)
+        if (existingId == null) save("recurring_expenses", null, body, owner)
+        else updateRecurring(existingId, body, owner)
     }
 
     suspend fun setRecurringActive(id: String, active: Boolean) {
+        val existingId = UUID.fromString(id).toString()
         val owner = ownerSnapshot()
+        updateRecurring(existingId, JSONObject().put("is_active", active), owner)
+    }
+
+    private suspend fun updateRecurring(id: String, body: JSONObject, owner: FinanceOwner) {
         checkOwner(owner)
-        api.update("recurring_expenses", UUID.fromString(id).toString(), JSONObject().put("is_active", active),
-            "user_id=eq.${owner.id}&deleted_at=is.null", expectedOwner = owner.id, expectedRevision = owner.revision)
+        try {
+            api.update("recurring_expenses", id, body, "user_id=eq.${owner.id}&deleted_at=is.null",
+                expectedOwner = owner.id, expectedRevision = owner.revision)
+        } catch (error: CancellationException) { throw error }
+        catch (error: Exception) {
+            if (explicitWriteRejection(error)) throw error
+            throw FinancePendingRefreshException(
+                "Aggiornamento della ricorrenza non confermato. Aggiorna i dati prima di continuare.", error)
+        }
     }
 
     /** Matches web processDueExpenses: one occurrence per due record and deduplication by name/month.
@@ -322,15 +339,17 @@ class FinanceRepository(private val api: SupabaseApi, private val dismissals: Re
             catch (error: Exception) {
                 // An explicit rejection is safe to correct. Missing/invalid responses and postflight
                 // owner failures can follow a committed INSERT; never leave its create form reusable.
-                val rejected = error is ApiException && ((error.status in 400..499 && error.status != 408) ||
-                    error.status == null && error.kind in setOf(ApiError.CONFIGURATION, ApiError.VALIDATION))
-                if (rejected) throw error
+                if (explicitWriteRejection(error)) throw error
                 throw FinancePendingRefreshException(
                     "Salvataggio non confermato. Aggiorna i dati e verifica la riga prima di creare un nuovo elemento.", error)
             }
         } else api.update(table, UUID.fromString(id).toString(), body, "user_id=eq.$user",
             expectedOwner = user, expectedRevision = owner.revision)
     }
+
+    private fun explicitWriteRejection(error: Exception): Boolean = error is ApiException &&
+        ((error.status in 400..499 && error.status != 408) ||
+            error.status == null && error.kind in setOf(ApiError.CONFIGURATION, ApiError.VALIDATION))
 
     suspend fun saveAsset(id: String?, name: String, symbol: String, type: FinanceAssetType, quantity: String,
         purchasePrice: String, currentPrice: String, currency: String, date: String, notes: String) {

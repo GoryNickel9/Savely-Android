@@ -91,7 +91,8 @@ class FinanceViewModel(private val repository: FinanceRepository, private val se
 
     fun dismissRecurringSuggestion(key: String) {
         val data = mutableState.value.data ?: return
-        if (mutableState.value.loading || availableRecurringSuggestions(data).none { it.key == key } || !writeBusy.compareAndSet(false, true)) return
+        if (mutableState.value.reconciliationRequired || mutableState.value.loading ||
+            availableRecurringSuggestions(data).none { it.key == key } || !writeBusy.compareAndSet(false, true)) return
         mutableState.value = mutableState.value.copy(saving = true, error = null, message = null)
         viewModelScope.launch {
             try {
