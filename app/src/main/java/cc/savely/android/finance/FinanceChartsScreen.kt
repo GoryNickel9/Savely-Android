@@ -71,14 +71,20 @@ fun FinanceChartsScreen(data: FinanceData, modifier: Modifier = Modifier, today:
     val locale = Locale.forLanguageTag(LocalAppLanguage.current.tag)
     val availableCurrencies = data.transactions.map { it.currency }.distinct().sorted()
     val availableCategories = data.categories.filter { typeKey == "all" || it.type.wire == typeKey }
+    val activeCurrency = currencyKey.takeIf { it == "all" || it in availableCurrencies } ?: "all"
+    val activeCategory = categoryKey.takeIf { it == "all" || it == "none" || availableCategories.any { category -> category.id == it } } ?: "all"
+    LaunchedEffect(activeCurrency, activeCategory) {
+        if (currencyKey != activeCurrency) currencyKey = activeCurrency
+        if (categoryKey != activeCategory) categoryKey = activeCategory
+    }
     val activeFilter = FinanceChartFilter(
         type = TransactionType.entries.firstOrNull { it.wire == typeKey },
-        currency = currencyKey.takeUnless { it == "all" },
-        categoryId = categoryKey.takeUnless { it == "all" || it == "none" },
-        uncategorizedOnly = categoryKey == "none",
+        currency = activeCurrency.takeUnless { it == "all" },
+        categoryId = activeCategory.takeUnless { it == "all" || it == "none" },
+        uncategorizedOnly = activeCategory == "none",
     )
     val filtered = remember(data.transactions, range, activeFilter) { filterFinanceChartTransactions(data.transactions, range, activeFilter) }
-    val currencies = if (currencyKey == "all") filtered.map { it.currency }.distinct().sorted() else listOf(currencyKey)
+    val currencies = if (activeCurrency == "all") filtered.map { it.currency }.distinct().sorted() else listOf(activeCurrency)
 
     Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(localized("Analisi Entrate e Uscite"), style = MaterialTheme.typography.headlineSmall)
@@ -114,8 +120,8 @@ fun FinanceChartsScreen(data: FinanceData, modifier: Modifier = Modifier, today:
         }) { Text(localized("Applica intervallo")) }
         error?.let { Text(localized(it), color = MaterialTheme.colorScheme.error) }
         Text(localized("Periodo selezionato: {{from}} – {{to}}", "from" to range.from, "to" to range.to))
-        Selection("Valuta", currencyKey, listOf("all" to localized("Tutte le valute")) + availableCurrencies.map { it to it }) { currencyKey = it }
-        Selection("Categoria", categoryKey, listOf("all" to localized("Tutte le categorie"), "none" to localized("Senza categoria")) +
+        Selection("Valuta", activeCurrency, listOf("all" to localized("Tutte le valute")) + availableCurrencies.map { it to it }) { currencyKey = it }
+        Selection("Categoria", activeCategory, listOf("all" to localized("Tutte le categorie"), "none" to localized("Senza categoria")) +
             availableCategories.map { it.id to it.name }) { categoryKey = it }
         GranularitySelection(granularity, range) { granularityName = it.name }
         if (filtered.isEmpty()) Text(localized("Nessuna transazione nel periodo selezionato"))
@@ -129,6 +135,7 @@ fun FinanceChartsScreen(data: FinanceData, modifier: Modifier = Modifier, today:
                     Text(localized("Entrate {{amount}}", "amount" to formatMoney(totals.income, currency)))
                     Text(localized("Uscite {{amount}}", "amount" to formatMoney(totals.expenses, currency)))
                     Text(localized("Netto {{amount}}", "amount" to formatMoney(totals.savings, currency)))
+                    Text("${localized("Tasso di risparmio")}: ${financeChartSavingRate(totals).toPlainString().replace('.', ',')}%")
                 }
                 Text(localized("Andamento entrate e uscite"), style = MaterialTheme.typography.titleMedium)
                 GraphicSelection(FinanceChartGraphic.valueOf(timeGraphicName), includePie = false) { timeGraphicName = it.name }
@@ -238,7 +245,7 @@ private fun TimeGraphic(points: List<FinanceChartPoint>, currency: String, kind:
         series.forEachIndexed { seriesIndex, values ->
             if (kind == FinanceChartGraphic.BAR) {
                 val cell = plotWidth / points.size
-                val width = (cell * .7f / series.size).coerceAtLeast(.5f)
+                val width = cell * .7f / series.size
                 values.forEachIndexed { index, value ->
                     val valueY = y(value)
                     drawRect(colors[seriesIndex], Offset(margin + index * cell + seriesIndex * width, minOf(zeroY, valueY)),

@@ -19,6 +19,15 @@ enum class FinanceChartGranularity(val label: String) {
 
 private const val MAX_CHART_BUCKETS = 2400
 
+/** ChartsIncomeExpense.tsx saving rate, applied to one native currency's already filtered totals.
+ * One decimal uses exact HALF_UP rather than JavaScript Number/toFixed's binary approximation at ties.
+ */
+fun financeChartSavingRate(totals: CurrencyTotals): BigDecimal = if (totals.income.signum() <= 0) {
+    BigDecimal.ZERO.setScale(1)
+} else {
+    totals.savings.max(BigDecimal.ZERO).multiply(BigDecimal("100")).divide(totals.income, 1, RoundingMode.HALF_UP)
+}
+
 /** Web uses days through one year, then months. Very long ranges use explicitly labelled years. */
 fun financeChartCumulativeGranularity(range: DashboardRange): FinanceChartGranularity = when {
     range.days <= 366 -> FinanceChartGranularity.DAILY

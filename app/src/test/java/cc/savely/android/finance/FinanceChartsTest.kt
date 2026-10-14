@@ -13,6 +13,45 @@ class FinanceChartsTest {
     private fun range(from: String, to: String) = DashboardRange(LocalDate.parse(from), LocalDate.parse(to))
     private fun decimal(expected: String, actual: BigDecimal) = assertEquals(expected, 0, expected.toBigDecimal().compareTo(actual))
 
+    @Test fun `saving rate uses filtered inclusive window and independent native currency totals`() {
+        val rows = listOf(row("2024-02-28", "9000", TransactionType.INCOME),
+            row("2024-02-29", "100", TransactionType.INCOME), row("2024-03-01", "25"),
+            row("2024-03-02", "9000"), row("2024-02-29", "10", TransactionType.INCOME, "USD"),
+            row("2024-03-01", "15", currency = "USD"), row("2024-03-01", "10", currency = "GBP"))
+        val before = rows.toList()
+        val totals = currencyTotals(filterFinanceChartTransactions(rows, range("2024-02-29", "2024-03-01")))
+            .associateBy { it.currency }
+        assertEquals(setOf("EUR", "USD", "GBP"), totals.keys)
+        assertEquals(BigDecimal("75.0"), financeChartSavingRate(totals.getValue("EUR")))
+        assertEquals(BigDecimal("0.0"), financeChartSavingRate(totals.getValue("USD")))
+        assertEquals(BigDecimal("0.0"), financeChartSavingRate(totals.getValue("GBP")))
+        decimal("100", totals.getValue("EUR").income)
+        decimal("25", totals.getValue("EUR").expenses)
+        assertEquals(before, rows)
+    }
+
+    @Test fun `saving rate clamps overspend and nonpositive income without inventing an upper cap`() {
+        val cases = listOf(Triple("0", "10", "0.0"), Triple("-1", "10", "0.0"),
+            Triple("100", "125", "0.0"), Triple("100", "100", "0.0"),
+            Triple("100", "-25", "125.0"), Triple("10", "0", "100.0"))
+        cases.forEach { (income, expenses, expected) ->
+            val totals = CurrencyTotals("EUR", income.toBigDecimal(), expenses.toBigDecimal())
+            val before = totals.copy()
+            assertEquals("$income income / $expenses expenses", expected.toBigDecimal(), financeChartSavingRate(totals))
+            assertEquals(before, totals)
+        }
+    }
+
+    @Test fun `saving rate rounds thirds large exact totals and half tenth boundaries without floating point`() {
+        val cases = listOf(Triple("3", "2", "33.3"), Triple("3", "1", "66.7"),
+            Triple("3000000000000000000000000000000", "2000000000000000000000000000000", "33.3"),
+            Triple("2000", "1393", "30.4"),
+            Triple("2000", "1393.0000000000000000000000000000000001", "30.3"))
+        cases.forEach { (income, expenses, expected) ->
+            assertEquals(expected.toBigDecimal(), financeChartSavingRate(CurrencyTotals("EUR", income.toBigDecimal(), expenses.toBigDecimal())))
+        }
+    }
+
     @Test fun `periods cover leap month full year and inclusive since dates`() {
         assertEquals(range("2024-01-01", "2024-12-31"), resolveFinanceChartRange(FinanceChartPeriod.YEAR, emptyList(), today))
         assertEquals(range("2024-02-01", "2024-02-29"), resolveFinanceChartRange(FinanceChartPeriod.MONTH, emptyList(), today, month = 2))

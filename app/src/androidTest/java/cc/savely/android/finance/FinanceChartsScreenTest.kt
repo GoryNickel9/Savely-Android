@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cc.savely.android.ui.SavelyTheme
 import java.time.LocalDate
@@ -46,6 +47,94 @@ class FinanceChartsScreenTest {
 
     private fun panelText(text: String, panel: String): SemanticsNodeInteraction =
         compose.onNode(hasText(text) and hasAnyAncestor(hasTestTag(panel)))
+
+    @Test fun restoredFiltersGraphicsAndInvalidDraftKeepTheLastAppliedRange() {
+        val restoration = StateRestorationTester(compose)
+        val data = FinanceData(categories = listOf(food, travel), transactions = listOf(
+            row("2024-02-29", "10"), row("2024-03-01", "20"),
+            row("2024-03-01", "999", currency = "USD", category = "travel")))
+        restoration.setContent { Fixture { FinanceChartsScreen(data, today = today) } }
+        choose("Periodo: Anno", "Tra date")
+        compose.onNodeWithText("Dal").performScrollTo().performTextReplacement("2024-02-29")
+        compose.onNodeWithText("Al").performScrollTo().performTextReplacement("2024-03-01")
+        compose.onNodeWithText("Applica intervallo").performScrollTo().performClick()
+        compose.onNodeWithText("Analisi Uscite").performScrollTo().performClick()
+        choose("Valuta: Tutte le valute", "EUR")
+        choose("Categoria: Tutte le categorie", "Categoria QA")
+        choose("Granularità: Mensile", "Settimanale")
+        panelText("Linea", "chart-time-EUR").performScrollTo().performClick()
+        panelText("Torta", "chart-category-EUR-expense").performScrollTo().performClick()
+        compose.onNodeWithText("Dal").performScrollTo().performTextReplacement("2024-02-30")
+        compose.onNodeWithText("Applica intervallo").performScrollTo().performClick()
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithText("Periodo selezionato: 2024-02-29 – 2024-03-01").assertExists()
+        compose.onNodeWithText("Inserisci date valide nel formato YYYY-MM-DD").assertExists()
+        compose.onNodeWithText("Dal").assertTextContains("2024-02-30")
+        compose.onNodeWithText("Analisi Uscite").assertIsSelected()
+        compose.onNodeWithText("Valuta: EUR").assertExists()
+        compose.onNodeWithText("Categoria: Categoria QA").assertExists()
+        compose.onNodeWithText("Granularità: Settimanale").assertExists()
+        panelText("Linea", "chart-time-EUR").assertIsSelected()
+        panelText("Torta", "chart-category-EUR-expense").assertIsSelected()
+        panelText("Uscite 30,00\u00a0€", "chart-summary-EUR").assertExists()
+        compose.onNodeWithTag("chart-time-USD").assertDoesNotExist()
+    }
+
+    @Test fun refreshedRemovedCategoryFallsBackToAllAndDoesNotReturnWhenTheCategoryReappears() {
+        val original = FinanceData(categories = listOf(food, travel), transactions = listOf(
+            row("2024-03-01", "0.10"), row("2024-03-02", "0.20"), row("2024-03-03", "3", category = "travel")))
+        val data = mutableStateOf(original)
+        compose.setContent { Fixture { FinanceChartsScreen(data.value, today = today) } }
+        choose("Categoria: Tutte le categorie", "Categoria QA")
+        panelText("Uscite ${formatMoney("0.30".toBigDecimal(), "EUR")}", "chart-summary-EUR").performScrollTo().assertIsDisplayed()
+
+        compose.runOnIdle { data.value = original.copy(categories = listOf(food.copy(name = "Categoria QA aggiornata"), travel)) }
+        compose.onNodeWithText("Categoria: Categoria QA aggiornata").performScrollTo().assertIsDisplayed()
+        panelText("Uscite ${formatMoney("0.30".toBigDecimal(), "EUR")}", "chart-summary-EUR").assertExists()
+
+        val detached = original.transactions.map { if (it.categoryId == food.id) it.copy(categoryId = null) else it }
+        compose.runOnIdle { data.value = original.copy(categories = listOf(travel), transactions = detached) }
+        compose.onNodeWithText("Categoria: Tutte le categorie").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Categoria: Seleziona").assertDoesNotExist()
+        panelText("Uscite ${formatMoney("3.30".toBigDecimal(), "EUR")}", "chart-summary-EUR").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Periodo selezionato: 2024-01-01 – 2024-12-31").assertExists()
+
+        compose.runOnIdle { data.value = original }
+        compose.onNodeWithText("Categoria: Tutte le categorie").performScrollTo().assertIsDisplayed()
+        panelText("Uscite ${formatMoney("3.30".toBigDecimal(), "EUR")}", "chart-summary-EUR").assertExists()
+        choose("Categoria: Tutte le categorie", "Senza categoria")
+        compose.runOnIdle { data.value = original.copy(categories = emptyList(), transactions = detached) }
+        compose.onNodeWithText("Categoria: Senza categoria").performScrollTo().assertIsDisplayed()
+        panelText("Uscite ${formatMoney("0.30".toBigDecimal(), "EUR")}", "chart-summary-EUR").assertExists()
+    }
+
+    @Test fun refreshedMissingCurrencyFallsBackToAllAndDoesNotReturnWhenTheCurrencyReappears() {
+        val eur = row("2024-03-01", "0.10")
+        val usd = row("2024-03-02", "7.25", currency = "USD")
+        val original = FinanceData(categories = listOf(food), transactions = listOf(eur, usd))
+        val data = mutableStateOf(original)
+        compose.setContent { Fixture { FinanceChartsScreen(data.value, today = today) } }
+        choose("Valuta: Tutte le valute", "EUR")
+        panelText("Uscite ${formatMoney("0.10".toBigDecimal(), "EUR")}", "chart-summary-EUR").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("chart-time-USD").assertDoesNotExist()
+
+        compose.runOnIdle { data.value = original.copy(transactions = listOf(eur.copy(amount = "0.20".toBigDecimal()), usd)) }
+        compose.onNodeWithText("Valuta: EUR").performScrollTo().assertIsDisplayed()
+        panelText("Uscite ${formatMoney("0.20".toBigDecimal(), "EUR")}", "chart-summary-EUR").assertExists()
+        compose.onNodeWithTag("chart-time-USD").assertDoesNotExist()
+
+        compose.runOnIdle { data.value = original.copy(transactions = listOf(usd)) }
+        compose.onNodeWithText("Valuta: Tutte le valute").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Valuta: Seleziona").assertDoesNotExist()
+        compose.onNodeWithTag("chart-time-EUR").assertDoesNotExist()
+        panelText("Uscite ${formatMoney("7.25".toBigDecimal(), "USD")}", "chart-summary-USD").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Periodo selezionato: 2024-01-01 – 2024-12-31").assertExists()
+
+        compose.runOnIdle { data.value = original }
+        compose.onNodeWithText("Valuta: Tutte le valute").performScrollTo().assertIsDisplayed()
+        panelText("Uscite ${formatMoney("0.10".toBigDecimal(), "EUR")}", "chart-summary-EUR").assertExists()
+        panelText("Uscite ${formatMoney("7.25".toBigDecimal(), "USD")}", "chart-summary-USD").assertExists()
+    }
 
     @Test fun monthTypeCurrencyAndCategoryControlsKeepLeapDayAndExactTotals() {
         val data = FinanceData(categories = listOf(food, travel, salary), transactions = listOf(
