@@ -86,9 +86,11 @@ internal fun assetFromJson(json: JSONObject): FinanceAsset = FinanceAsset(
     json.nullableString("notes").orEmpty(),
 )
 
-internal fun snapshotFromJson(json: JSONObject): FinanceSnapshot = FinanceSnapshot(
-    json.getString("id"), LocalDate.parse(json.getString("date")), json.decimal("net_worth"), json.optJSONObject("components"),
-)
+internal fun snapshotFromJson(json: JSONObject): FinanceSnapshot {
+    val components = if (!json.has("components") || json.isNull("components")) null else
+        json.optJSONObject("components") ?: throw org.json.JSONException("Componenti dello snapshot non validi.")
+    return FinanceSnapshot(json.getString("id"), LocalDate.parse(json.getString("date")), json.decimal("net_worth"), components)
+}
 
 enum class InsightSeverity(val label: String) { WARNING("Attenzione"), POSITIVE("Positivo"), INFO("Info") }
 

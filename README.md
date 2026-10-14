@@ -1,5 +1,9 @@
 # Savely Android
 
+**[V07, Patrimonio, è PASS LOCALE](docs/NET_WORTH_QUALIFICATION.md)**: 590 JVM per variante, lint debug senza errori, 10/10 controlli Android 12 e dieci PNG IT/EN revisionati. Periodi, snapshot negativi/singoli/vuoti e componenti per valuta sono verificati; il parser rifiuta componenti malformati. **Dodici criteri chiusi localmente, 21 aperti.** V06 conserva il gate prezzi condiviso; segue V08, Insights. Candidata alpha locale, nessuna nuova pubblicazione.
+
+## Consuntivo Portafoglio V06
+
 La [qualifica Portafoglio V06](docs/PORTFOLIO_QUALIFICATION.md) passa **586 JVM per variante, 14/14 fixture Android 12 e 17 verifiche dei form sul release firmato 0.1.17-alpha/code 18**. Record QA rimossi e baseline ripristinato; revisionati 22 PNG IT/EN. **V06 resta aperto sui prezzi reali:** il servizio condiviso non verifica la valuta della quotazione. La correzione proposta passa 28 test offline e 18 Deno, ma non è distribuita. CI: build riuscita, Android 222/224 con due timeout iniziali conservati. Restano **11 criteri chiusi localmente e 22 aperti**; prosegue V07, Patrimonio. Nessuna nuova pubblicazione o parità globale.
 
 ## Consuntivo Grafici V05

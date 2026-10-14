@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Patrimonio V07 — qualifica locale
+
+**[V07 PASS LOCALE](NET_WORTH_QUALIFICATION.md)**: 590 JVM per variante, lint debug senza errori, 10/10 API 31 in 67,506 s e dieci PNG/dieci JSON IT/EN revisionati. Verificati tutti i periodi, snapshot negativi/singoli/vuoti, dettagli, dati malformati e componenti per valuta. Il gruppo include i due casi Poker/Settings prima falliti in CI: il PASS locale non modifica quella CI. Nessun backend o release R8 nuovo. **Dodici criteri chiusi localmente, 21 aperti**; V06 conserva il gate prezzi. Flag globali invariati, candidata alpha locale.
+
 ## Portafoglio V06 — candidata locale 0.1.17-alpha
 
 [Rapporto V06](PORTFOLIO_QUALIFICATION.md): produzione `41f2098`, 586 JVM per variante e lint senza errori; 14/14 fixture API 31, 22 PNG IT/EN revisionati, 14 guardie host e 17 verifiche native sul release firmato, tutte superate. Baseline QA ripristinato alle 13:40:19,710710 UTC del 14 ottobre 2026, con 33 categorie e sei snapshot preesistenti conservati. **Nessuna richiesta prezzi reale eseguita**: il contratto del servizio distribuito non verifica la valuta; proposta `ca97547` verificata offline/Deno, non distribuita. V06 rimane aperto.
