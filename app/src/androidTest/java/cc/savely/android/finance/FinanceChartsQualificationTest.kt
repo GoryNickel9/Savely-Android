@@ -113,6 +113,8 @@ class FinanceChartsQualificationTest {
             assertGraphicLabelsSingleLine(panel, english)
             captureAt("category-bars", profile, inPanel(panel, exact("${travel.name}: ${eur("3,00")}")))
             click(inPanel(panel, exact(if (english) "Pie" else "Torta") and hasClickAction()))
+            assertGraphicLabelsSingleLine(panel, english)
+            capture("category-pie-controls", profile)
             captureGraphic("category-pie", profile, panel, "chart-category-pie", listOf(0xff22c55e.toInt(), 0xfff59e0b.toInt()))
             categoryDetails(panel, travel.name, "3,00", "75%")
             val last = categoryDetails(panel, food.name, "1,00", "25%")
