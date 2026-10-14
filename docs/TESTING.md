@@ -1,6 +1,14 @@
 # Verifica Savely Android
 
+## FIRE V09 — fixture locali, percorso firmato aperto
+
+[V09](FIRE_QUALIFICATION.md), sorgente `eb2ffed`: **593 JVM per variante e 24/24 FIRE API 31 in 261,134 s**. Form EN Standard/Barista, ultimo draft valido, reset, import confermato e confini UID/SID verificati nelle fixture; il refresh token dello stesso SID resta ammesso. Primo gruppo 19/24 e isolato fallito conservati; corretti solo focus/IME, scroll sui pulsanti del dialogo e contenitore del grafico isolato. I cinque casi corretti passano prima 5/5 e poi nel gruppo completo, stesso main `923037…` e test `86215b…`.
+
+**V09 resta aperto:** le 21 invocazioni firmate con QA, force-stop/nuovo PID e chooser Android reale non sono ancora eseguite. Dati sintetici e TLS locale non qualificano backend, release R8 o API 35. Conteggi invariati: **14 criteri chiusi localmente, 19 aperti**; nessuna pubblicazione o modifica ai flag globali.
+
 ## CI V08 — attesa del secondo invio esplicito
+
+Il job UI dello stesso run conclude **229/230 PASS, zero skip, 12m48,87s su API 35**. Fallisce soltanto la guardia dei glifi USD in `CommonDatasetVisualTest.portfolioKeepsCurrenciesAndShowsCurrentHistoryEndpoint`; gli artefatti conservano HTML ma non il JSON e i PNG necessari a distinguere clipping, contrasto o misurazione. La diagnosi resta aperta e le asserzioni sono conservate. I due casi di readiness prima falliti in CI risultano passati in questo run.
 
 Il job build della [CI `38580288372`](https://github.com/GoryNickel9/Savely-Android/actions/runs/38580288372), sorgente `605e95b`, fallisce con **592/593 JVM**: `FinanceInsertUncertaintyTest` attende due POST espliciti dopo HTTP 403 e ne osserva uno. Il report HTML e il log sono conservati in `artifacts/v08-ci-build-review/` e `artifacts/v08-preparation/ci-build-38580288372.log`. Il sorgente pubblica l'errore prima del rilascio finale della guardia busy; con il dispatcher Unconfined la sola osservazione dello stato non garantisce che l'operazione precedente sia conclusa.
 
