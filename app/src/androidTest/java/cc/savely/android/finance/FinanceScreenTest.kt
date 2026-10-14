@@ -92,6 +92,9 @@ class FinanceScreenTest {
     private val failRecurringAdvance = AtomicBoolean(false)
     private val failRecurringRead = AtomicBoolean(false)
     private val recurringReadFailures = AtomicInteger()
+    private val recurringDeletionFixture = AtomicBoolean(false)
+    private val recurringSoftDeleteRequest = AtomicReference<RecordedRequest?>()
+    private val recurringVisibleIds = AtomicReference<Set<String>>(emptySet())
     private val dueQueries = AtomicInteger()
     private val advanceRequests = AtomicInteger()
     private val positionClosureFixture = AtomicBoolean(false)
@@ -701,6 +704,57 @@ class FinanceScreenTest {
         assertEquals(0, rejectedRequests.get())
     }
 
+    @Test fun recurringDeleteCancelPreservesAndConfirmSoftDeletesOnlyTheOwnedRecord() {
+        recurringDeletionFixture.set(true)
+        compose.setContent {
+            SavelyTheme("light") { FinanceScreen(api, "recurring", Modifier.fillMaxSize(), accountKey = USER_ID) }
+        }
+        waitForText("Elabora ora")
+        scrollFinanceNode(hasContentDescription("Modifica $PROCESS_NAME")).assertIsDisplayed()
+        assertEquals(setOf(PROCESS_ID, CREATED_ID), recurringVisibleIds.get())
+        compose.onNodeWithText("Ricorrenza altrui da non mostrare").assertDoesNotExist()
+
+        recurringTouch(hasContentDescription("Elimina $PROCESS_NAME"))
+        compose.onNodeWithText("Eliminare $PROCESS_NAME?").assertIsDisplayed()
+        assertEquals(0, posts.get() + patches.get() + deletes.get())
+        compose.onNodeWithText("Annulla").performClick()
+        compose.onNodeWithText("Eliminare $PROCESS_NAME?").assertDoesNotExist()
+        scrollFinanceNode(hasContentDescription("Modifica $PROCESS_NAME")).assertIsDisplayed()
+        assertEquals("Cancel must not issue any mutation", 0, posts.get() + patches.get() + deletes.get())
+        assertEquals(null, recurringSoftDeleteRequest.get())
+
+        val beforeDelete = java.time.Instant.now()
+        recurringTouch(hasContentDescription("Elimina $PROCESS_NAME"))
+        compose.onNodeWithText("Elimina", substring = false).assertIsEnabled().performClick()
+        waitForFinanceCondition("soft deletion and owner-filtered reload completed") {
+            patches.get() == 1 && recurringVisibleIds.get() == setOf(CREATED_ID) &&
+                compose.onAllNodesWithText("Eliminare $PROCESS_NAME?").fetchSemanticsNodes().isEmpty()
+        }
+        transactionList().performScrollToIndex(0)
+        waitForFinanceCondition("soft-delete refresh applied to the visible screen") {
+            compose.onAllNodesWithContentDescription("Aggiorna i dati").fetchSemanticsNodes().singleOrNull()
+                ?.config?.contains(SemanticsProperties.Disabled) == false
+        }
+        scrollFinanceNode(hasContentDescription("Modifica Ricorrenza propria da conservare")).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Modifica $PROCESS_NAME").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Elimina $PROCESS_NAME").assertDoesNotExist()
+        val request = requireNotNull(recurringSoftDeleteRequest.get())
+        val url = requireNotNull(request.requestUrl)
+        assertEquals("PATCH", request.method)
+        assertEquals("/rest/v1/recurring_expenses", url.encodedPath)
+        assertEquals("eq.$PROCESS_ID", url.queryParameter("id"))
+        assertEquals("eq.$USER_ID", url.queryParameter("user_id"))
+        assertEquals(setOf("id", "user_id"), url.queryParameterNames)
+        assertEquals("return=minimal,count=exact", request.getHeader("Prefer"))
+        val body = JSONObject(patchedBody.get())
+        assertEquals(setOf("deleted_at"), body.keys().asSequence().toSet())
+        val deletedAt = java.time.Instant.parse(body.getString("deleted_at"))
+        assertTrue("Soft deletion must contain this action's timestamp", !deletedAt.isBefore(beforeDelete) && !deletedAt.isAfter(java.time.Instant.now()))
+        assertEquals("Only one soft-delete PATCH is allowed", 1, patches.get())
+        assertEquals("No transaction insert or hard delete is allowed", 0, posts.get() + deletes.get())
+        assertEquals(0, dueQueries.get() + advanceRequests.get() + rejectedRequests.get())
+    }
+
     @Test fun recurringInsertCommitThenAdvanceFailureShowsPartialErrorWithoutAutomaticRetry() {
         processingFixture.set(true)
         recurringFixture.set(true)
@@ -1272,6 +1326,16 @@ class FinanceScreenTest {
                                 if (offset == 0) recurringReadFailures.incrementAndGet()
                                 return MockResponse().setResponseCode(503).setHeader("Content-Type", "application/json").setBody("{}")
                             }
+                            if (recurringDeletionFixture.get() && recurring.isEmpty()) {
+                                listOf(
+                                    Triple(PROCESS_ID, USER_ID, PROCESS_NAME),
+                                    Triple(CREATED_ID, USER_ID, "Ricorrenza propria da conservare"),
+                                    Triple(POSITION_FIRST_ID, FILTER_DOLLAR_ID, "Ricorrenza altrui da non mostrare"),
+                                ).forEach { (id, owner, name) -> recurring[id] = JSONObject()
+                                    .put("id", id).put("user_id", owner).put("name", name).put("amount", "12.50").put("currency", "EUR")
+                                    .put("category_id", JSONObject.NULL).put("frequency", "monthly").put("week_interval", 1)
+                                    .put("next_due_date", LocalDate.now().plusDays(30).toString()).put("is_active", true).put("deleted_at", JSONObject.NULL) }
+                            }
                             if (calendarFixture.get() && recurring.isEmpty()) {
                                 listOf(PROCESS_ID to true, CREATED_ID to false).forEach { (id, active) -> recurring[id] = JSONObject()
                                     .put("id", id).put("name", if (active) "Quota calendario" else "Quota in pausa").put("amount", "12.50").put("currency", "EUR")
@@ -1289,8 +1353,10 @@ class FinanceScreenTest {
                             val due = url.queryParameter("next_due_date")?.removePrefix("lte.")
                             val active = url.queryParameter("is_active") == "eq.true"
                             if (due != null && offset == 0) dueQueries.incrementAndGet()
-                            val rows = recurring.values.filter { (!active || it.getBoolean("is_active")) &&
+                            val rows = recurring.values.filter { it.optString("user_id", USER_ID) == USER_ID && it.isNull("deleted_at") &&
+                                (!active || it.getBoolean("is_active")) &&
                                 (due == null || it.getString("next_due_date") <= due) }
+                            if (recurringDeletionFixture.get() && offset == 0) recurringVisibleIds.set(rows.map { it.getString("id") }.toSet())
                             json(JSONArray(rows).toString()).apply { if (due != null && offset == 0) setBodyDelay(1200, TimeUnit.MILLISECONDS) }
                         }
                         "POST" -> {
@@ -1307,6 +1373,17 @@ class FinanceScreenTest {
                             val record = recurring[id] ?: return reject()
                             val raw = request.body.readUtf8()
                             val body = JSONObject(raw)
+                            if (body.has("deleted_at")) {
+                                if (!recurringDeletionFixture.get() || id != PROCESS_ID || record.getString("user_id") != USER_ID ||
+                                    body.keys().asSequence().toSet() != setOf("deleted_at") ||
+                                    request.getHeader("Prefer") != "return=minimal,count=exact") return reject()
+                                java.time.Instant.parse(body.getString("deleted_at"))
+                                record.put("deleted_at", body.getString("deleted_at"))
+                                recurringSoftDeleteRequest.set(request)
+                                patchedBody.set(raw)
+                                patches.incrementAndGet()
+                                return MockResponse().setResponseCode(204).setHeader("Content-Range", "*/1")
+                            }
                             if (body.has("next_due_date")) advanceRequests.incrementAndGet()
                             if (body.has("next_due_date") && failRecurringAdvance.get()) return MockResponse().setResponseCode(403).setBody("{}")
                             if (url.queryParameter("next_due_date")?.removePrefix("eq.")?.let { it != record.getString("next_due_date") } == true)

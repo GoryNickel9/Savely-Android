@@ -6,6 +6,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import okhttp3.Call
+import okhttp3.EventListener
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -17,9 +20,11 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.util.Base64
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class AuthSecurityTest {
     private lateinit var server: MockWebServer
@@ -429,22 +434,50 @@ class AuthSecurityTest {
     }
 
     @Test fun pendingLogoutCancellationPreservesReplacementSessionOfSameOrAnotherUser() = runBlocking {
-        for (replacementUser in listOf(USER, OTHER_USER)) {
-            val original = session().also(store::save)
-            val replacement = session(OTHER_SID, replacementUser)
-            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
-            val logout = launch(Dispatchers.Default) { api.signOut() }
+        var totalRequests = 0
+        for ((index, replacementUser) in listOf(USER, OTHER_USER).withIndex()) {
+            // Each cancelled NO_RESPONSE exchange has its own sockets and connection pool.
+            val fixtureServer = MockWebServer().apply { start() }
+            val fixtureStore = MemorySessionStore()
+            val phase = AtomicReference("await_request")
+            val fixtureClient = OkHttpClient.Builder().eventListener(object : EventListener() {
+                override fun callFailed(call: Call, ioe: IOException) {
+                    if (!call.isCanceled()) System.err.println(
+                        "Pending logout fixture: iteration=$index phase=${phase.get()} io_type=${ioe.javaClass.simpleName}")
+                }
+            }).build()
+            val fixtureApi = SupabaseApi(BackendConfig(fixtureServer.url("/").toString(), "public-key"), fixtureStore, fixtureClient)
             try {
-                val request = requireNotNull(server.takeRequest(5, TimeUnit.SECONDS))
-                assertEquals("Bearer ${original.accessToken}", request.getHeader("Authorization"))
-                assertEquals("/auth/v1/logout?scope=local", request.path)
-                store.save(replacement)
-            } finally { logout.cancel(); withTimeout(5_000) { logout.join() } }
-            assertEquals(replacement, store.load())
-            assertNull(api.sessionInvalidation.value)
-            assertNotNull(api.sessionOwnerRevision(replacement))
+                val original = session().also(fixtureStore::save)
+                val replacement = session(OTHER_SID, replacementUser)
+                fixtureServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+                val logout = launch(Dispatchers.Default) { fixtureApi.signOut() }
+                try {
+                    val request = requireNotNull(fixtureServer.takeRequest(5, TimeUnit.SECONDS))
+                    phase.set("request_observed")
+                    assertEquals("Bearer ${original.accessToken}", request.getHeader("Authorization"))
+                    assertEquals("/auth/v1/logout?scope=local", request.path)
+                    fixtureStore.save(replacement)
+                    phase.set("replacement_saved")
+                } finally {
+                    phase.set("cancelling")
+                    logout.cancel()
+                    withTimeout(5_000) { logout.join() }
+                }
+                assertTrue(logout.isCancelled)
+                assertEquals(replacement, fixtureStore.load())
+                assertNull(fixtureApi.sessionInvalidation.value)
+                assertNotNull(fixtureApi.sessionOwnerRevision(replacement))
+                assertEquals("Each isolated scenario must send exactly one logout", 1, fixtureServer.requestCount)
+                totalRequests += fixtureServer.requestCount
+            } finally {
+                fixtureApi.close()
+                fixtureClient.dispatcher.executorService.shutdown()
+                fixtureClient.connectionPool.evictAll()
+                fixtureServer.shutdown()
+            }
         }
-        assertEquals(2, server.requestCount)
+        assertEquals(2, totalRequests)
     }
     private fun session(id: String = SID, user: String = USER) = Session(jwt(JSONObject().put("session_id", id)), "refresh",
         System.currentTimeMillis() / 1000 + 3600, user, "person@example.test")

@@ -1200,7 +1200,7 @@ class ReleaseApkBlackBoxTest {
         requireCode(dedicatedQaAccount().first == QA_USER, "RECURRING_ACCOUNT_INVALID")
         val op = InstrumentationRegistry.getArguments().getString("recurringOperation").orEmpty()
         requireCode(op in setOf("create-paused", "edit-amount", "resume", "process-create", "reset-due",
-            "process-dedup", "pause", "delete-soft", "paused-process", "calendar", "calendar-after-process",
+            "process-dedup", "pause", "paused-process", "calendar", "calendar-after-process",
             "calendar-after-dedup", "calendar-paused", "empty-process", "delete-cancel"), "RECURRING_OPERATION_INVALID")
         val phase = "recurring-$op"
         requireNewNavigationReport(run, phase)
@@ -1283,13 +1283,11 @@ class ReleaseApkBlackBoxTest {
                     await("RECURRING_PROCESS_RESULT_MISMATCH") { hasText(expected) }
                     report.put("created", created).put("existing", existing).put("advanced", advanced)
                 }
-                "delete-soft", "delete-cancel" -> {
+                "delete-cancel" -> {
                     clickLabel(setOf("Delete $marker"), "RECURRING_DELETE_MISSING", true)
                     await("RECURRING_DELETE_DIALOG_MISSING") { hasText("Delete") && hasText("Cancel") }
-                    if (op == "delete-cancel") {
-                        clickLabel(setOf("Cancel"), "RECURRING_CANCEL_MISSING")
-                        await("RECURRING_CANCEL_NOT_CONFIRMED") { !hasText("Delete") }
-                    } else financeDelete(run, phase, report)
+                    clickLabel(setOf("Cancel"), "RECURRING_CANCEL_MISSING")
+                    await("RECURRING_CANCEL_NOT_CONFIRMED") { !hasText("Delete") }
                     report.put("dialog_closed", true)
                 }
                 else -> {
