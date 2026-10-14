@@ -97,6 +97,7 @@ class CommonModuleVisualTest {
         list().performScrollToNode(hasText("Obiettivo Barista", substring = false))
         compose.onNodeWithText("Obiettivo Barista", substring = false).assertIsDisplayed()
         compose.onNodeWithText(money("600000", "EUR"), substring = false).assertIsDisplayed()
+        list().performScrollToNode(hasText("Obiettivo FIRE completo", substring = false))
         compose.onNodeWithText("Obiettivo FIRE completo", substring = false).assertIsDisplayed()
         compose.onNodeWithText(money("900000", "EUR"), substring = false).assertIsDisplayed()
         capture("fire-barista", CommonVisualProfile.IT_LIGHT)
