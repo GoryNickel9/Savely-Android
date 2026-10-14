@@ -28,6 +28,8 @@ import cc.savely.android.visual.CommonVisualArtifacts
 import cc.savely.android.visual.CommonVisualContent
 import cc.savely.android.visual.CommonVisualProfile
 import java.time.LocalDate
+import java.util.Currency
+import java.util.Locale
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -235,7 +237,8 @@ class FinanceChartsQualificationTest {
     private fun summary(english: Boolean, currency: String, income: String, expenses: String, net: String) {
         listOf((if (english) "Income" else "Entrate") to income,
             (if (english) "Expenses" else "Uscite") to expenses, (if (english) "Net" else "Netto") to net).forEach { (label, amount) ->
-            val matcher = inPanel("chart-summary-$currency", hasText("$label ", substring = true) and hasText(amount, substring = true))
+            val symbol = Currency.getInstance(currency).getSymbol(Locale.ITALY)
+            val matcher = inPanel("chart-summary-$currency", exact("$label $amount\u00a0$symbol"))
             show(matcher)
         }
     }
