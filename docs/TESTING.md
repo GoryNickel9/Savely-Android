@@ -1,12 +1,16 @@
 # Verifica Savely Android
 
+## Insights V08 — qualifica locale
+
+**[V08 PASS LOCALE](INSIGHTS_QUALIFICATION.md)**: 593 JVM per variante debug/release, lint debug finale zero errori/fatal, 33 warning/sei hint; **11/11 API 31 in 79,068 s** (83,157 s host). Revisionati 18 PNG/18 JSON IT/EN, inclusi sei rilevatori, risparmio/milestone, filtri e stati errore/vuoto. Il debug `1d016c4d…` resta invariato; test finale `ecf2e62e…`, separato dall'APK iniziale e da quello diagnostico. Primo gruppo 8/11 e diagnostico 0/3 restano falliti; corretti soltanto gli oracoli del testo errore, della misura del badge e del nome screenshot. Nessun backend o nuovo release R8. **Tredici criteri chiusi localmente, 20 aperti**; V06 conserva il canary prezzi dopo deployment v17 verificato. Flag globali invariati.
+
 ## Patrimonio V07 — qualifica locale
 
 **[V07 PASS LOCALE](NET_WORTH_QUALIFICATION.md)**: 590 JVM per variante, lint debug senza errori, 10/10 API 31 in 67,506 s e dieci PNG/dieci JSON IT/EN revisionati. Verificati tutti i periodi, snapshot negativi/singoli/vuoti, dettagli, dati malformati e componenti per valuta. Il gruppo include i due casi Poker/Settings prima falliti in CI: il PASS locale non modifica quella CI. Nessun backend o release R8 nuovo. **Dodici criteri chiusi localmente, 21 aperti**; V06 conserva il gate prezzi. Flag globali invariati, candidata alpha locale.
 
 ## Portafoglio V06 — candidata locale 0.1.17-alpha
 
-[Rapporto V06](PORTFOLIO_QUALIFICATION.md): produzione `41f2098`, 586 JVM per variante e lint senza errori; 14/14 fixture API 31, 22 PNG IT/EN revisionati, 14 guardie host e 17 verifiche native sul release firmato, tutte superate. Baseline QA ripristinato alle 13:40:19,710710 UTC del 14 ottobre 2026, con 33 categorie e sei snapshot preesistenti conservati. **Nessuna richiesta prezzi reale eseguita**: il contratto del servizio distribuito non verifica la valuta; proposta `ca97547` verificata offline/Deno, non distribuita. V06 rimane aperto.
+[Rapporto V06](PORTFOLIO_QUALIFICATION.md): produzione `41f2098`, 586 JVM per variante e lint senza errori; 14/14 fixture API 31, 22 PNG IT/EN revisionati, 14 guardie host e 17 verifiche native sul release firmato, tutte superate. Baseline QA ripristinato alle 13:40:19,710710 UTC del 14 ottobre 2026, con 33 categorie e sei snapshot preesistenti conservati. Nessuna richiesta prezzi nel run CRUD. Il difetto del servizio v16 ha una correzione `ca97547` verificata offline/Deno e [distribuita come v17](../backend-proposals/update-prices/DEPLOYMENT_REPORT.md), con bundle verificato. V06 rimane aperto fino al canary QA dei prezzi.
 
 La [CI sulla stessa produzione](https://github.com/GoryNickel9/Savely-Android/actions/runs/38567179309) passa il job build; UI **222/224 PASS, due timeout iniziali, zero skip**. Causa non dimostrata; la successiva diagnostica test-only non modifica deadline, asserzioni o retry. Gli APK UI della CI non sono archiviati. Non è una CI completamente riuscita né una qualifica globale della candidata.
 

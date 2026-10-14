@@ -1,14 +1,20 @@
 # Roadmap Savely Android
 
-## Stato corrente — Patrimonio V07 — candidata locale 0.1.17-alpha
+## Stato corrente — Insights V08 — candidata locale 0.1.17-alpha
+
+**[V08 è PASS LOCALE](docs/INSIGHTS_QUALIFICATION.md)**: 593 JVM per variante, lint debug senza errori, 11/11 API 31 in 79,068 s e 18 PNG/18 JSON IT/EN revisionati. Otto rilevatori, soglie, filtri/severità, testi e stati vuoto/errore sono verificati nelle fixture. Il testo delle perdite allinea i pareggi negativi a `Math.round`; i tentativi iniziali e diagnostici falliti restano conservati.
+
+**Tredici criteri chiusi localmente, 20 aperti.** V06 conserva il canary prezzi: deployment v17 verificato, prova QA ancora da concludere. Flag globali invariati, nessuna pubblicazione o nuova build R8. Segue **V09, FIRE**.
+
+## Consuntivo Patrimonio V07
 
 **[V07 è PASS LOCALE](docs/NET_WORTH_QUALIFICATION.md)** nel criterio delle fixture e del confronto con le fonti web. Passano 590 JVM per variante, lint debug senza errori e 10/10 API 31 in 67,506 s. Revisionati dieci PNG e dieci JSON IT/EN. Snapshot senza valuta e totale corrente per valuta restano distinti; i componenti malformati sono rifiutati. La percentuale sulla base negativa coincide con il web. Nessuna mutazione QA o nuova build release R8.
 
-**Dodici criteri chiusi localmente, 21 aperti.** V06 resta aperto sui prezzi reali; la proposta condivisa è verificata ma non distribuita. Flag globali invariati, nessuna pubblicazione. Prosegue **V08, Insights**.
+Alla chiusura di V07 erano **dodici criteri chiusi localmente e 21 aperti**. Flag globali invariati, nessuna pubblicazione. V08 è qualificato nel perimetro sopra.
 
 ## Consuntivo Portafoglio V06 — candidata locale 0.1.17-alpha
 
-[V06](docs/PORTFOLIO_QUALIFICATION.md) passa 586 JVM per variante, 14/14 fixture API 31 e 17 verifiche native sul release firmato, con baseline QA ripristinato. **Resta aperto sui prezzi reali:** il servizio distribuito può applicare una quotazione nella valuta errata. La proposta correttiva è committata in `ca97547`, verificata con 28 test offline, 18 Deno e controllo del gestore; distribuzione condivisa in attesa di autorizzazione. La CI `38567179309` passa build e 222/224 Android; due timeout iniziali restano falliti, con causa non dimostrata e diagnostica aggiunta solo ai test.
+[V06](docs/PORTFOLIO_QUALIFICATION.md) passa 586 JVM per variante, 14/14 fixture API 31 e 17 verifiche native sul release firmato, con baseline QA ripristinato. Il servizio v16 poteva applicare quotazioni nella valuta errata. La correzione `ca97547`, verificata offline/Deno, è [distribuita come v17 con bundle verificato](backend-proposals/update-prices/DEPLOYMENT_REPORT.md). **Resta aperto il canary QA dei prezzi.** La CI `38567179309` passa build e 222/224 Android; due timeout iniziali restano falliti, con causa non dimostrata e diagnostica aggiunta solo ai test.
 
 **Undici criteri chiusi localmente, 22 aperti.** Nessuna pubblicazione; flag globali invariati. Il lavoro prosegue su **V07, Patrimonio**, mentre la prova prezzi rimane distinta.
 

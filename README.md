@@ -1,10 +1,12 @@
 # Savely Android
 
-**[V07, Patrimonio, è PASS LOCALE](docs/NET_WORTH_QUALIFICATION.md)**: 590 JVM per variante, lint debug senza errori, 10/10 controlli Android 12 e dieci PNG IT/EN revisionati. Periodi, snapshot negativi/singoli/vuoti e componenti per valuta sono verificati; il parser rifiuta componenti malformati. **Dodici criteri chiusi localmente, 21 aperti.** V06 conserva il gate prezzi condiviso; segue V08, Insights. Candidata alpha locale, nessuna nuova pubblicazione.
+**[V08, Insights, è PASS LOCALE](docs/INSIGHTS_QUALIFICATION.md)**: 593 JVM per variante, lint debug senza errori, 11/11 controlli Android 12 e 18 PNG/18 JSON IT/EN revisionati. Verificati gli otto rilevatori, soglie, severità/filtri e distinzione fra errore e vuoto. Tentativi iniziali falliti e correzioni degli oracoli restano conservati. **Tredici criteri chiusi localmente, 20 aperti.** V06 conserva il canary prezzi: deployment v17 verificato, prova QA ancora da concludere. Candidata 0.1.17-alpha locale, nessuna nuova pubblicazione; segue V09, FIRE.
+
+Consuntivo Patrimonio: [V07 PASS LOCALE](docs/NET_WORTH_QUALIFICATION.md), 590 JVM per variante, 10/10 API 31 e dieci PNG IT/EN revisionati; periodi, snapshot negativi/singoli/vuoti e componenti per valuta verificati.
 
 ## Consuntivo Portafoglio V06
 
-La [qualifica Portafoglio V06](docs/PORTFOLIO_QUALIFICATION.md) passa **586 JVM per variante, 14/14 fixture Android 12 e 17 verifiche dei form sul release firmato 0.1.17-alpha/code 18**. Record QA rimossi e baseline ripristinato; revisionati 22 PNG IT/EN. **V06 resta aperto sui prezzi reali:** il servizio condiviso non verifica la valuta della quotazione. La correzione proposta passa 28 test offline e 18 Deno, ma non è distribuita. CI: build riuscita, Android 222/224 con due timeout iniziali conservati. Restano **11 criteri chiusi localmente e 22 aperti**; prosegue V07, Patrimonio. Nessuna nuova pubblicazione o parità globale.
+La [qualifica Portafoglio V06](docs/PORTFOLIO_QUALIFICATION.md) passa **586 JVM per variante, 14/14 fixture Android 12 e 17 verifiche dei form sul release firmato 0.1.17-alpha/code 18**. Record QA rimossi e baseline ripristinato; revisionati 22 PNG IT/EN. Il difetto della valuta nel servizio v16 ha una correzione verificata offline/Deno e [distribuita come v17](backend-proposals/update-prices/DEPLOYMENT_REPORT.md), con bundle verificato. **V06 resta aperto fino al canary QA dei prezzi.** CI storica: build riuscita, Android 222/224 con due timeout iniziali conservati. Nessuna nuova pubblicazione o parità globale.
 
 ## Consuntivo Grafici V05
 

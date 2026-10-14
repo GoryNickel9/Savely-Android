@@ -282,11 +282,11 @@ internal fun recurringPriceChangeInsights(
         // Math.round rounds negative half-percent ties toward positive infinity.
         val percent = (difference * BigDecimal("100")).divide(candidate.medianAmount, 0,
             if (increased) RoundingMode.HALF_UP else RoundingMode.HALF_DOWN)
-        val direction = if (increased) "aumentato" else "diminuito"
+        val direction = if (increased) "aumentata" else "diminuita"
         FinanceInsight("recurring-price-${candidate.key}", "Spesa ricorrente $direction: ${candidate.description}",
             "L'ultimo importo (${formatMoney(latest.amount, candidate.currency)}) è $percent% rispetto al solito (${formatMoney(candidate.medianAmount, candidate.currency)}).",
             increased, difference, if (increased) InsightSeverity.WARNING else InsightSeverity.INFO,
-            kind = InsightKind.RECURRING_PRICE_CHANGE, titleTemplate = if (increased) "Spesa ricorrente aumentato: {{name}}" else "Spesa ricorrente diminuito: {{name}}",
+            kind = InsightKind.RECURRING_PRICE_CHANGE, titleTemplate = if (increased) "Spesa ricorrente aumentata: {{name}}" else "Spesa ricorrente diminuita: {{name}}",
             messageTemplate = "L'ultimo importo ({{amount}}) è {{percent}}% rispetto al solito ({{median}}).",
             textValues = listOf("name" to candidate.description, "amount" to formatMoney(latest.amount, candidate.currency), "percent" to percent,
                 "median" to formatMoney(candidate.medianAmount, candidate.currency)))
@@ -317,11 +317,14 @@ fun financeInsights(data: FinanceData, today: LocalDate = LocalDate.now()): List
         // Compare the exact 85% price boundary before rounding the ratio used in the message/value.
         if (asset.marketPrice * BigDecimal("100") > asset.purchasePrice * BigDecimal("85")) continue
         val change = (asset.marketPrice - asset.purchasePrice).divide(asset.purchasePrice, 10, RoundingMode.HALF_UP)
+        // All admitted changes are negative; Math.round moves half ties toward positive infinity.
+        val displayPercent = ((asset.marketPrice - asset.purchasePrice) * BigDecimal("100"))
+            .divide(asset.purchasePrice, 0, RoundingMode.HALF_DOWN)
         result.add(FinanceInsight("loss-${asset.id}", "Posizione in perdita: ${asset.name}",
-            "${asset.symbol ?: asset.name}: ${(change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP)}% rispetto al prezzo di acquisto.", true, change,
+            "${asset.symbol ?: asset.name}: $displayPercent% rispetto al prezzo di acquisto.", true, change,
             kind = InsightKind.PORTFOLIO_LOSS, titleTemplate = "Posizione in perdita: {{name}}", messageTemplate = "{{symbol}}: {{percent}}% rispetto al prezzo di acquisto.",
             textValues = listOf("name" to asset.name, "symbol" to (asset.symbol ?: asset.name),
-                "percent" to (change * BigDecimal("100")).setScale(0, RoundingMode.HALF_UP))))
+                "percent" to displayPercent)))
     }
     // Web orders milestone before saving; preserve stable equal-value positive signals in that order.
     result.addAll(netWorthMilestoneInsights(data.snapshots))

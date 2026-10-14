@@ -605,7 +605,7 @@ class FinanceScreenTest {
         compose.onNodeWithText("Attenzione (1)").assertIsSelected()
         transactionList().performScrollToNode(hasContentDescription("Insight recurring-price-EUR:netflix sintetico"))
         compose.onNodeWithContentDescription("Insight recurring-price-EUR:netflix sintetico").assertIsDisplayed()
-            .assertTextContains("Spesa ricorrente aumentato: Netflix sintetico", substring = true)
+            .assertTextContains("Spesa ricorrente aumentata: Netflix sintetico", substring = true)
             .assertTextContains("Attenzione", substring = true)
             .assertTextContains("L'ultimo importo (11,00", substring = true)
             .assertTextContains("è 10% rispetto al solito (10,00", substring = true)

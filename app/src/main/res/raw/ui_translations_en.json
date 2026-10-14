@@ -899,8 +899,8 @@
   "Spesa mediana mensile reale: {{amount}}": "Actual median monthly spending: {{amount}}",
   "Spesa mensile (mediana + spese manuali)": "Monthly expenses (median + manual expenses)",
   "Spesa mensile prevista: {{amount}}": "Expected monthly spending: {{amount}}",
-  "Spesa ricorrente aumentato: {{name}}": "Recurring expense increased: {{name}}",
-  "Spesa ricorrente diminuito: {{name}}": "Recurring expense decreased: {{name}}",
+  "Spesa ricorrente aumentata: {{name}}": "Recurring expense increased: {{name}}",
+  "Spesa ricorrente diminuita: {{name}}": "Recurring expense decreased: {{name}}",
   "Spese annue (€)": "Annual expenses (€)",
   "Spese condivise": "Shared expenses",
   "Spese manuali": "Manual expenses",
@@ -1259,5 +1259,6 @@
   "Immobili": "Real estate",
   "Criptovalute": "Cryptocurrencies",
   "Obbligazioni": "Bonds",
-  "Operazione sul portafoglio non confermata. Aggiorna i dati e verifica la posizione prima di continuare.": "Portfolio operation not confirmed. Refresh the data and check the position before continuing."
+  "Operazione sul portafoglio non confermata. Aggiorna i dati e verifica la posizione prima di continuare.": "Portfolio operation not confirmed. Refresh the data and check the position before continuing.",
+  "Positivi": "Positive"
 }
