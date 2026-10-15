@@ -1,14 +1,14 @@
 # S02 — contratto diretto cardtrader-proxy v2
 
-Proposta congelata, non applicata né distribuita. Il proxy diretto ha superato 28/28 casi sintetici Node, 16/16 casi puri Deno, typecheck strict dell'helper e Deno check del gestore. Le modifiche Android V12 sono soltanto sorgenti proposti: non sono state compilate o eseguite.
+Distribuito come versione 18 ACTIVE il 14 ottobre 2026, dopo autorizzazione esplicita dell’utente. Readback dei due sorgenti esatto; campione QA A ricerca/quotazione e rifiuto senza JWT superati, logout locale confermato e baseline QA ripristinata. Il [rapporto di deployment](DEPLOYMENT_REPORT.md) distingue queste prove dai controlli sintetici precedenti: 28/28 Node, 16/16 casi puri Deno, typecheck strict dell’helper e Deno check del gestore. Le modifiche Android V12 restano soltanto sorgenti proposti, non compilati o eseguiti.
 
 Questo è il pacchetto di revisione tracciato. Gestore, helper, test, runner, configurazione TypeScript e patch hanno gli stessi byte dei file verificati in `artifacts/s02-proxy-preparation`. Il trasferimento non ha richiesto modifiche ai percorsi del runner: entrambe le directory risolvono `../../../Savely/node_modules/typescript` allo stesso checkout fratello. Non sono stati ripetuti test sui percorsi permanenti. `.gitattributes` mantiene LF come nel pacchetto update-prices esistente. Gli hash delle copie e i riferimenti alle prove originali sono in `verification.json`.
 
-`CatalogRepository.cardPrice` chiama `cardtrader-proxy?action=prices`. Il cron `update-tcg-prices` è un secondo servizio: correggere il cron non rende sicura la risposta del proxy; correggere il proxy non impedisce al vecchio cron di sovrascrivere prezzi non EUR. L'autorizzazione di update-prices non comprende questi due servizi. Nessun servizio di questo pacchetto è stato invocato.
+`CatalogRepository.cardPrice` chiama `cardtrader-proxy?action=prices`. Il cron `update-tcg-prices` è un secondo servizio, distribuito nello stesso run con autorizzazione distinta. La precedente autorizzazione di update-prices non comprendeva questi due servizi. Il campione proxy non ha scritto carte; il cron ha ricevuto soltanto una richiesta senza JWT e senza secret, rifiutata prima della lettura carte.
 
 ## Preimmagine e difetto
 
-Sono state effettuate soltanto due GET Management, metadati e corpo di `cardtrader-proxy`, senza letture di clienti, chiamate CardTrader, lookup della chiave provider o scritture remote. La versione osservata è 17 ACTIVE, ID `23c851ba-f056-4fe2-a04d-52a8536a266a`, `verify_jwt: false`. Il codice verifica il JWT tramite `auth.getUser()`; questa verifica resta invariata.
+L’audit iniziale ha effettuato due GET Management, metadati e corpo di `cardtrader-proxy`, senza letture di clienti, chiamate CardTrader, lookup della chiave provider o scritture remote. La versione allora osservata era 17 ACTIVE, ID `23c851ba-f056-4fe2-a04d-52a8536a266a`, `verify_jwt: false`. Il codice verifica il JWT tramite `auth.getUser()`; questa verifica resta invariata nella versione 18.
 
 Il backup `artifacts/s02-proxy-preparation/deployed-backup/body.eszip` contiene 262925 byte, SHA-256 `abe60a7cef81679b9b4aee5734a66dee784e4e2a65b2f7be4a699de4bb4dbb65`. Il modulo estratto dalla source map coincide byte per byte con il web pinned `1cfcf6297e85d56bfafe3522362ceecef6f6b281`, SHA-256 sorgente `715c2e5b6e940de1efec3ea4cdbc15f8b415c46b56086e2207fe531f7348bfbb`. Metadati, timestamp, offset e hash sono nei JSON del backup ignorato. Le due letture non costituiscono una transazione o un blocco dei deployment concorrenti.
 
@@ -36,7 +36,7 @@ I centesimi devono essere interi numerici tra 0 e 9999999999, coerenti con NUMER
 
 Solo l'array vuoto esplicito del blueprint richiesto produce cents e testo null, totalListings 0, conservando versione, identità e unità. Campo mancante, risposta malformata, unità ignota, 503 o esito di rete incerto sono errori, senza retry. Il ramo prezzi limita il JSON a 1 MiB, timeout 10 secondi e vieta redirect. Restituisce codici fissi con HTTP 502 senza includere corpo provider o credenziali.
 
-I tre campi consumati dal web precedente restano presenti. L'array ricerca, mapping immagine/set, cache espansioni, paginazione e verifica JWT non vengono modificati. Il proxy non scrive sul database. La conservazione della ricerca è coperta da fixture di mapping e pagine; non equivale a una verifica live del catalogo.
+I tre campi consumati dal web precedente restano presenti. L'array ricerca, mapping immagine/set, cache espansioni, paginazione e verifica JWT non vengono modificati. Il proxy non scrive sul database. Le fixture coprono mapping e pagine; il campione live ha cercato soltanto Black Lotus e non qualifica l’intero catalogo.
 
 ## Verifica locale eseguita
 
@@ -79,10 +79,10 @@ Predisposti otto nuovi casi JVM del parser e due nuovi casi repository HTTP; agg
 
 Il parser stretto rifiuterà il vecchio proxy v17. Perciò la sequenza proposta è prima proxy v2 autorizzato e verificato, poi parser Android; un rollback del solo proxy riporta gli aggiornamenti automatici della nuova app a errore esplicito, senza autorizzare quote legacy. Il prezzo manuale resta una funzione distinta. Nessun file attivo o staging V12 originale è stato modificato.
 
-## Due autorizzazioni e limiti
+## Deployment autorizzato e limiti
 
-Questo pacchetto riguarda soltanto cardtrader-proxy. Il pacchetto `backend-proposals/update-tcg-prices` riguarda il cron globale e conserva 24/24 Node e 12/12 Deno come prove separate, con origine in `artifacts/s02-backend-preparation`. Per distribuire i due servizi servono autorizzazioni esplicite distinte, anche se presentate nella stessa richiesta. L'autorizzazione update-prices già concessa non si estende a nessuno dei due.
+Questo pacchetto riguarda soltanto cardtrader-proxy. Il pacchetto `backend-proposals/update-tcg-prices` riguarda il cron globale e conserva 24/24 Node e 12/12 Deno come prove separate, con origine in `artifacts/s02-backend-preparation`. L’utente ha approvato entrambi i deployment e i rispettivi campioni, separatamente dalla precedente autorizzazione update-prices. Non ha autorizzato un’invocazione manuale del cron globale.
 
-`DEPLOYMENT_PLAN.md` descrive invio singolo, verifica della preimmagine, canary autenticato readonly e rollback revisionabile. Non è stato eseguito alcun passaggio di quel piano. Nessuna API key CardTrader è stata letta. Le sole credenziali Management sono rimaste in RAM durante le due GET autorizzate.
+`DEPLOYMENT_PLAN.md` riporta la procedura applicata e i vincoli del rollback, preparato ma non eseguito. Un solo POST ha portato il proxy da v17 a v18; il readback ESZIP contiene esattamente index.ts e quote-contract.ts revisionati nel commit `ffd04b4`. `verification.json` conserva il manifesto e le prove antecedenti al deployment; stato operativo e hash delle nuove evidenze sono nel rapporto. Token Management, password e JWT QA sono rimasti in RAM; nessuna chiave CardTrader o cron secret è stata letta.
 
-Non sono qualificati prezzi o disponibilità live, ricerca dei set reali, lingua/foil, eventuale condizione sostitutiva, rate limit effettivi, interoperabilità di tutti i client, RLS e cron successivi. I prezzi già salvati hanno provenienza ignota: nessuna conversione o riparazione dei dati esistenti è inclusa. Non viene dichiarato sicuro l'intero percorso TCG backend finché il cron legacy resta invariato.
+Il campione live comprende una ricerca Black Lotus e una quotazione near_mint del blueprint restituito 37789: DTO v2, EUR, minorUnit 2, 350063 centesimi. Non qualifica tutti i prezzi/disponibilità, set, lingua/foil, eventuale condizione sostitutiva, rate limit, interoperabilità dei client, RLS o le esecuzioni cron successive. Anche il cron è ora v18, ma non è stato invocato con autorizzazione. I prezzi già salvati hanno provenienza ignota: nessuna conversione o riparazione dei dati esistenti è inclusa.

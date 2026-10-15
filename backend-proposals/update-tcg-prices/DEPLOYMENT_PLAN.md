@@ -1,33 +1,42 @@
-# Deployment proposto: update-tcg-prices
+# update-tcg-prices: procedura applicata e vincoli di rollback
 
-Non eseguito. Serve un'autorizzazione esplicita e distinta per sostituire il cron condiviso `update-tcg-prices`. Quella relativa a update-prices non comprende questo servizio; cardtrader-proxy ha un secondo pacchetto e una seconda autorizzazione. Nessuna modifica di segreti, schema, RLS o schedulazione è proposta.
+Deployment concluso il 14 ottobre 2026, versione 17 → 18 ACTIVE, dopo autorizzazione esplicita e distinta dell'utente. L'approvazione comprendeva il servizio condiviso e il suo uso nelle successive esecuzioni schedulate, readback, rifiuto senza secret e rollback circoscritto. Non comprendeva un'invocazione manuale autorizzata del cron o scritture di prova sulle carte cliente. Il [rapporto](DEPLOYMENT_REPORT.md) conserva esiti, hash e limiti.
 
 ## 1. Preimmagine e backup
 
-Dopo l'autorizzazione, riservare una nuova directory esclusiva del run e leggere soltanto metadati e corpo tramite GET `/v1/projects/crqnfbahytzenisospcx/functions/update-tcg-prices` e `/body`. Richiedere ID `5a4e22f8-4203-4f1f-a0ce-08df296a5125`, slug/nome `update-tcg-prices`, ACTIVE, versione 17, verify_jwt false e corpo ESZIP SHA-256 `d7dde8d167a814a05d21c5daad0ca810f943e1fa8bf9f5378a9676219adf577e`. Se uno dei valori cambia, fermarsi e rivedere il nuovo stato.
+Il run esclusivo `7f2e85e3-79ac-420b-8997-666ee87a2feb` ha confermato ID `5a4e22f8-4203-4f1f-a0ce-08df296a5125`, slug/nome update-tcg-prices, ACTIVE, versione 17, verify_jwt false ed ESZIP di 250834 byte, SHA-256 `d7dde8d167a814a05d21c5daad0ca810f943e1fa8bf9f5378a9676219adf577e`.
 
-Il backup originale, con 250834 byte, resta in `artifacts/s02-backend-preparation/deployed-backup/`. La nuova lettura deve conservare metadata completi, entrypoint_path, eventuali parametri import map effettivi, corpo e hash, senza stampare il token Management. La preimmagine osservata non ha import map. Non ricostruire un rollback dal solo sorgente web: il bundle conserva le dipendenze distribuite.
+Due letture complete hanno conservato metadati e bundle con scritture esclusive e fsync, senza stampare il token Management. La preimmagine non aveva import map. I due tentativi preliminari fermati sui campi Management aggiuntivi/assenti restano conservati senza POST; il confronto del run conclusivo ha fissato esattamente la forma corrente, mantenendo gli hash approvati.
 
-## 2. Un solo invio
+I nuovi backup sono in `artifacts/s02-deploy/7f2e85e3-79ac-420b-8997-666ee87a2feb/update-tcg-prices/`; quello storico resta in `artifacts/s02-backend-preparation/deployed-backup/`. Un ripristino deve usare il bundle completo, non ricostruire le dipendenze dal solo sorgente web.
 
-Verificare gli hash di `backend-proposals/update-tcg-prices/index.ts` e `price-contract.ts` contro verification.json, poi rileggere immediatamente metadati/corpo per confermare la stessa preimmagine. Coordinare un solo operatore: Management non offre un CAS atomico di versione sul deployment.
+## 2. Invio singolo
 
-Prenotare durevolmente un singolo POST con preimmagine e hash. Inviare POST `/v1/projects/crqnfbahytzenisospcx/functions/deploy?slug=update-tcg-prices`, multipart con i soli due file index.ts e price-contract.ts, metadata `{"entrypoint_path":"index.ts","name":"update-tcg-prices","verify_jwt":false}`. Mantenere l'import relativo `./price-contract.ts`. Non inviare test, runner o documenti. Token solo RAM, redirect vietati, nessun retry, bundleOnly o altro slug.
+I soli index.ts e price-contract.ts sono stati confrontati con gli hash approvati e con il commit `ffd04b4968080cd0c59584f9a588fc3f6f208e06`. La versione distribuita comprende la sola correzione EOF già verificata nel pacchetto permanente. Metadati e corpo sono stati riletti immediatamente prima del POST, dopo la prenotazione durabile con hash del payload:
 
-La verifica cron `x-cron-secret` resta nel gestore e verify_jwt conserva false. Non leggere né rigenerare il secret cron o la chiave CardTrader. La funzione continuerà ad avere scope globale: il codice aggiornato sarà usato anche dalle future esecuzioni già schedulate. Questo effetto deve essere approvato dall'utente prima dell'invio.
+```text
+POST /v1/projects/crqnfbahytzenisospcx/functions/deploy?slug=update-tcg-prices
+metadata: {"entrypoint_path":"index.ts","name":"update-tcg-prices","verify_jwt":false}
+file: index.ts
+file: price-contract.ts
+```
 
-## 3. Readback senza eseguire il cron
+Un solo POST, HTTP 201; niente retry, redirect o bundleOnly. Nessun test, runner o documento nel payload. Management non offre CAS atomico tra lettura e invio: l'esclusiva locale non viene presentata come un blocco remoto delle modifiche concorrenti.
 
-Rileggere metadati e corpo della sola funzione: stesso ID/slug/nome, ACTIVE, versione successiva e verify_jwt false. Verificare i due moduli del pacchetto nel bundle e il mantenimento del controllo cron prima della SELECT delle carte/provider. Conservare hash e fonte distribuita effettivi. Dopo risposta persa o 5xx non ripetere il POST: osservare lo stato e fermarsi se la riconciliazione resta incerta.
+## 3. Readback e diniego senza cron autorizzato
 
-Il campione di verifica proposto comprende readback del codice e prove offline dei moduli effettivamente ricavati dal bundle. Non invocare la funzione con `x-cron-secret`, nemmeno passando user_id QA nel body: il gestore non ha un filtro di scope QA e leggerebbe/aggiornerebbe carte di tutti gli utenti. Nessun provider live, SELECT cliente o scrittura di prezzo è inclusa in questo piano.
+Readback ACTIVE v18, stesso ID/slug/nome e verify_jwt false. Il parser ESZIP ha confrontato byte per byte gli originali dei due moduli nelle source map con i file approvati, conservando anche gli hash dei moduli compilati. La GET finale dopo il canary conferma gli stessi metadati.
 
-Solo se esplicitamente autorizzato insieme al deployment, si può aggiungere una richiesta senza JWT e senza x-cron-secret per osservare il rifiuto. Con le variabili provider configurate il codice restituisce 401 prima della SELECT carte; una risposta diversa richiede analisi e non autorizza a riprovare con il secret. Il test non qualifica i prezzi provider o una scansione globale. Il canary autenticato ricerca/prezzo appartiene al distinto piano cardtrader-proxy e non scrive tgc_cards.
+Una GET senza Authorization e senza x-cron-secret ha restituito HTTP 401, Unauthorized. Il gestore distribuito ferma quel percorso prima della SELECT carte/provider. Nessun secret cron o chiave CardTrader è stato letto, rigenerato o inviato. Non è stata eseguita una chiamata con secret valido, neppure passando un user_id QA: il gestore rimane globale e non ha uno scope QA.
 
-## 4. Rollback revisionabile
+Il canary autenticato ricerca/prezzo appartiene al distinto cardtrader-proxy, non qualifica una scansione o una scrittura del cron. La sua sessione QA A è stata chiusa con logout locale HTTP 204. Lo snapshot comune finale conferma zero sessioni non scadute, fattori e carte dei tre QA, proiezioni identità/profili selezionate invariate e registrazioni disabilitate.
 
-Nessun rollback automatico. Prima di un rollback autorizzato, richiedere che versione/corpo attuali corrispondano al deployment di questo run, per non sovrascrivere modifiche successive. Prenotare una sola PATCH `/v1/projects/crqnfbahytzenisospcx/functions/update-tcg-prices`, corpo ESZIP originale, Content-Type application/vnd.denoland.eszip, verify_jwt=false ed entrypoint_path originale nei parametri, preservando eventuali parametri import map effettivi. Rileggere poi metadati/corpo e confrontare col backup. Non promettere il ritorno al numero 17: un rollback genera una nuova versione.
+Le prove offline precedenti restano 24/24 Node e 12/12 casi puri Deno, non rieseguite durante il deployment. Non sono state eseguite prove offline aggiuntive sui sorgenti estratti: la prova è la loro identità esatta con i file già verificati.
 
-Il ripristino del codice non annulla eventuali prezzi scritti da esecuzioni schedulate già avvenute. Nessuna conversione, riparazione o cancellazione di dati cliente è prevista. Origine e unità dei prezzi legacy restano un limite esplicito.
+## 4. Rollback predisposto e limiti
 
-La forma delle richieste Management segue il piano già revisionato di update-prices; l'operatore deve verificarla contro il contratto API corrente prima dell'invio autorizzato. Il presente documento è una proposta per revisione, non un'autorizzazione né un log di esecuzione.
+Il rollback era autorizzato soltanto per un difetto introdotto dal deployment; non è stato necessario o provato. Indisponibilità provider o rifiuto di quotazioni non EUR non giustificherebbero il ripristino del pricing senza guardie.
+
+Prima di un eventuale ripristino occorre richiedere che versione e bundle correnti appartengano ancora a questo run. La preparazione conserva una PATCH al solo endpoint `/v1/projects/crqnfbahytzenisospcx/functions/update-tcg-prices`, corpo ESZIP originale completo, Content-Type application/vnd.denoland.eszip, verify_jwt false, entrypoint_path originale e parametri import map effettivi. Occorrerebbero prenotazione singola e readback: nessuna ripetizione automatica o sovrascrittura di un intervento successivo. Il ripristino genera una nuova versione e non annulla prezzi eventualmente scritti da processi schedulati.
+
+Nessuna conversione, riparazione o cancellazione di dati cliente, modifica di schema, RLS, segreti o schedulazione è stata eseguita. Paginazione, scansioni globali effettive e prezzi legacy restano limiti distinti; SQL NULL conserva la convenzione legacy EUR senza ricostruirne la provenienza.
