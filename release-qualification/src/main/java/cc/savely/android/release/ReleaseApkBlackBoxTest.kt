@@ -30,6 +30,170 @@ import javax.crypto.spec.SecretKeySpec
 @Suppress("DEPRECATION") // recycle still releases accessibility nodes on supported API 26-32.
 @RunWith(AndroidJUnit4::class)
 class ReleaseApkBlackBoxTest {
+    // Additive F04 hunk: no production class, store, API or private target data access.
+    @Test fun qualifyReservedMangaProcessDeath() {
+        val run = preflight(18)
+        requireCode(dedicatedQaAccount().first == QA_USER, "MANGA_ACCOUNT_INVALID")
+        val op = InstrumentationRegistry.getArguments().getString("mangaOperation").orEmpty()
+        requireCode(op in setOf("prepare", "submit", "restored", "resume"), "MANGA_OPERATION_INVALID")
+        val phase = "manga-$op"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val name = "release-qualification-$run-$phase-input.json"
+        val input = readJson(name, 4_096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id",
+            "session_id", "previous_pid", "task_id", "confirmed") && input.optString("run_id") == run &&
+            input.optString("user_id") == QA_USER && input.optString("operation") == op, "MANGA_INPUT_INVALID")
+        val login = input.optString("login_run_id")
+        val sid = input.optString("session_id")
+        requireCode(runCatching { UUID.fromString(login).toString() == login && UUID.fromString(sid).toString() == sid }
+            .getOrDefault(false) && login != run, "MANGA_REFERENCE_INVALID")
+        fireRequireLogin(login, QA_USER)
+        writeReport(run, "$phase-reservation", JSONObject(input.toString()).put("stage", "reserved"))
+        requireCode(privateFile(name).delete(), "MANGA_INPUT_CONSUMPTION_FAILED")
+        val title = "android-f04-manga-$run"
+        val report = baseReport(run, 18, phase).put("user_id", QA_USER).put("login_run_id", login)
+            .put("session_id", sid).put("operation", op).put("mutation_attempted", false)
+            .put("cleanup_pending", true).put("session_id_source", "host-readonly-binding-not-target-store")
+        try {
+            if (op == "prepare") {
+                requireCode(input.optInt("previous_pid", -1) == 0 && input.optInt("task_id", -1) == 0 &&
+                    input.optInt("confirmed", -1) == 0, "MANGA_PREPARE_INPUT_INVALID")
+                launch()
+                financeOpenProfile(); requireEmail(QA_EMAIL); awaitProfileRead()
+                financeEnter("Library")
+                if (!selected("Manga")) {
+                    val manga = seekLabel(setOf("Manga"), "MANGA_TAB_MISSING", true, clickable = true)
+                    clickControl(manga, "MANGA_TAB_CLICK_FAILED")
+                }
+                await("MANGA_TAB_NOT_SELECTED") { selected("Manga") }
+                clickLabel(setOf("Add"), "MANGA_ADD_MISSING")
+                financeSetField("Title", title)
+                financeSetField("Volume number or range (optional)", "1-3")
+                financeSetField("Purchase price per unit (€) (optional)", "0.01")
+                financeSetField("Resale value per unit (€) (optional)", "0.02")
+                financeSetField("Notes (optional)", "android-f04-$run")
+                hideKeyboardIfShown()
+                val add = seekLabel(setOf("Add 3 volumes"), "MANGA_SUBMIT_MISSING", true, clickable = true)
+                try { requireCode(add.isEnabled, "MANGA_SUBMIT_DISABLED") } finally { add.recycle() }
+            } else {
+                val prepared = mangaPrior(run, "prepare", login, sid)
+                requireCode(prepared.getInt("pid") == input.optInt("previous_pid") &&
+                    prepared.getInt("task_id") == input.optInt("task_id"), "MANGA_TASK_REFERENCE_INVALID")
+                if (op == "restored") {
+                    requireCode(input.optInt("confirmed") in 1..2, "MANGA_PARTIAL_REQUIRED")
+                    mangaOpenExistingTaskFromRecents()
+                    val current = mangaPidAndTask()
+                    requireCode(current.first != prepared.getInt("pid") && current.second == prepared.getInt("task_id"),
+                        "MANGA_PROCESS_RESTORATION_INVALID")
+                    report.put("confirmed_ui", mangaPendingPlan(title, input.getInt("confirmed")))
+                    report.put("new_process", true).put("same_task", true).put("resume_tapped", false)
+                } else if (op == "submit") {
+                    requireCode(input.optInt("confirmed", -1) == 0, "MANGA_SUBMIT_INPUT_INVALID")
+                    requireCode(mangaPidAndTask() == (prepared.getInt("pid") to prepared.getInt("task_id")),
+                        "MANGA_PREPARED_PROCESS_CHANGED")
+                    requireCode(!hasText("Resume series"), "MANGA_ALREADY_SUBMITTED")
+                    val add = seekLabel(setOf("Add 3 volumes"), "MANGA_SUBMIT_MISSING", true, clickable = true)
+                    writeReport(run, "$phase-before-submit", JSONObject(input.toString()).put("stage", "before-submit"))
+                    report.put("mutation_attempted", true)
+                    clickControl(add, "MANGA_SUBMIT_CLICK_FAILED")
+                    // Do not wait for all writes: the host observer must be able to stop the Activity.
+                    report.put("sole_submit_tapped", true)
+                } else {
+                    val restored = mangaPrior(run, "restored", login, sid)
+                    requireCode(input.optInt("confirmed") in 1..2 && restored.optBoolean("new_process") &&
+                        restored.optBoolean("same_task") && mangaPidAndTask() ==
+                        (restored.getInt("pid") to restored.getInt("task_id")), "MANGA_RESTORED_REFERENCE_INVALID")
+                    mangaPendingPlan(title, input.getInt("confirmed"))
+                    val resume = seekLabel(setOf("Resume series"), "MANGA_RESUME_MISSING", true, clickable = true)
+                    writeReport(run, "$phase-before-submit", JSONObject(input.toString()).put("stage", "before-submit"))
+                    report.put("mutation_attempted", true)
+                    clickControl(resume, "MANGA_RESUME_CLICK_FAILED")
+                    seekLabel(setOf("Title: $title Vol. 3"), "MANGA_RESUME_NOT_COMPLETED", true).recycle()
+                    report.put("explicit_resume_tapped", true)
+                }
+            }
+            val current = if (op == "submit") input.getInt("previous_pid") to input.getInt("task_id") else mangaPidAndTask()
+            report.put("pid", current.first).put("task_id", current.second).put("stage", "passed")
+            writeReport(run, phase, report)
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            writeReport(run, phase, report)
+            throw IllegalStateException(report.getString("failure_code"))
+        }
+    }
+
+    private fun mangaPrior(run: String, op: String, login: String, sid: String): JSONObject {
+        val phase = "manga-$op"
+        val prior = readJson("release-qualification-$run-$phase.json", 16_384)
+        requireCode(prior.optString("run_id") == run && prior.optString("phase") == phase &&
+            prior.optString("stage") == "passed" && prior.optString("user_id") == QA_USER &&
+            prior.optString("login_run_id") == login && prior.optString("session_id") == sid &&
+            prior.optInt("target_code") == 18 && prior.optString("target_package") == TARGET,
+            "MANGA_PRIOR_INVALID")
+        return prior
+    }
+
+    private fun mangaPendingPlan(title: String, confirmed: Int): Int {
+        // A committed response may not have reached the saved plan before STOPPED.
+        val labels = (0..confirmed).associateBy { "$it/3 volumes confirmed · $title" }
+        repeat(8) {
+            if (labels.keys.any(::hasText)) return@repeat
+            val activeId = automation.rootInActiveWindow?.let { node ->
+                try { node.windowId } finally { node.recycle() }
+            }
+            val scroll = find { it.windowId == activeId && it.isScrollable && visible(it) &&
+                it.className?.toString() == "android.widget.ScrollView" }
+            scroll?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } }
+            SystemClock.sleep(200)
+        }
+        await("MANGA_SAVED_PLAN_NOT_RESTORED") { labels.keys.any(::hasText) && hasText("Resume series") }
+        val seen = labels.entries.firstOrNull { hasText(it.key) }?.value
+            ?: throw IllegalStateException("MANGA_PROGRESS_MISSING")
+        val resume = seekLabel(setOf("Resume series"), "MANGA_RESUME_MISSING", true, clickable = true)
+        try { requireCode(resume.isEnabled, "MANGA_RESUME_DISABLED") } finally { resume.recycle() }
+        return seen
+    }
+
+    private fun mangaPidAndTask(): Pair<Int, Int> {
+        val pid = readShell("pidof $TARGET", 128).trim().toIntOrNull()
+        requireCode(pid != null && pid > 0, "MANGA_TARGET_PID_MISSING")
+        val state = readShell("dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity'", 8_192)
+        val ids = Regex("${Regex.escape(TARGET)}/(?:\\.MainActivity|${Regex.escape(TARGET)}\\.MainActivity) t(\\d+)")
+            .findAll(state).map { it.groupValues[1].toInt() }.toSet()
+        requireCode(ids.size == 1, "MANGA_RESUMED_TASK_MISSING")
+        return pid!! to ids.single()
+    }
+
+    private fun mangaOpenExistingTaskFromRecents() {
+        // No MainActivity launch/new Intent: only a visible existing Savely task card.
+        readShell("input keyevent KEYCODE_APP_SWITCH", 256)
+        var card: AccessibilityNodeInfo? = null
+        await("MANGA_RECENTS_TASK_MISSING") {
+            val queue = ArrayDeque<AccessibilityNodeInfo>()
+            automation.windows.forEach { it.root?.let(queue::addLast) }
+            var visited = 0
+            try {
+                while (queue.isNotEmpty() && visited++ < 2_048 && card == null) {
+                    val node = queue.removeFirst()
+                    val launcher = node.packageName?.toString() in setOf("com.android.launcher3", "com.google.android.apps.nexuslauncher", "com.android.systemui")
+                    if (launcher && visible(node) && node.isEnabled && node.isClickable &&
+                        (node.text?.toString() == "Savely" || node.contentDescription?.toString() in setOf("Savely", "Task snapshot of Savely"))) {
+                        card = AccessibilityNodeInfo.obtain(node)
+                    }
+                    for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
+                    node.recycle()
+                }
+            } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+            card != null
+        }
+        try { requireCode(card!!.performAction(AccessibilityNodeInfo.ACTION_CLICK), "MANGA_RECENTS_CLICK_FAILED") }
+        finally { card?.recycle() }
+        await("MANGA_RECENTS_NOT_TARGET") { automation.rootInActiveWindow?.let {
+            try { it.packageName?.toString() == TARGET } finally { it.recycle() }
+        } == true }
+    }
+
     /** F02/F03: one host-reserved operation; only native UI controls may write account data. */
     @Test fun qualifyReservedTransferForm() {
         val run = preflight(18)
@@ -283,6 +447,194 @@ class ReleaseApkBlackBoxTest {
             try { value = field?.text?.toString(); value != null } finally { field?.recycle() }
         }
         return requireNotNull(value)
+    }
+
+    /** V12/S02: one pre-reserved EUR QA row; the host verifies UUID, SID and every column. */
+    @Test fun qualifyReservedTcgPrice() {
+        val run = preflight(18)
+        requireCode(dedicatedQaAccount().first == QA_USER, "TCG_PRICE_ACCOUNT_INVALID")
+        val op = InstrumentationRegistry.getArguments().getString("tcgPriceOperation").orEmpty()
+        requireCode(op in setOf("update", "observe", "delete"), "TCG_PRICE_OPERATION_INVALID")
+        val phase = "tcg-price-$op"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val name = "release-qualification-$run-$phase-input.json"
+        val input = readJson(name, 4096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id", "session_id", "row_id", "day", "price") &&
+            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("operation") == op,
+            "TCG_PRICE_INPUT_INVALID")
+        val loginRun = input.optString("login_run_id")
+        requireCode(listOf(loginRun, input.optString("session_id"), input.optString("row_id")).all {
+            runCatching { UUID.fromString(it).toString() == it && it != run }.getOrDefault(false)
+        }, "TCG_PRICE_REFERENCE_INVALID")
+        fireRequireLogin(loginRun, QA_USER)
+        requireCode(input.optString("day") == java.time.LocalDate.now().toString() &&
+            input.optString("day") == java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")).toString(), "TCG_PRICE_DAY_CHANGED")
+        val rawPrice = input.optString("price")
+        requireCode(rawPrice.matches(Regex("[0-9]{1,8}(?:\\.[0-9]{1,2})?")), "TCG_PRICE_EXPECTED_INVALID")
+        val price = java.math.BigDecimal(rawPrice)
+        requireCode(op != "update" || price.compareTo(java.math.BigDecimal("0.02")) == 0, "TCG_PRICE_SEED_INVALID")
+        writeReport(run, "$phase-reservation", JSONObject(input.toString()).put("stage", "reserved").put("automatic_retry", false))
+        requireCode(privateFile(name).delete(), "TCG_PRICE_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 18, phase).put("operation", op).put("login_run_id", loginRun)
+            .put("session_id", input.getString("session_id")).put("row_id", input.getString("row_id"))
+            .put("price", rawPrice).put("mutation_attempted", false).put("save_tapped", false)
+            .put("blueprint_id", "37789").put("currency", "EUR").put("condition", "near_mint")
+        try {
+            report.put("pid", launch())
+            financeOpenProfile(); requireEmail(QA_EMAIL); awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true)
+            financeEnter("TCG")
+            fumoTop() // Existing Add/Update header helper also serves these generic record lists.
+            val tab = seekLabel(setOf("Magic"), "TCG_PRICE_TAB_MISSING", true, true)
+            if (selectedControl(tab)) tab.recycle() else clickControl(tab, "TCG_PRICE_TAB_REJECTED")
+            await("TCG_PRICE_TAB_NOT_SELECTED") { selected("Magic") }
+            fumoTop()
+            await("TCG_PRICE_DATA_NOT_READY") { exists { label(it, setOf("Add")) && visible(it) && it.isEnabled && hasClickableAncestor(it) } }
+            if (op == "observe") clickLabel(setOf("Update"), "TCG_PRICE_READ_REFRESH_MISSING")
+            seekLabel(setOf("Card name: android-tcg-price-$run"), "TCG_PRICE_MARKER_MISSING", true).recycle()
+            val variants = mutableSetOf(price.stripTrailingZeros().toPlainString(), price.setScale(2).toPlainString())
+            runCatching { price.setScale(1).toPlainString() }.getOrNull()?.let(variants::add)
+            seekLabel(variants.map { "Current price per unit (€): $it" }.toSet(), "TCG_PRICE_AMOUNT_MISSING", true).recycle()
+            report.put("price_visible", true)
+            when (op) {
+                "update" -> {
+                    val control = seekLabel(setOf("Refresh CardTrader price"), "TCG_PRICE_UPDATE_MISSING", true, true)
+                    writeReport(run, "$phase-before-submit", JSONObject(input.toString()).put("stage", "before-submit").put("automatic_retry", false))
+                    report.put("mutation_attempted", true)
+                    clickControl(control, "TCG_PRICE_UPDATE_REJECTED")
+                    // A successful click is not a successful quote. A separate host read and fresh observe phase qualify persistence.
+                    report.put("update_tapped_once", true)
+                }
+                "observe" -> report.put("persisted_price_visible", true)
+                "delete" -> {
+                    clickLabel(setOf("Delete"), "TCG_PRICE_DELETE_MISSING", true)
+                    await("TCG_PRICE_DELETE_DIALOG_MISSING") { hasText("Delete this record?") }
+                    writeReport(run, "$phase-before-submit", JSONObject(input.toString()).put("stage", "before-submit").put("automatic_retry", false))
+                    report.put("mutation_attempted", true)
+                    clickLabel(setOf("Delete"), "TCG_PRICE_DELETE_CONFIRM_MISSING")
+                    await("TCG_PRICE_DELETE_NOT_CONFIRMED") { !hasText("Delete this record?") }
+                    seekLabel(setOf("No items. Add the first record."), "TCG_PRICE_EMPTY_MISSING", true).recycle()
+                    report.put("row_removed", true)
+                }
+            }
+            report.put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { recordUiFlags(report); writeReport(run, phase, report) }
+    }
+
+    /** F04: exactly one six-row Confirm; restored process only prepares a new duplicate preview. */
+    @Test fun qualifyReservedTransferPartial() {
+        val run = preflight(18)
+        requireCode(dedicatedQaAccount().first == QA_USER, "F04_TRANSFER_ACCOUNT_INVALID")
+        val op = InstrumentationRegistry.getArguments().getString("transferPartialOperation").orEmpty()
+        requireCode(op in setOf("prepare", "submit", "restored", "preview"), "F04_TRANSFER_OPERATION_INVALID")
+        val phase = "transfer-partial-$op"
+        requireNewNavigationReport(run, phase); requireNewNavigationReport(run, "$phase-reservation")
+        val name = "release-qualification-$run-$phase-input.json"
+        val input = readJson(name, 4096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id", "session_id", "day",
+            "category_id", "file_name", "file_sha256", "previous_pid", "task_id", "committed") && input.optString("run_id") == run &&
+            input.optString("user_id") == QA_USER && input.optString("operation") == op, "F04_TRANSFER_INPUT_INVALID")
+        val login = input.optString("login_run_id")
+        val sid = input.optString("session_id")
+        requireCode(listOf(login, sid, input.optString("category_id")).all { value ->
+            runCatching { UUID.fromString(value).toString() == value }.getOrDefault(false)
+        } && login != run, "F04_TRANSFER_REFERENCE_INVALID")
+        fireRequireLogin(login, QA_USER)
+        val day = input.optString("day")
+        requireCode(day == java.time.LocalDate.now().toString() && day == java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")).toString(),
+            "F04_TRANSFER_DAY_CHANGED")
+        val filename = "normalized-six-$run.csv"
+        requireCode(input.optString("file_name") == filename && input.optString("file_sha256").matches(Regex("[a-f0-9]{64}")) &&
+            readShell("sha256sum /sdcard/Download/savely-transfer-$run/$filename", 512).substringBefore(' ') == input.optString("file_sha256"),
+            "F04_TRANSFER_CSV_CHANGED")
+        writeReport(run, "$phase-reservation", JSONObject(input.toString()).put("stage", "reserved").put("automatic_retry", false))
+        requireCode(privateFile(name).delete(), "F04_TRANSFER_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 18, phase).put("operation", op).put("login_run_id", login).put("session_id", sid)
+            .put("mutation_attempted", false).put("confirm_remaining_tapped", false).put("cleanup_pending", true)
+            .put("file_sha256", input.getString("file_sha256")).put("committed", input.getInt("committed"))
+            .put("session_id_source", "host-readonly-binding-not-target-store")
+        try {
+            if (op == "prepare") {
+                requireCode(input.optInt("previous_pid", -1) == 0 && input.optInt("task_id", -1) == 0 && input.optInt("committed", -1) == 0,
+                    "F04_TRANSFER_PREPARE_INPUT_INVALID")
+                launch(); financeOpenProfile(); requireEmail(QA_EMAIL); awaitProfileRead()
+                report.put("settings_identity", true).put("profile_read", true)
+                f04TransferPreview(run, day, filename, 0)
+                report.put("six_ready", true).put("real_picker_returned", true)
+            } else {
+                val prepared = f04TransferPrior(run, "prepare", login, sid)
+                requireCode(prepared.getInt("pid") == input.optInt("previous_pid") && prepared.getInt("task_id") == input.optInt("task_id"),
+                    "F04_TRANSFER_ORIGIN_MISMATCH")
+                if (op == "submit") {
+                    requireCode(input.optInt("committed", -1) == 0 && mangaPidAndTask() ==
+                        (prepared.getInt("pid") to prepared.getInt("task_id")), "F04_TRANSFER_PREPARED_PROCESS_CHANGED")
+                    transferTop()
+                    clickLabel(setOf("Import 6 selected transactions"), "F04_TRANSFER_IMPORT_MISSING", true)
+                    await("F04_TRANSFER_CONFIRM_MISSING") { hasText("Confirm import") }
+                    val confirm = seekLabel(setOf("Confirm and import"), "F04_TRANSFER_CONFIRM_MISSING", false, true)
+                    writeReport(run, "$phase-before-submit", JSONObject(input.toString()).put("stage", "before-submit").put("automatic_retry", false))
+                    report.put("mutation_attempted", true)
+                    clickControl(confirm, "F04_TRANSFER_CONFIRM_REJECTED")
+                    report.put("sole_confirm_tapped", true)
+                    // No wait for batch completion: host observes commits and stops the background target.
+                } else if (op == "restored") {
+                    requireCode(input.optInt("committed") in 1..5, "F04_TRANSFER_PARTIAL_REQUIRED")
+                    mangaOpenExistingTaskFromRecents()
+                    val current = mangaPidAndTask()
+                    requireCode(current.first != prepared.getInt("pid") && current.second == prepared.getInt("task_id"),
+                        "F04_TRANSFER_PROCESS_RESTORATION_INVALID")
+                    report.put("new_process", true).put("same_task", true).put("no_action_after_restore", true)
+                } else {
+                    val restored = f04TransferPrior(run, "restored", login, sid)
+                    requireCode(input.optInt("committed") in 1..5 && mangaPidAndTask() ==
+                        (restored.getInt("pid") to restored.getInt("task_id")), "F04_TRANSFER_RESTORED_PROCESS_CHANGED")
+                    financeOpenProfile(); requireEmail(QA_EMAIL); awaitProfileRead()
+                    report.put("settings_identity", true).put("profile_read", true)
+                    f04TransferPreview(run, day, filename, input.getInt("committed"))
+                    report.put("real_picker_returned", true).put("fresh_duplicate_preview", true)
+                }
+            }
+            val current = if (op == "submit") input.getInt("previous_pid") to input.getInt("task_id") else mangaPidAndTask()
+            report.put("pid", current.first).put("task_id", current.second).put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw IllegalStateException(report.getString("failure_code"))
+        } finally { writeReport(run, phase, report) }
+    }
+
+    private fun f04TransferPrior(run: String, op: String, login: String, sid: String): JSONObject {
+        val phase = "transfer-partial-$op"
+        val report = readJson("release-qualification-$run-$phase.json", 16384)
+        requireCode(report.optString("run_id") == run && report.optString("user_id") == QA_USER && report.optString("phase") == phase &&
+            report.optString("login_run_id") == login && report.optString("session_id") == sid && report.optString("stage") == "passed" &&
+            report.optInt("target_code") == 18 && report.optString("target_package") == TARGET, "F04_TRANSFER_PRIOR_INVALID")
+        return report
+    }
+
+    private fun f04TransferPreview(run: String, day: String, filename: String, committed: Int) {
+        if (!hasText("Import and export")) clickLabel(setOf("Data"), "F04_TRANSFER_DATA_MISSING")
+        await("F04_TRANSFER_SCREEN_MISSING") { hasText("Import and export") }
+        transferTop()
+        clickLabel(setOf("Transaction CSV"), "F04_TRANSFER_FORMAT_MISSING", true)
+        clickLabel(setOf("Choose CSV and prepare preview"), "F04_TRANSFER_PICKER_MISSING", true)
+        transferPickerDirectory(run)
+        transferPickerClick(setOf(filename), "F04_TRANSFER_CSV_MISSING")
+        await("F04_TRANSFER_PREVIEW_MISSING") { hasText("Preview ready. No data has been written.") }
+        seekLabel(setOf("6 transactions in preview"), "F04_TRANSFER_PREVIEW_COUNT_MISMATCH", true).recycle()
+        seekLabel(setOf("$committed duplicates; 0 rows excluded by the format; 0 invalid rows."), "F04_TRANSFER_DUPLICATES_MISMATCH", true).recycle()
+        for (index in 1..6) {
+            seekLabel(setOf("android-f04-import-$run-$index"), "F04_TRANSFER_DESCRIPTION_MISSING", true).recycle()
+            seekLabel(setOf("$day · 0.0$index EUR · Expense"), "F04_TRANSFER_AMOUNT_MISMATCH", true).recycle()
+            seekLabel(setOf("Row ${index + 1}: ${if (index <= committed) "Duplicate, excluded" else "Ready to import"}"),
+                "F04_TRANSFER_ROW_STATUS_MISMATCH", true).recycle()
+        }
+        transferTop()
+        seekLabel(setOf("Import ${6 - committed} selected transactions"), "F04_TRANSFER_READY_COUNT_MISMATCH", true, true).recycle()
+        // Intentionally leaves the fresh preview open; never opens/confirms its import dialog.
     }
 
     /** S01/S02: exactly one fixed catalog query, selection and cancel; never taps Save. */
