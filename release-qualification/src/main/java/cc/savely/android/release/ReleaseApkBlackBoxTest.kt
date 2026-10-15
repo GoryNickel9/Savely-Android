@@ -30,6 +30,404 @@ import javax.crypto.spec.SecretKeySpec
 @Suppress("DEPRECATION") // recycle still releases accessibility nodes on supported API 26-32.
 @RunWith(AndroidJUnit4::class)
 class ReleaseApkBlackBoxTest {
+    /** F02/F03: one host-reserved operation; only native UI controls may write account data. */
+    @Test fun qualifyReservedTransferForm() {
+        val run = preflight(18)
+        requireCode(dedicatedQaAccount().first == QA_USER, "TRANSFER_ACCOUNT_INVALID")
+        val operation = InstrumentationRegistry.getArguments().getString("transferOperation").orEmpty()
+        requireCode(operation in setOf("revolut", "revolut-duplicate", "bbva", "tr", "tr-duplicate", "export", "roundtrip",
+            "delete-revolut", "delete-bank", "delete-asset", "delete-isin", "delete-category"), "TRANSFER_OPERATION_INVALID")
+        val phase = "transfer-$operation"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val inputName = "release-qualification-$run-$phase-input.json"
+        val input = readJson(inputName, 4_096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id", "day", "expected_rows", "file_name", "file_sha256") &&
+            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("operation") == operation,
+            "TRANSFER_INPUT_INVALID")
+        val loginRun = input.getString("login_run_id")
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun && loginRun != run }.getOrDefault(false), "TRANSFER_LOGIN_REFERENCE_INVALID")
+        val login = readJson("release-qualification-$loginRun-couple-login.json", 16_384)
+        requireCode(login.optString("run_id") == loginRun && login.optString("user_id") == QA_USER && login.optInt("target_code") == 18 &&
+            login.optString("target_package") == TARGET && login.optString("stage") == "passed" &&
+            login.optBoolean("settings_identity") && login.optBoolean("profile_read") && login.optBoolean("english_selected"), "TRANSFER_LOGIN_INVALID")
+        val day = runCatching { java.time.LocalDate.parse(input.getString("day")) }.getOrNull()
+        requireCode(day != null && day.toString() == input.getString("day") && java.time.LocalDate.now() == day &&
+            java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")) == day, "TRANSFER_DEVICE_DAY_MISMATCH")
+        val expectedRows = input.getInt("expected_rows")
+        requireCode(expectedRows in 0..500, "TRANSFER_EXPECTED_ROWS_INVALID")
+        val fileName = input.getString("file_name")
+        val fileHash = input.getString("file_sha256")
+        val selectedFile = when (operation) {
+            "revolut", "revolut-duplicate" -> "revolut-usd-$run.csv"
+            "bbva" -> "bbva-keyword-note-$run.csv"
+            "tr", "tr-duplicate" -> "tr-isin-$run.csv"
+            else -> null
+        }
+        if (selectedFile != null || operation == "roundtrip") {
+            requireCode(fileName == selectedFile || operation == "roundtrip" &&
+                fileName.matches(Regex("savely_export_\\d{4}-\\d{2}-\\d{2}_[0-9a-f-]{36}\\.csv")), "TRANSFER_FILE_NAME_INVALID")
+            requireCode(fileHash.matches(Regex("[0-9a-f]{64}")), "TRANSFER_FILE_HASH_INVALID")
+            val hash = readShell("sha256sum /sdcard/Download/savely-transfer-$run/$fileName", 512).substringBefore(' ')
+            requireCode(hash == fileHash, "TRANSFER_DEVICE_FILE_CHANGED")
+        } else requireCode(fileName.isEmpty() && fileHash.isEmpty(), "TRANSFER_UNEXPECTED_FILE")
+        writeReport(run, "$phase-reservation", JSONObject(input.toString()).put("stage", "reserved"))
+        requireCode(privateFile(inputName).delete(), "TRANSFER_INPUT_CONSUMPTION_FAILED")
+        val marker = "android-transfer-form-$run"
+        val report = baseReport(run, 18, phase).put("login_run_id", loginRun).put("operation", operation)
+            .put("day", day.toString()).put("mutation_attempted", false).put("cleanup_pending", true)
+        try {
+            report.put("pid", launch())
+            financeOpenProfile(); requireEmail(QA_EMAIL); awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true)
+            if (operation.startsWith("delete-") && operation != "delete-isin") {
+                val name = when (operation) {
+                    "delete-revolut" -> "$marker-revolut"
+                    "delete-bank" -> "$marker-keyword - receipt \"A\"; local"
+                    "delete-asset" -> "$marker-asset"
+                    else -> "$marker-expense"
+                }
+                financeEnter(when (operation) { "delete-asset" -> "Portfolio"; "delete-category" -> "Categories"; else -> "Transactions" })
+                if (operation == "delete-asset") { portfolioClosed(false) } else {
+                    financeTop()
+                    await("TRANSFER_FINANCE_READ_NOT_READY") { exists { label(it, setOf("Refresh data")) && visible(it) && hasClickableAncestor(it) } }
+                }
+                clickLabel(setOf("Delete $name"), "TRANSFER_DELETE_CONTROL_MISSING", true)
+                await("TRANSFER_DELETE_DIALOG_MISSING") { hasText("Delete $name?") }
+                transferBeforeSubmit(run, phase, report)
+                clickLabel(setOf("Delete"), "TRANSFER_DELETE_CONFIRM_MISSING")
+                await("TRANSFER_DELETE_DIALOG_REMAINS") { !hasText("Delete $name?") && !hasText("Deleting…") }
+                report.put("native_delete_confirmed", true)
+            } else {
+                clickLabel(setOf("Data"), "TRANSFER_DATA_PANE_MISSING")
+                await("TRANSFER_SCREEN_MISSING") { hasText("Import and export") }
+                transferTop()
+                when (operation) {
+                    "delete-isin" -> {
+                        clickLabel(setOf("Manage ISIN mappings"), "TRANSFER_MAPPING_CONTROL_MISSING", true)
+                        val symbol = "QA" + run.replace("-", "").take(12).uppercase(java.util.Locale.ROOT)
+                        seekLabel(setOf("ZZ0000000001 · $symbol · $marker-asset"), "TRANSFER_ISIN_MAPPING_MISSING", true).recycle()
+                        clickLabel(setOf("Delete"), "TRANSFER_ISIN_DELETE_MISSING", true)
+                        await("TRANSFER_ISIN_DELETE_DIALOG_MISSING") { hasText("Delete this mapping?") }
+                        transferBeforeSubmit(run, phase, report)
+                        clickLabel(setOf("Delete"), "TRANSFER_ISIN_DELETE_CONFIRM_MISSING")
+                        await("TRANSFER_ISIN_DELETE_NOT_CONFIRMED") { hasText("No saved ISIN mappings.") && !hasText("Delete this mapping?") }
+                        clickLabel(setOf("Close"), "TRANSFER_MAPPING_CLOSE_MISSING")
+                    }
+                    "export" -> {
+                        clickLabel(setOf("Prepare CSV export"), "TRANSFER_EXPORT_PREPARE_MISSING", true)
+                        seekLabel(setOf("$expectedRows rows in 25 tables. Choose where to save the CSV."), "TRANSFER_EXPORT_COUNT_MISMATCH", true).recycle()
+                        clickLabel(setOf("Save CSV ($expectedRows rows)"), "TRANSFER_EXPORT_SAVE_MISSING", true)
+                        transferPickerDirectory(run)
+                        val filename = transferPickerExportName()
+                        report.put("export_name", filename)
+                        transferBeforeSubmit(run, phase, report, filename)
+                        transferPickerClick(setOf("Save", "Salva"), "TRANSFER_PICKER_SAVE_MISSING")
+                        await("TRANSFER_EXPORT_NOT_SAVED") { hasText("CSV saved: $expectedRows rows from 25 tables.") }
+                        report.put("export_saved", true).put("export_rows", expectedRows).put("export_tables", 25)
+                    }
+                    else -> {
+                        clickLabel(setOf(when (operation) { "revolut", "revolut-duplicate" -> "Revolut"; "roundtrip" -> "Transaction CSV"; else -> "BBVA / Trade Republic CSV" }),
+                            "TRANSFER_FORMAT_MISSING", true)
+                        clickLabel(setOf("Choose CSV and prepare preview"), "TRANSFER_OPEN_PICKER_MISSING", true)
+                        transferPickerDirectory(run)
+                        transferPickerClick(setOf(fileName), "TRANSFER_INPUT_DOCUMENT_MISSING")
+                        await("TRANSFER_PREVIEW_NOT_READY") { hasText("Preview ready. No data has been written.") }
+                        report.put("real_picker_returned", true).put("file_name", fileName).put("file_sha256", fileHash)
+                        transferTop()
+                        val duplicateRead = operation.endsWith("-duplicate") || operation == "roundtrip"
+                        val skipped = if (operation == "roundtrip") expectedRows - 2 else 1
+                        seekLabel(setOf("${if (duplicateRead) 2 else 1} duplicates; $skipped rows excluded by the format; 0 invalid rows."),
+                            "TRANSFER_PREVIEW_COUNTS_MISMATCH", true).recycle()
+                        report.put("preview_rows", 2).put("duplicates", if (duplicateRead) 2 else 1).put("skipped", skipped).put("problems", 0)
+                        if (!duplicateRead) {
+                            if (operation == "revolut") {
+                                clickLabel(setOf("New category"), "TRANSFER_NEW_CATEGORY_MISSING", true)
+                                await("TRANSFER_CATEGORY_DIALOG_MISSING") { hasText("Category name") }
+                                financeSetField("Category name", "$marker-expense")
+                                hideKeyboardIfShown()
+                                clickLabel(setOf("Stage category"), "TRANSFER_STAGE_CATEGORY_MISSING")
+                                await("TRANSFER_CATEGORY_DIALOG_REMAINS") { !hasText("Category name") }
+                                financeSetField("1 USD in EUR", "0.91")
+                            } else if (operation == "bbva") {
+                                clickLabel(setOf("Choose category"), "TRANSFER_CATEGORY_SELECTION_MISSING", true)
+                                clickLabel(setOf("$marker-expense"), "TRANSFER_CREATED_CATEGORY_MISSING", true)
+                                financeSetField("Description / keyword", "$marker-keyword")
+                                financeSetField("Import note", "receipt \"A\"; local")
+                                transferRememberCategory()
+                            } else {
+                                financeSetField("Symbol", "QA" + run.replace("-", "").take(12).uppercase(java.util.Locale.ROOT))
+                                seekLabel(setOf("$marker-asset"), "TRANSFER_ASSET_NAME_MISMATCH", true).recycle()
+                            }
+                            hideKeyboardIfShown()
+                            transferTop()
+                            clickLabel(setOf(if (operation == "tr") "Import 1 selected rows" else "Import 1 selected transactions"),
+                                "TRANSFER_IMPORT_CONTROL_MISSING", true)
+                            await("TRANSFER_CONFIRMATION_MISSING") { hasText("Confirm import") }
+                            // A durable native checkpoint complements the host reservation; never retry this operation.
+                            transferBeforeSubmit(run, phase, report)
+                            clickLabel(setOf("Confirm and import"), "TRANSFER_IMPORT_CONFIRM_MISSING")
+                            transferTop()
+                            seekLabel(setOf("1 imported, 1 duplicates, 0 failed, 0 require verification."), "TRANSFER_IMPORT_NOT_CONFIRMED", true).recycle()
+                            report.put("import_confirmed", true)
+                        } else {
+                            requireCode(!exists { visible(it) && it.isEnabled && hasClickableAncestor(it) &&
+                                it.text?.toString()?.matches(Regex("Import [1-9][0-9]* selected (?:rows|transactions)")) == true }, "TRANSFER_DUPLICATE_IMPORT_ENABLED")
+                            report.put("zero_write_duplicate_preview", true)
+                        }
+                    }
+                }
+            }
+            report.put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { recordUiFlags(report); writeReport(run, phase, report) }
+    }
+
+    private fun transferBeforeSubmit(run: String, phase: String, report: JSONObject, exportName: String? = null) {
+        val checkpoint = JSONObject().put("run_id", run).put("user_id", QA_USER).put("phase", phase).put("stage", "before-submit")
+        exportName?.let { checkpoint.put("export_name", it) }
+        writeReport(run, "$phase-before-submit", checkpoint)
+        report.put("mutation_attempted", true)
+    }
+
+    private fun transferTop() {
+        hideKeyboardIfShown()
+        repeat(32) {
+            if (hasText("Import and export")) return
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+            val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } } ?: false
+            requireCode(moved, "TRANSFER_TOP_UNREACHABLE")
+            SystemClock.sleep(200)
+        }
+        throw IllegalStateException("TRANSFER_TOP_MISSING")
+    }
+
+    private fun transferRememberCategory() {
+        val label = seekLabel(setOf("Remember this category for future imports"), "TRANSFER_REMEMBER_LABEL_MISSING", true)
+        var ancestor: AccessibilityNodeInfo? = label
+        try {
+            repeat(4) {
+                val parent = ancestor ?: throw IllegalStateException("TRANSFER_REMEMBER_CONTROL_MISSING")
+                val queue = ArrayDeque<AccessibilityNodeInfo>()
+                queue.add(AccessibilityNodeInfo.obtain(parent))
+                var checkbox: AccessibilityNodeInfo? = null
+                var visited = 0
+                try {
+                    while (queue.isNotEmpty() && visited++ < 64) {
+                        val node = queue.removeFirst()
+                        if (node.packageName?.toString() == TARGET && node.isCheckable && node.isEnabled && visible(node)) {
+                            requireCode(checkbox == null, "TRANSFER_REMEMBER_AMBIGUOUS")
+                            checkbox = AccessibilityNodeInfo.obtain(node)
+                        }
+                        for (i in 0 until node.childCount) node.getChild(i)?.let(queue::addLast)
+                        node.recycle()
+                    }
+                    checkbox?.let {
+                        try { if (!it.isChecked) requireCode(it.performAction(AccessibilityNodeInfo.ACTION_CLICK), "TRANSFER_REMEMBER_REJECTED") }
+                        finally { it.recycle() }
+                        return
+                    }
+                } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+                ancestor = parent.parent; parent.recycle()
+            }
+        } finally { ancestor?.recycle() }
+        throw IllegalStateException("TRANSFER_REMEMBER_CONTROL_MISSING")
+    }
+
+    private fun transferPickerFind(predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        val root = automation.rootInActiveWindow ?: return null
+        if (root.packageName?.toString() !in setOf("com.google.android.documentsui", "com.android.documentsui")) { root.recycle(); return null }
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var count = 0
+        try {
+            while (queue.isNotEmpty() && count++ < 2048) {
+                val node = queue.removeFirst()
+                if (node.refresh() && node.packageName?.toString() in setOf("com.google.android.documentsui", "com.android.documentsui") &&
+                    visible(node) && predicate(node)) return node
+                for (i in 0 until node.childCount) node.getChild(i)?.let(queue::addLast)
+                node.recycle()
+            }
+            return null
+        } finally { while (queue.isNotEmpty()) queue.removeFirst().recycle() }
+    }
+
+    private fun transferPickerClick(labels: Set<String>, code: String) {
+        var candidate: AccessibilityNodeInfo? = null
+        await(code) { candidate = transferPickerFind { label(it, labels) && it.isEnabled && hasClickableAncestor(it) }; candidate != null }
+        var node = requireNotNull(candidate)
+        try {
+            repeat(8) {
+                requireCode(node.refresh() && node.packageName?.toString() in setOf("com.google.android.documentsui", "com.android.documentsui"), code)
+                if (node.isClickable && node.isEnabled) { requireCode(node.performAction(AccessibilityNodeInfo.ACTION_CLICK), code); return }
+                val parent = node.parent ?: throw IllegalStateException(code)
+                node.recycle(); node = parent
+            }
+            throw IllegalStateException(code)
+        } finally { node.recycle() }
+    }
+
+    private fun transferPickerDirectory(run: String) {
+        transferPickerClick(setOf("Show roots", "Mostra radici"), "TRANSFER_PICKER_ROOTS_MISSING")
+        transferPickerClick(setOf("Downloads", "Download"), "TRANSFER_PICKER_DOWNLOADS_MISSING")
+        transferPickerClick(setOf("savely-transfer-$run"), "TRANSFER_PICKER_RUN_DIRECTORY_MISSING")
+    }
+
+    private fun transferPickerExportName(): String {
+        var value: String? = null
+        await("TRANSFER_EXPORT_NAME_MISSING") {
+            val field = transferPickerFind { it.isEditable && it.isEnabled && it.text?.toString()?.matches(
+                Regex("savely_export_\\d{4}-\\d{2}-\\d{2}_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.csv")) == true }
+            try { value = field?.text?.toString(); value != null } finally { field?.recycle() }
+        }
+        return requireNotNull(value)
+    }
+
+    /** S01/S02: exactly one fixed catalog query, selection and cancel; never taps Save. */
+    @Test fun qualifyReservedCatalogRead() {
+        val run = preflight(18)
+        requireCode(dedicatedQaAccount().first == QA_USER, "CATALOG_ACCOUNT_INVALID")
+        val provider = InstrumentationRegistry.getArguments().getString("catalogProvider").orEmpty()
+        requireCode(provider in setOf("books", "cards"), "CATALOG_PROVIDER_INVALID")
+        val phase = "catalog-$provider"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val inputName = "release-qualification-$run-$phase-input.json"
+        val input = readJson(inputName, 4096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "provider", "query", "login_run_id", "session_id") &&
+            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("provider") == provider &&
+            input.optString("query") == (if (provider == "books") "Dune" else "Black Lotus"), "CATALOG_INPUT_INVALID")
+        val loginRun = input.getString("login_run_id")
+        val sessionId = input.getString("session_id")
+        requireCode(listOf(loginRun, sessionId).all { value -> runCatching { UUID.fromString(value).toString() == value && value != run }.getOrDefault(false) }, "CATALOG_REFERENCE_INVALID")
+        val login = readJson("release-qualification-$loginRun-couple-login.json", 16384)
+        requireCode(login.optString("stage") == "passed" && login.optString("run_id") == loginRun && login.optString("user_id") == QA_USER &&
+            login.optString("target_package") == TARGET && login.optInt("target_code") == 18 && login.optBoolean("english_selected") &&
+            login.optBoolean("settings_identity") && login.optBoolean("profile_read"), "CATALOG_LOGIN_INVALID")
+        writeReport(run, "$phase-reservation", JSONObject(input.toString()).put("stage", "reserved"))
+        requireCode(privateFile(inputName).delete(), "CATALOG_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 18, phase).put("provider", provider).put("login_run_id", loginRun).put("session_id", sessionId)
+            .put("save_tapped", false).put("query_reserved", false).put("raw_provider_id_observed", false).put("positive_qualified", false)
+        try {
+            report.put("pid", launch())
+            financeOpenProfile(); requireEmail(QA_EMAIL); awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true)
+            financeEnter(if (provider == "books") "Library" else "TCG")
+            clickLabel(setOf(if (provider == "books") "Books" else "Magic"), "CATALOG_CATEGORY_MISSING", true)
+            clickLabel(setOf(if (provider == "books") "Search Google Books" else "Search CardTrader"), "CATALOG_SEARCH_CONTROL_MISSING", true)
+            val searchTitle = if (provider == "books") "Google Books search" else "CardTrader search"
+            await("CATALOG_DIALOG_MISSING") { hasText(searchTitle) }
+            financeSetField(if (provider == "books") "Title" else "Card name", if (provider == "books") "Dune" else "Black Lotus")
+            hideKeyboardIfShown()
+            writeReport(run, "$phase-before-query", JSONObject().put("run_id", run).put("user_id", QA_USER).put("session_id", sessionId)
+                .put("provider", provider).put("stage", "before-query").put("automatic_retry", false))
+            report.put("query_reserved", true)
+            clickLabel(setOf("Search"), "CATALOG_QUERY_CONTROL_MISSING")
+            var result: AccessibilityNodeInfo? = null
+            var outcome = "pending"
+            var httpCode: Int? = null
+            await("CATALOG_QUERY_UNRESOLVED") {
+                result = catalogResult(provider)
+                if (result != null) { outcome = "result"; true }
+                else if (hasText("No results")) { outcome = "empty"; true }
+                else {
+                    val error = find { node -> visible(node) && node.text?.toString()?.let { value ->
+                        value.length <= 500 && (value.startsWith("Ricerca libri non disponibile") || value.startsWith("Book search unavailable") ||
+                            value in setOf("Search unavailable", "Ricerca non disponibile", "Service temporarily unavailable. Try again.",
+                                "Servizio temporaneamente non disponibile. Riprova.", "Non hai il permesso per questa operazione.", "You do not have permission for this operation."))
+                    } == true }
+                    if (error == null) false else {
+                        try { httpCode = Regex("\\(HTTP ([1-5][0-9]{2})\\)").find(error.text.toString())?.groupValues?.get(1)?.toInt() }
+                        finally { error.recycle() }
+                        outcome = "provider-unavailable"; true
+                    }
+                }
+            }
+            report.put("provider_outcome", outcome).put("http_status_from_ui", httpCode ?: JSONObject.NULL)
+            if (outcome != "result") {
+                clickLabel(setOf("Close"), "CATALOG_CLOSE_MISSING")
+                await("CATALOG_DIALOG_REMAINS") { !hasText(searchTitle) }
+                report.put("search_closed", true).put("stage", "observed-unavailable")
+            } else {
+                val resultNode = requireNotNull(result)
+                val label = resultNode.text?.toString().orEmpty()
+                val separator = label.lastIndexOf(" · ")
+                requireCode(separator > 0 && label.length <= 600, "CATALOG_RESULT_LABEL_INVALID")
+                resultNode.recycle()
+                val title = label.substring(0, separator)
+                val secondary = label.substring(separator + 3)
+                requireCode(title.length in 1..300 && secondary.length <= 300 && label.none { it.code < 32 }, "CATALOG_RESULT_LABEL_INVALID")
+                val cover = find { it.packageName?.toString() == TARGET && it.contentDescription?.toString() == "Cover of $title" }
+                report.put("cover_node_exposed", cover != null)
+                if (cover != null) {
+                    cover.recycle()
+                    val visibleCover = seekLabel(setOf("Cover of $title"), "CATALOG_COVER_UNREACHABLE", true)
+                    try { catalogCover(run, provider, visibleCover, report) } finally { visibleCover.recycle() }
+                }
+                // Metadata stays only in RAM; reports never contain title, author, set or image URL.
+                clickControl(seekLabel(setOf(label), "CATALOG_RESULT_UNREACHABLE", true, clickable = true), "CATALOG_RESULT_SELECTION_REJECTED")
+                await("CATALOG_SEEDED_FORM_MISSING") { !hasText(searchTitle) && hasText("Cancel") && hasText("Save") }
+                requireCode(catalogField(if (provider == "books") "Title" else "Card name") == title, "CATALOG_TITLE_SEED_MISMATCH")
+                requireCode(catalogField(if (provider == "books") "Author (optional)" else "Set (optional)") == secondary, "CATALOG_SECONDARY_SEED_MISMATCH")
+                report.put("visible_metadata_matches", true).put("selected_actual_result", true)
+                if (provider == "books") {
+                    report.put("publisher_present", catalogField("Publisher (optional)").isNotBlank())
+                    val year = catalogField("Publication year (optional)")
+                    requireCode(year.isEmpty() || year.matches(Regex("[0-9]{1,4}")), "CATALOG_YEAR_SEED_INVALID")
+                    report.put("year_present", year.isNotEmpty())
+                }
+                clickLabel(setOf("Cancel"), "CATALOG_CANCEL_MISSING")
+                await("CATALOG_FORM_REMAINS") { !hasText("Save") && !hasText("Cancel") }
+                report.put("form_cancelled", true).put("positive_qualified", true).put("stage", "passed")
+            }
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { writeReport(run, phase, report) }
+    }
+
+    private fun catalogResult(provider: String): AccessibilityNodeInfo? = find { node ->
+        val text = node.text?.toString().orEmpty()
+        node.packageName?.toString() == TARGET && node.isEnabled && hasClickableAncestor(node) && !node.isEditable && text.length in 4..600 &&
+            text.contains(" · ") && text.substringBefore(" · ").contains(if (provider == "books") "Dune" else "Black Lotus", ignoreCase = true)
+    }
+
+    private fun catalogField(label: String): String {
+        var field: AccessibilityNodeInfo? = null
+        // Only scroll to a known field; never substitute a click on an unrecognised control.
+        val labelNode = seekLabel(setOf(label), "CATALOG_FIELD_MISSING", true)
+        var current: AccessibilityNodeInfo? = labelNode
+        try {
+            for (depth in 0 until 5) {
+                val node = current ?: break
+                if (node.isEditable && node.isEnabled && visible(node)) {
+                    field = AccessibilityNodeInfo.obtain(node)
+                    break
+                }
+                current = node.parent; node.recycle()
+            }
+            val node = requireNotNull(field) { "CATALOG_FIELD_MISSING" }
+            return node.text?.toString().orEmpty().let { if (it == label) "" else it }
+        } finally { current?.recycle(); field?.recycle() }
+    }
+
+    private fun catalogCover(run: String, provider: String, node: AccessibilityNodeInfo, report: JSONObject) {
+        val bounds = Rect().also(node::getBoundsInScreen)
+        val screenshot = automation.takeScreenshot() ?: return
+        try {
+            requireCode(!bounds.isEmpty && bounds.left >= 0 && bounds.top >= 0 && bounds.right <= screenshot.width && bounds.bottom <= screenshot.height,
+                "CATALOG_COVER_BOUNDS_INVALID")
+            val crop = android.graphics.Bitmap.createBitmap(screenshot, bounds.left, bounds.top, bounds.width(), bounds.height())
+            try {
+                val file = privateFile("release-qualification-$run-catalog-$provider-cover.png")
+                requireCode(!file.exists(), "CATALOG_COVER_ALREADY_EXISTS")
+                file.outputStream().use { requireCode(crop.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it), "CATALOG_COVER_WRITE_FAILED") }
+                report.put("cover_crop_saved", true).put("cover_pixels_reviewed", false)
+            } finally { crop.recycle() }
+        } finally { screenshot.recycle() }
+    }
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation: UiAutomation get() = instrumentation.uiAutomation
 
@@ -1572,6 +1970,139 @@ class ReleaseApkBlackBoxTest {
         seekLabel(setOf(expected), "FIRE_METRIC_VALUE_MISSING", true).recycle()
     }
 
+
+    /** V11: fixed QA A, one host-adopted row per table; no production storage or API access. */
+    @Test fun qualifyReservedFumoForm() {
+        val run = preflight(18)
+        requireCode(dedicatedQaAccount().first == QA_USER, "FUMO_ACCOUNT_INVALID")
+        val op = InstrumentationRegistry.getArguments().getString("fumoOperation").orEmpty()
+        val allowed = setOf("cbd-read-cancel", "cbd-preserve-end", "cbd-clear-end", "cbd-complete", "cbd-delete-cancel", "cbd-delete",
+            "thc-read-cancel", "thc-clear-end", "thc-complete", "thc-delete",
+            "liquid-read-cancel", "liquid-clear-end", "liquid-complete", "liquid-delete")
+        requireCode(op in allowed, "FUMO_OPERATION_INVALID")
+        val phase = "fumo-$op"
+        requireNewNavigationReport(run, phase)
+        requireNewNavigationReport(run, "$phase-reservation")
+        val name = "release-qualification-$run-$phase-input.json"
+        val input = readJson(name, 4_096)
+        requireCode(input.keys().asSequence().toSet() == setOf("run_id", "user_id", "operation", "login_run_id", "day", "row_id") &&
+            input.optString("run_id") == run && input.optString("user_id") == QA_USER && input.optString("operation") == op,
+            "FUMO_INPUT_INVALID")
+        val loginRun = input.optString("login_run_id")
+        requireCode(runCatching { UUID.fromString(loginRun).toString() == loginRun && loginRun != run &&
+            UUID.fromString(input.optString("row_id")).toString() == input.optString("row_id") }.getOrDefault(false),
+            "FUMO_REFERENCE_INVALID")
+        fireRequireLogin(loginRun, QA_USER)
+        val day = runCatching { java.time.LocalDate.parse(input.optString("day")) }.getOrNull()
+        requireCode(day != null && day.toString() == input.optString("day") && java.time.LocalDate.now() == day &&
+            java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")) == day && day.minusDays(20).year == day.year,
+            "FUMO_DEVICE_DAY_MISMATCH")
+        val arrival = requireNotNull(day).minusDays(20)
+        val finish = arrival.plusDays(10)
+        val prefix = op.substringBefore('-')
+        val operation = op.substringAfter('-')
+        val tab = when (prefix) { "cbd" -> "CBD"; "thc" -> "THC"; else -> "Liquid" }
+        writeReport(run, "$phase-reservation", JSONObject(input.toString()).put("stage", "reserved"))
+        requireCode(privateFile(name).delete(), "FUMO_INPUT_CONSUMPTION_FAILED")
+        val report = baseReport(run, 18, phase).put("operation", op).put("login_run_id", loginRun)
+            .put("row_id", input.optString("row_id")).put("day", day.toString()).put("mutation_attempted", false)
+            .put("cleanup_pending", true)
+        try {
+            report.put("pid", launch())
+            financeOpenProfile()
+            requireEmail(QA_EMAIL)
+            awaitProfileRead()
+            report.put("settings_identity", true).put("profile_read", true)
+            financeEnter("Smoking")
+            fumoTop()
+            val control = seekLabel(setOf(tab), "FUMO_TAB_MISSING", true, true)
+            if (selectedControl(control)) control.recycle() else clickControl(control, "FUMO_TAB_REJECTED")
+            await("FUMO_TAB_NOT_SELECTED") { selected(tab) }
+            fumoTop()
+            await("FUMO_DATA_NOT_READY") { exists { label(it, setOf("Add")) && visible(it) && it.isEnabled && hasClickableAncestor(it) } }
+            seekLabel(setOf("Arrival/purchase date (YYYY-MM-DD): $arrival"), "FUMO_RECORD_DATE_MISSING", true).recycle()
+            if (operation == "read-cancel") {
+                val detail = when (prefix) {
+                    "cbd" -> "20 days · 2,00/day · 1,00\u00a0€/day · 30,00\u00a0€/month"
+                    "thc" -> "11 days · -/day · 1,00\u00a0€/day · 30,00\u00a0€/month"
+                    else -> "- days · 0,00/day · -/day · -/month"
+                }
+                seekLabel(setOf(detail), "FUMO_LEGACY_DETAIL_MISMATCH", true).recycle()
+                report.put("legacy_detail_seen", true)
+            }
+            if (operation in setOf("delete", "delete-cancel")) {
+                clickLabel(setOf("Delete"), "FUMO_DELETE_MISSING", true)
+                await("FUMO_DELETE_DIALOG_MISSING") { hasText("Delete this record?") }
+                if (operation == "delete-cancel") {
+                    clickLabel(setOf("Cancel"), "FUMO_CANCEL_MISSING")
+                    await("FUMO_CANCEL_NOT_CONFIRMED") { !hasText("Delete this record?") }
+                    report.put("cancelled_without_write", true)
+                } else {
+                    fumoBeforeSubmit(run, phase, report)
+                    clickLabel(setOf("Delete"), "FUMO_DELETE_CONFIRM_MISSING")
+                    await("FUMO_DELETE_NOT_CONFIRMED") { !hasText("Delete this record?") }
+                    fumoTop()
+                    seekLabel(setOf("No items. Add the first record."), "FUMO_EMPTY_LIST_MISSING", true).recycle()
+                    report.put("row_removed", true)
+                }
+            } else {
+                clickLabel(setOf("Edit"), "FUMO_EDIT_MISSING", true)
+                await("FUMO_EDITOR_MISSING") { hasText("Save") && hasText("Cost (€)") }
+                val endField = "End date (YYYY-MM-DD) (optional)"
+                if (operation == "read-cancel") {
+                    financeSetField("Cost (€)", "99")
+                    hideKeyboardIfShown()
+                    clickLabel(setOf("Cancel"), "FUMO_CANCEL_MISSING")
+                    await("FUMO_CANCEL_NOT_CONFIRMED") { !hasText("Save") }
+                    report.put("cancelled_without_write", true)
+                } else {
+                    when (operation) {
+                        "preserve-end" -> financeSetField("Cost (€)", "22")
+                        "clear-end" -> financeSetField(endField, "")
+                        "complete" -> financeSetField(endField, finish.toString())
+                        else -> throw IllegalStateException("FUMO_OPERATION_INVALID")
+                    }
+                    hideKeyboardIfShown()
+                    fumoBeforeSubmit(run, phase, report)
+                    clickLabel(setOf("Save"), "FUMO_SAVE_MISSING")
+                    await("FUMO_SAVE_NOT_CONFIRMED") { !hasText("Save") && !hasText("Saving…") }
+                    fumoTop()
+                    await("FUMO_RELOAD_NOT_CONFIRMED") { exists { label(it, setOf("Add")) && visible(it) && it.isEnabled && hasClickableAncestor(it) } }
+                    if (operation == "preserve-end")
+                        seekLabel(setOf("11 days · 2,00/day · 2,00\u00a0€/day · 60,00\u00a0€/month"), "FUMO_RECALCULATION_MISMATCH", true).recycle()
+                    if (operation == "complete") {
+                        val daily = if (prefix == "cbd") "2,20" else "1,10"
+                        val monthly = if (prefix == "cbd") "66,00" else "33,00"
+                        seekLabel(setOf("10 days · 2,20/day · $daily\u00a0€/day · $monthly\u00a0€/month"), "FUMO_RECALCULATION_MISMATCH", true).recycle()
+                    }
+                    report.put("form_closed", true)
+                }
+            }
+            requireCode(!exists { it.isPassword && visible(it) }, "FUMO_LOGIN_FALLBACK")
+            report.put("stage", "passed")
+        } catch (failure: Throwable) {
+            report.put("stage", "failed").put("failure_code", safeFailure(failure))
+            throw AssertionError(safeFailure(failure))
+        } finally { recordUiFlags(report); writeReport(run, phase, report) }
+    }
+
+    private fun fumoBeforeSubmit(run: String, phase: String, report: JSONObject) {
+        writeReport(run, "$phase-before-submit", JSONObject().put("run_id", run).put("user_id", QA_USER).put("stage", "before-submit"))
+        report.put("mutation_attempted", true)
+    }
+
+    private fun fumoTop() {
+        hideKeyboardIfShown()
+        repeat(32) {
+            if (exists { label(it, setOf("Add", "Update")) && visible(it) }) return
+            val container = find { it.isScrollable && visible(it) && it.className?.toString() != "android.widget.EditText" }
+            val bounds = container?.let { Rect().also(it::getBoundsInScreen) }
+            val moved = container?.let { try { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) } finally { it.recycle() } } ?: false
+            if (!moved) swipe(true, bounds)
+            SystemClock.sleep(250)
+        }
+        throw IllegalStateException("FUMO_HEADER_MISSING")
+    }
 
     /** V06: only native form controls mutate data; the host owns exact-row adoption and reconciliation. */
     @Test fun qualifyReservedPortfolioForm() {
