@@ -74,8 +74,8 @@ class CatalogRepositoryTest {
     }
 
     @Test fun cardPriceConvertsCentsAndPreservesUnavailableAsNull(): Unit = runBlocking {
-        backend.enqueue(json("""{"ctZeroLowPriceCents":1234,"totalListings":5}"""))
-        backend.enqueue(json("""{"ctZeroLowPriceCents":null,"totalListings":0}"""))
+        backend.enqueue(json("""{"quoteContractVersion":2,"blueprintId":"42","currency":"EUR","minorUnit":2,"ctZeroLowPriceCents":1234,"totalListings":5}"""))
+        backend.enqueue(json("""{"quoteContractVersion":2,"blueprintId":"43","currency":"EUR","minorUnit":2,"ctZeroLowPriceCents":null,"totalListings":0}"""))
         assertEquals(12.34, repository.cardPrice("42", "near_mint")!!, 1e-12)
         val request = backend.takeRequest().requestUrl!!
         assertEquals("prices", request.queryParameter("action"))
@@ -88,6 +88,28 @@ class CatalogRepositoryTest {
     @Test fun priceRejectsInvalidConditionBeforeNetwork(): Unit = runBlocking {
         try { repository.cardPrice("42", "unknown"); fail("Expected invalid condition") }
         catch (_: IllegalArgumentException) { assertEquals(0, backend.requestCount) }
+    }
+
+    @Test fun invalidBlueprintIsRejectedBeforeAnyProxyRequest(): Unit = runBlocking {
+        for (id in listOf("", "042", "legacy-uuid", "-1", "42.5", "1000000000000000")) {
+            assertTrue(runCatching { repository.cardPrice(id, "near_mint") }.isFailure)
+        }
+        assertEquals(0, backend.requestCount)
+    }
+
+    @Test fun unsafeSuccessfulDtoCannotBecomeAPriceOrTriggerAnotherRequest(): Unit = runBlocking {
+        for (body in listOf(
+            """{"ctZeroLowPriceCents":1250,"totalListings":1}""",
+            """{"quoteContractVersion":2,"blueprintId":"42","currency":"USD","minorUnit":2,"ctZeroLowPriceCents":1250,"totalListings":1}""",
+            """{"quoteContractVersion":2,"blueprintId":"43","currency":"EUR","minorUnit":2,"ctZeroLowPriceCents":1250,"totalListings":1}""",
+            """{"quoteContractVersion":2,"blueprintId":"42","currency":"EUR","minorUnit":2,"ctZeroLowPriceCents":0.5,"totalListings":1}""",
+        )) {
+            backend.enqueue(json(body))
+            assertTrue(runCatching { repository.cardPrice("42", "near_mint") }.isFailure)
+            assertEquals("GET", backend.takeRequest().method)
+        }
+        assertEquals(4, backend.requestCount)
+        assertEquals(0, books.requestCount)
     }
 
     @Test fun bookHttpFailureIsAnErrorAndNotAnEmptyCollection(): Unit = runBlocking {

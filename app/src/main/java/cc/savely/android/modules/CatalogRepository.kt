@@ -14,6 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.URLEncoder
+import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -37,14 +38,11 @@ class CatalogRepository(
     }
 
     suspend fun cardPrice(blueprintId: String, condition: String): Double? {
-        require(blueprintId.isNotBlank()) { "La carta non ha un identificativo CardTrader" }
+        require(Regex("[1-9][0-9]{0,14}").matches(blueprintId)) { "La carta non ha un identificativo CardTrader" }
         require(condition in CONDITIONS) { "Condizione carta non valida" }
         val result = api.getFunction("cardtrader-proxy", "action=prices&id=${encode(blueprintId)}&condition=${encode(condition)}")
         require(result is JSONObject) { "Risposta prezzi non valida" }
-        if (result.isNull("ctZeroLowPriceCents")) return null
-        val cents = result.getDouble("ctZeroLowPriceCents")
-        require(cents.isFinite() && cents >= 0) { "Prezzo ricevuto non valido" }
-        return cents / 100
+        return cardPriceFromResponse(result, blueprintId)
     }
 
     suspend fun searchBooks(query: String, comics: Boolean): List<JSONObject> {
@@ -90,6 +88,34 @@ class CatalogRepository(
     companion object {
         val CONDITIONS = listOf("near_mint", "lightly_played", "moderately_played", "heavily_played", "damaged")
         private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8.name())
+
+        /** A legacy unitless response is not evidence that its cents are EUR. Fail before any save. */
+        internal fun cardPriceFromResponse(result: JSONObject, blueprintId: String): Double? {
+            require(Regex("[1-9][0-9]{0,14}").matches(blueprintId) &&
+                result.opt("blueprintId") == blueprintId && result.opt("currency") == "EUR" &&
+                priceInteger(result, "quoteContractVersion", 2, 2) == 2L &&
+                priceInteger(result, "minorUnit", 2, 2) == 2L && result.has("ctZeroLowPriceCents")) {
+                "Risposta prezzi non valida"
+            }
+            val listings = priceInteger(result, "totalListings", 0, Int.MAX_VALUE.toLong())
+            if (result.isNull("ctZeroLowPriceCents")) {
+                require(listings == 0L) { "Risposta prezzi non valida" }
+                return null
+            }
+            require(listings > 0) { "Risposta prezzi non valida" }
+            val cents = priceInteger(result, "ctZeroLowPriceCents", 0, 9_999_999_999L)
+            return BigDecimal.valueOf(cents).movePointLeft(2).toDouble()
+        }
+
+        private fun priceInteger(result: JSONObject, key: String, minimum: Long, maximum: Long): Long {
+            val value = result.opt(key)
+            require(value is Number) { "Risposta prezzi non valida" }
+            val integer = try { BigDecimal(value.toString()).longValueExact() }
+                catch (_: NumberFormatException) { throw IllegalArgumentException("Prezzo ricevuto non valido") }
+                catch (_: ArithmeticException) { throw IllegalArgumentException("Prezzo ricevuto non valido") }
+            require(integer in minimum..maximum) { "Prezzo ricevuto non valido" }
+            return integer
+        }
 
         fun cardSeed(card: JSONObject): JSONObject = JSONObject().put("name", card.getString("name"))
             .put("card_id", card.getString("id")).put("set_code", card.optJSONObject("set")?.optString("name") ?: JSONObject.NULL)
