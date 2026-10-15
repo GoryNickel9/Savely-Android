@@ -7,6 +7,9 @@ import android.os.Build
 import android.os.LocaleList
 import android.util.DisplayMetrics
 import android.view.WindowManager
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -27,6 +30,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import cc.savely.android.data.BackendConfig
 import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
@@ -77,8 +84,10 @@ fun CommonVisualContent(profile: CommonVisualProfile = CommonVisualProfile.IT_LI
         LocalConfiguration provides configuration) {
         LocalizationProvider(preferences) {
             SavelyTheme(profile.theme) {
-                Box(Modifier.size(profile.widthDp.dp, profile.heightDp.dp).testTag(CommonVisualArtifacts.VIEWPORT)) {
-                    Surface(Modifier.fillMaxSize()) { content() }
+                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                    Box(Modifier.size(profile.widthDp.dp, profile.heightDp.dp).testTag(CommonVisualArtifacts.VIEWPORT)) {
+                        Surface(Modifier.fillMaxSize()) { content() }
+                    }
                 }
             }
         }
@@ -120,6 +129,14 @@ object CommonVisualArtifacts {
         val node = viewport.fetchSemanticsNode()
         val rootBounds = node.boundsInRoot
         val windowBounds = node.boundsInWindow
+        val windowGeometry = captureWindowGeometry()
+        val safe = windowGeometry?.optJSONObject("safeDrawingBoundsInWindowPx")
+        if (safe != null) check(windowBounds.left >= safe.getDouble("left") - 1.0 &&
+            windowBounds.top >= safe.getDouble("top") - 1.0 &&
+            windowBounds.right <= safe.getDouble("right") + 1.0 &&
+            windowBounds.bottom <= safe.getDouble("bottom") + 1.0) {
+            "Synthetic viewport must fit inside the actual window safe drawing area"
+        }
         val image = viewport.captureToImage().asAndroidBitmap()
         val directory = File(context.filesDir, "common-dataset-visual").apply { check(mkdirs() || isDirectory) }
         val file = File(directory, "$name.png")
@@ -130,6 +147,11 @@ object CommonVisualArtifacts {
             .put("actualWidthPx", image.width).put("actualHeightPx", image.height).put("physicalDensity", density)
             .put("displayWidthPx", display.widthPixels).put("displayHeightPx", display.heightPixels)
             .put("boundsInRootPx", bounds(rootBounds)).put("boundsInWindowPx", bounds(windowBounds))
+            .put("safeDrawingVerified", safe != null)
+            .put("windowGeometry", windowGeometry ?: JSONObject.NULL)
+            .put("viewportMatchesRequestedDp", abs(image.width / density - profile.widthDp) <= 1f &&
+                abs(image.height / density - profile.heightDp) <= 1f)
+            .put("viewportSizingPolicy", "requested size constrained by Activity and safeDrawing insets; actual dimensions are authoritative")
             .put("actualWidthDp", image.width / density).put("actualHeightDp", image.height / density)
             .put("fontScale", profile.fontScale.toDouble()).put("language", profile.language.tag).put("theme", profile.theme)
             .put("sdk", Build.VERSION.SDK_INT).put("device", Build.MODEL)
@@ -141,6 +163,35 @@ object CommonVisualArtifacts {
         File(directory, "$name.json").writeText(metadata.toString(2), Charsets.UTF_8)
         check(file.length() > 0)
         return file
+    }
+
+    private fun captureWindowGeometry(): JSONObject? {
+        var result: JSONObject? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).singleOrNull()
+            if (activity != null) {
+                val decor = activity.window.decorView
+                val location = IntArray(2).also(decor::getLocationInWindow)
+                if (decor.width > 0 && decor.height > 0) {
+                    val window = Rect(location[0].toFloat(), location[1].toFloat(),
+                        (location[0] + decor.width).toFloat(), (location[1] + decor.height).toFloat())
+                    result = JSONObject().put("boundsInWindowPx", bounds(window))
+                        .put("rootInsetsAvailable", false)
+                    ViewCompat.getRootWindowInsets(decor)?.let { rootInsets ->
+                        val insets = rootInsets.getInsets(WindowInsetsCompat.Type.systemBars() or
+                            WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime())
+                        val safe = Rect(window.left + insets.left, window.top + insets.top,
+                            window.right - insets.right, window.bottom - insets.bottom)
+                        result!!.put("rootInsetsAvailable", true)
+                            .put("safeDrawingInsetTypes", "systemBars|displayCutout|ime")
+                            .put("safeDrawingInsetsPx", JSONObject().put("left", insets.left).put("top", insets.top)
+                                .put("right", insets.right).put("bottom", insets.bottom))
+                            .put("safeDrawingBoundsInWindowPx", bounds(safe))
+                    }
+                }
+            }
+        }
+        return result
     }
 
     private fun bounds(rect: Rect): JSONObject = JSONObject().put("left", rect.left.toDouble())
