@@ -1,0 +1,30 @@
+[
+  {
+    "href": "mailto:privacy@savely.cc",
+    "label": "privacy@savely.cc"
+  },
+  {
+    "href": "https://supabase.com/privacy",
+    "label": "Privacy Notice"
+  },
+  {
+    "href": "https://vercel.com/privacy",
+    "label": "Privacy Notice"
+  },
+  {
+    "href": "https://www.garanteprivacy.it",
+    "label": "garanteprivacy.it"
+  },
+  {
+    "href": "mailto:privacy@savely.cc?subject=Domanda%20Privacy",
+    "label": "privacy@savely.cc"
+  },
+  {
+    "href": "/cookies",
+    "label": "Cookie Policy"
+  },
+  {
+    "href": "/terms",
+    "label": "Terms of Service"
+  }
+]

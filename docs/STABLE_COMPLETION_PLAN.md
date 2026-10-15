@@ -1,0 +1,106 @@
+# Piano di completamento della stabile
+
+## Qualifica Grafici V05 — candidata locale 0.1.16-alpha
+
+**[V05 è PASS LOCALE](CHARTS_QUALIFICATION.md)** nel criterio delle fixture comuni e acquisizioni IT/EN. Corretti i filtri rimasti su categorie/valute rimosse, aggiunto il tasso di risparmio decimale per valuta e sistemati i pulsanti dei grafici a font 200%. Produzione `522051c`, code 17; passano **570 JVM per variante**, lint senza errori e **13/13 Grafici API 31 in 107,677 s**. I test finali riproducono i due difetti sulle rispettive build precedenti.
+
+La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38558425255), fonte `522051c`, passa entrambi i job: **570 JVM e 219/219 Android 15/API 35**, zero failure/skip, UI 11m1,56s. La sola estensione della fixture `f84eb25` aggiunge i controlli Torta: **1/1 API 31 in 37,797 s**, con produzione invariata; non è una nuova suite completa API 35. **20 PNG e 20 JSON** revisionati, viewport effettivi 360×577 dp IT/font 100% e 320×577 dp EN/font 200%; gli 800 dp dei nomi sono la richiesta della fixture. Tentativi falliti, ANR SystemUI e run annullato restano documentati.
+
+**Undici criteri chiusi localmente, 22 aperti.** Nessun accesso o mutazione sul backend QA; emulatore locale spento. La candidata resta alpha e locale, senza pubblicazione: `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V06, Portafoglio**.
+
+## Consuntivo Ricorrenze V04 — candidata locale 0.1.15-alpha
+
+**[V04 è PASS LOCALE](RECURRING_FORM_QUALIFICATION.md).** Sul release firmato code 16, sorgente `a73d313`, passano 14 verifiche dei form e login/logout: creazione in pausa, modifica, calendario, ripresa, elaborazione `1/0/1`, reset della data, deduplica `0/1/1`, elaborazione vuota, pausa e annullamento della cancellazione. Il coordinatore host originale resta fallito per il parsing dei decimali REST; la ripresa corregge solo il parser, elimina i due record con CAS esatto e completa le nove operazioni del ledger, senza ripetere i form.
+
+Passano **567 JVM per variante**, **38/38 Finance e 1/1 preferenze per account su API 31**, **35 guardie ledger e otto CAS**. La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173), sullo stesso sorgente, passa build/lint/JVM e la suite completa di **213/213 test Android 15/API 35**, zero failure/skip. Gli APK UI della CI non sono archiviati: la parità dei byte con gli APK locali non è attestata. Lint locale senza errori. La cancellazione logica è provata nella fixture TLS; sul backend reale la ricorrenza resta visibile e in pausa fino al CAS, perché la RLS nasconde i record eliminati logicamente.
+
+Baseline QA ripristinato alle **10:47:31,815004 UTC del 14 ottobre 2026**: 33 categorie e zero transazioni/budget/ricorrenze/sessioni/fattori; emulatore locale QA31 spento. **Dieci criteri chiusi localmente, 23 aperti**. Nessuna pubblicazione; `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Alla chiusura di V04 seguiva V05, qualificato nel perimetro descritto sopra.
+
+## Consuntivo Finance V03 — candidata locale 0.1.14-alpha
+
+**[V03 è PASS LOCALE](FINANCE_FORM_QUALIFICATION.md) nel perimetro Dashboard, Transazioni, Categorie e Budget.** Produzione Finance `8b86ff2`, release firmato code 15/SHA-256 `3844b1717d194fe4bfacb4fe57ea2932056d1d0bbf2d2bb93584defd9c589b2f`. Nel run `cfec2d56` passano 18 verifiche dai form API 31/EN, con 14 operazioni CRUD osservate sul server. Il logout originale termina in timeout e resta fallito; il solo recupero UI, con driver `96f7598`, passa in 15,571 s. Seguono due eliminazioni host dei soli record adottati, con confronto dei valori originali. Il coordinatore originale conserva `passed=false`; il risultato finale certifica il perimetro Finance e il ripristino QA.
+
+Passano **558 JVM per variante**, **34 guardie host**, **37/37 Finance e 13/13 navigazione su ciascuna API 31/35** sul test APK `e4e96d21…`, più dieci controlli delle condizioni del recupero. Lint senza errori. Sono gruppi Android selezionati, non una nuova suite completa dell'app. Alle **20:01:17,787380 UTC del 13 ottobre 2026** le proiezioni QA e i record baseline sono ripristinati: 33 categorie, zero transazioni/budget/sessioni/fattori. Gli AVD QA31/QA35 sono spenti. **Nove criteri chiusi localmente, 24 aperti**; nessuna CI o pubblicazione. `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati.
+
+Dopo V03 il blocco successivo era **V04**, ora qualificato nel perimetro descritto sopra.
+
+## Consuntivo V02 — 13 ottobre 2026
+
+[V02 è chiusa localmente](NAVIGATION_FORM_QUALIFICATION.md): quindici checkpoint sul nuovo release firmato, gruppi selezionati su API 31/35 e pulizia QA verificata. Alla chiusura di V02 la matrice contava **otto criteri chiusi e 25 aperti**. La tabella seguente conserva la base storica di sette/26 all'avvio: le 2–4 ore previste per V02 non sono un tempo residuo e i tentativi/correzioni sono documentati nel rapporto. Il budget iniziale di 50–76 ore non è una promessa di uscita; il residuo va ristimato sui prossimi blocchi, senza sottrarre meccanicamente i successi parziali. Restano i prerequisiti esterni già elencati.
+
+Dopo V02 il criterio successivo era **V03**, ora chiuso nel perimetro descritto sopra. Parità globale e versione stabile restano aperte.
+
+## Base all'avvio di V02 — aggiornamento del 13 ottobre 2026
+
+Prevedere **40–60 ore di lavoro attivo di base**, più **8–12 ore di riserva**, quindi **48–72 ore** per preparare le prove residue, correggere i difetti emersi, integrare le regressioni e chiudere il pacchetto. La stima presuppone che le risorse esterne siano disponibili quando servono; la loro attesa è esclusa e non consente una promessa di data.
+
+La stima provvisoria di 40–60 ore resta plausibile **senza riserva**, se le implementazioni attuali superano i nuovi scenari e non cambiano i contratti distribuiti. È ottimista come impegno per una stabile completa: gli ultimi rapporti conservano errori del driver, blocchi Compose e recuperi. La riserva copre questo lavoro aggiuntivo, non una riscrittura o nuove funzionalità.
+
+Il punto di partenza della stima è il consuntivo D01: produzione `a104e8c`, APK locale 0.1.12-alpha/code 13, SHA-256 `3e5252bb4c4ff0b3b7c1630c92598cd8d909c1e27b48077699c1fea33fc74bd6`. All'avvio di V02 la [matrice](STABLE_VERIFICATION_MATRIX.md) conta **7 righe chiuse localmente e 26 aperte**: V01/R01/C01/C02/A04/A05/D01 sono chiuse nei rispettivi perimetri. Questa è la base storica della stima, non un nuovo consuntivo dell'APK in verifica V02. `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati.
+
+All'avvio V02 era **non qualificata**: il primo gruppo debug di dodici casi concludeva **sette successi e cinque fallimenti**, con driver nativo fallito e pulizia ancora in corso. Quei tentativi non riducevano le 26 righe della base. Il consuntivo conclusivo e i recuperi sono ora registrati nel rapporto V02, senza trasformare i tentativi falliti in PASS.
+
+Le 26 righe sono criteri di prova, non 26 funzioni da implementare. Più criteri condividono fixture, attori QA, dati e controlli. Non occorre rifare i blocchi già qualificati nel loro perimetro, ma i loro PASS non si trasferiscono automaticamente a nuovi byte dell'app.
+
+## Cinque blocchi di lavoro
+
+Le ore sono cumulative tra collaboratori e comprendono integrazione, evidenze e pulizia QA. Build e percorsi backend coordinati restano sequenziali: quattro agenti non dividono automaticamente il budget per quattro.
+
+| Blocco e righe coperte | Lavoro autonomo | Lavoro dopo prerequisiti esterni | Totale di base |
+|---|---:|---:|---:|
+| **1. Navigazione e finanza: V02–V08, V14** — 8 righe. Mapping, back/cambio account e ruoli; CRUD/filtri, ricorrenze, grafici, portafoglio, patrimonio e insights; errori/rete/vuoto e input. | 14–20 h | 0 h | 14–20 h |
+| **2. Moduli: V09–V13** — 5 righe. FIRE preferenze/import e conferma; Poker mese/concorrenza; Fumo tipi/legacy; TCG condizioni/valute; Libreria/Manga null, volumi e ripresa. | 8–12 h | 0 h | 8–12 h |
+| **3. Documenti: F01–F04** — 4 righe. CSV, ISIN/mapping, duplicati/esiti ambigui; export multipagina con entità popolate; process death e storage; picker e catena Bank2CSV. | 7–10 h | 1–2 h | 8–12 h |
+| **4. Account, servizi e telefono: A01–A03, D02, S01–S02, R03** — 7 righe. Rami Auth/profilo; email/PKCE e identità sacrificabile; azioni Admin escluse; Books/CardTrader/FX positivi; campione fisico. | 1–3 h | 5–7 h | 6–10 h |
+| **5. Continuità e decisione: R02, R04** — 2 righe. Regressione finale, upgrade autenticato, recovery fuori computer, revisione editoriale/addendum e pacchetto firmato. | 3–4 h | 1–2 h | 4–6 h |
+| **Somma senza riserva: 26 righe distinte** | **33–49 h** | **7–11 h** | **40–60 h** |
+
+La riserva di 8–12 ore si aggiunge una sola volta, non per ogni riga. Con giornate di otto ore dedicate al progetto, 48–72 ore corrispondono a sei–nove giornate cumulative di lavoro. Non sono un calendario di uscita: attese esterne e disponibilità delle risorse possono allungare il tempo trascorso senza aumentare altrettanto le ore attive.
+
+### Come sono costruite le ore
+
+| Blocco | Sottoattività, evitando di contare due volte i controlli condivisi |
+|---|---|
+| 1 | V02 **2–4 h**; CRUD finanza/ricorrenze **4–5 h**; grafici/patrimonio/insights **3–4 h**; portafoglio **3–4 h**; stati trasversali aggiuntivi **2–3 h**. Totale 14–20 h. |
+| 2 | FIRE **1,5–2,5 h**; Poker **2–3 h**; Fumo **1–1,5 h**; TCG **1,5–2,5 h**; Libreria/Manga **2–2,5 h**. Totale 8–12 h, esclusi i servizi reali del blocco 4. |
+| 3 | Import/ISIN/riconciliazione **3–4 h**; export multipagina e altre entità **2–3 h**; interruzioni/storage **2–3 h**; provider cloud **1–2 h**. Totale 8–12 h. Picker locale e Bank2CSV sono compresi nei primi tre punti. |
+| 4 | Rami e preparazione già disponibili **1–3 h**; email/identità dedicate/azioni escluse **3–4 h**, servizi positivi **1–2 h**, campione fisico **1 h**, dopo disponibilità delle risorse. Totale 6–10 h, senza attesa del fornitore. |
+| 5 | Regressione e upgrade della candidata finale **2–3 h**; consolidamento editoriale/pacchetto **1 h**; recovery su altro ambiente/supporto autorizzato **1–2 h**. Totale 4–6 h, senza trasporto o ottenimento del supporto. |
+
+Sono ipotesi di pianificazione, non benchmark. Comprendono nuove fixture o adattamenti del driver e correzioni limitate. Un difetto di persistenza o contratto che richieda modifiche a più componenti impone di ristimare il lavoro prima del blocco aggiuntivo.
+
+La dichiarazione min SDK 26 introduce una verifica ulteriore: [TESTING.md](TESTING.md) distingue le prove API 31/35 dalle API 26–28 non qualificate; sei casi documenti richiedono API 29+. Se la stabile mantiene il supporto dichiarato dal manifest, riservare **altre 2–4 ore autonome** per compatibilità sul minimo e percorsi documenti applicabili. Non sono comprese nelle prove API 31/35: il budget prudente diventa **50–76 ore**, sempre esclusa l'attesa esterna.
+
+## Evidenze esistenti e prove mancanti
+
+Il [confronto visivo](COMMON_VISUAL_PARITY_REVIEW.md) conserva 81 PNG nativi, 114 web appaiati, 28 casi mirati e il dataset comune. Osserva valori e presentazione; non copre tutti i form, filtri, stati vuoti e azioni dei primi due blocchi. `NavigationScreenTest`, `SavelyNavigationAccessibilityTest`, `FinanceScreenTest`, `CommonDatasetVisualTest` e le fixture di ciascun modulo sono punti di ripresa, non prove del nuovo percorso firmato.
+
+V02 richiede **tutte le destinazioni del mapping [FEATURE_PARITY.md](FEATURE_PARITY.md)**, back, cambio login e destinazioni negate, conservando lingua e tema. Includere IT/EN, font grande e ruoli A/B/Admin; verificare assenza di dati precedenti dopo cambio ruolo/sessione. Il campione firmato non deve conservare la lista completa degli utenti Admin. Le **2–4 ore sono una previsione all'avvio**, comprendente preparazione, percorsi, correzioni limitate, evidenze e pulizia: non indicano il tempo ancora necessario dopo i tentativi falliti. Le ore aggiuntive vanno registrate nella riserva o ristimate con il consuntivo del blocco.
+
+`FirePersistenceTest`, `FireSharingScreenTest`, `PokerScreenTest`, `FumoScreenTest`, `TcgScreenTest`, `LibraryScreenTest`, `CollectionScreenTest` e le fixture delle panoramiche coprono già casi significativi. V09–V13 chiedono i rami residui: form EN completo, account diversi, default DB, concorrenza sul mese Poker, CBD/THC, categorie e ripresa Manga. S01/S02 sono conteggiate a parte per evitare di ripetere il costo dei servizi.
+
+Le [evidenze release](SIGNED_RELEASE_QUALIFICATION.md) del code 11 osservano export locale di undici categorie, annulla/process death del picker, preview BANK/USD e NORMALIZED/EUR, più un form FX positivo. Le altre tabelle erano vuote: non dimostrano pagine reali multiple, export di altre entità popolate, import committato o provider cloud. `TransferDocumentScreenTest`, `TransferMutationRepositoryTest`, `TransferExportSessionTest` e `TransferParityScreenTest` permettono di preparare i rami senza rete; F02/F03 richiedono anche riletture dopo scrittura e riconciliazione QA.
+
+I rapporti [MFA](MFA_FORM_QUALIFICATION.md), [sessioni](SESSION_FORM_QUALIFICATION.md) e [Admin](ADMIN_FORM_QUALIFICATION.md) qualificano i propri criteri locali, non tutta l'app minificata. La vecchia suite completa API 31/35 e R01 conservano sorgente/APK; 545 JVM e dodici test Admin recenti non sono una nuova suite Android completa. Il pacchetto stabile deve associare regressione finale, firma/checksum, sorgente, fixture e campioni R8 allo stesso candidato, senza presentare tutti i test debug come test R8.
+
+## Dipendenze che impediscono la chiusura completa oggi
+
+| Risorsa mancante o non qualificata | Criteri e conseguenza |
+|---|---|
+| **Mailbox controllata assente** | A02, rami A01/A03 e reset reale D02. I tre QA `example.invalid` non ricevono email. SMTP dichiarato riuscito, conferma forzata o callback sintetico non qualificano consegna, link ricevuto e recovery reale. Preparare le fixture resta autonomo; serve un destinatario autorizzato per concludere. |
+| **Telefono fisico indisponibile per prove dettagliate** | R03 resta aperta. La conferma generale del Doogee S100 sulla 0.1.7 non qualifica i nuovi byte. L'utente ha escluso ulteriori prove dettagliate sul proprio telefono: occorre un altro dispositivo autorizzato o una decisione esplicita sul perimetro. L'AVD non sostituisce il gate né l'interoperabilità scanner MFA fisica non osservata. |
+| **Identità sacrificabile e finestra globale autorizzata** | Delete reale A03/D02 e switch registrations D02. Non cancellare i tre QA riutilizzabili. Occorrono identità dedicata e finestra esplicita per lo switch, con ripristino delle registrazioni disabilitate. D01 non copre queste azioni. |
+| **Provider cloud e servizi positivi** | F01/F03 richiedono un provider controllato, non ancora attestato. S01 conserva HTTP 429, senza ricerca Books riuscita. S02 ha un esempio FX USD e contratti CardTrader storici, senza chiudere form EUR, altre date/valute o indisponibilità. Bank2CSV è separato nel browser: provare CSV prodotto→picker→preview→commit, senza introdurre XLS/XLSX o convertitore PDF nativo assenti dal web. |
+| **Recovery fuori computer non qualificata** | R02: archivio AES e chiave separata sono recuperati/usati sullo stesso computer. Mancano copia protetta ed esecuzione su altro ambiente autorizzato, conservando gli originali. Un secondo percorso dello stesso disco non chiude il criterio. |
+
+Non è disponibile **alcuna durata d'attesa garantita**. Le 7–11 ore della tabella indicano le azioni quando le risorse saranno disponibili, non il tempo per ottenere mailbox, dispositivo, quota Books o supporto recovery. Senza queste risorse è possibile migliorare la qualifica locale; una stabile con tutte le funzioni qualificate non può essere attestata in 40, 60 o 76 ore dal solo lavoro sul codice.
+
+## Sequenza e controllo del budget
+
+1. V02 conclusa localmente: mapping, policy A/B/Admin, cambio login e profili IT/EN/tema/font sono consuntivati. Proseguire con V03 e i criteri finanza residui, mantenendo le evidenze per singolo blocco.
+2. Qualificare finanza/moduli dalle fixture esistenti, con le sole scritture QA necessarie; registrare divergenze prima delle correzioni e rileggere UUID/valori dopo ogni scrittura.
+3. Provare documenti con dati popolati e interruzioni reali; aprire servizi e account soltanto quando i prerequisiti autorizzati sono pronti.
+4. Dopo ogni blocco confrontare ore attive e budget, ristimando solo i residui. Non sommare successi parziali di run interrotti; conservare fallimenti e recuperi.
+5. Congelare la fonte finale, completare regressione/upgrade autenticato, recovery/editoria e compatibilità dichiarata; produrre APK/checksum/rapporto. Pubblicazione ed eventuali esclusioni richiedono una decisione propria, senza CI necessaria.
+
+Fonti: [matrice dei 26 residui](STABLE_VERIFICATION_MATRIX.md), [gate non di codice](STABLE_NON_CODE_GATES.md), [qualifica firmata](SIGNED_RELEASE_QUALIFICATION.md), [release](RELEASE.md), [inventario Bank](BANK_INVENTORY.md) e rapporti locali citati. I numeri 29/31/32 nelle sezioni storiche non sostituiscono il head D01 con 26 residui. Questo piano non aggiorna roadmap, baseline o qualifiche; durante la redazione non vengono eseguiti test, build, dispositivi, backend o CI.

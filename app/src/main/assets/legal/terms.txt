@@ -1,0 +1,59 @@
+Termini di servizio
+
+Condizioni d'uso della piattaforma Savely
+
+L'accesso e l'utilizzo della piattaforma Savely (il "Servizio") implicano l'accettazione integrale dei presenti Termini di servizio. Ti invitiamo a leggerli attentamente. Registrando un account dichiari di averli compresi e accettati.
+
+1. Descrizione del Servizio
+
+Savely è un'applicazione web gratuita per la gestione e il monitoraggio della finanza personale. Consente di registrare entrate e uscite, definire budget, tracciare obiettivi di risparmio, monitorare un portfolio di investimenti e accedere a moduli opzionali (fumo, collezioni TCG, libreria, spese condivise con familiari). Il Servizio è fornito "così com'è", a scopo informativo e di produttività personale.
+
+2. Account e responsabilità dell'utente
+
+• Per utilizzare il Servizio devi avere almeno 16 anni o il consenso di chi esercita la responsabilità genitoriale.
+
+• Sei responsabile dell'accuratezza, della veridicità e della liceità dei dati che inserisci.
+
+• Sei responsabile della riservatezza delle tue credenziali di accesso e di tutte le attività svolte dal tuo account.
+
+• Ti impegni a non usare il Servizio per scopi illeciti, abusivi o dannosi per terzi.
+
+• È consentito un account per persona.
+
+3. Natura informativa — non consulenza finanziaria
+
+Savely non fornisce consulenza finanziaria, fiscale, legale o d'investimento. I calcoli, gli indicatori (es. FIRE, asset allocation) e le statistiche mostrate hanno scopo unicamente informativo e didattico. Non costituiscono raccomandazione personalizzata.
+
+Le decisioni finanziarie sono di tua esclusiva responsabilità. Consulta professionisti abilitati prima di assumere decisioni rilevanti.
+
+4. Proprietà intellettuale
+
+Il codice sorgente del Servizio è pubblicato come software open source su GitHub: l'utilizzo del codice è disciplinato dalla licenza riportata nel repository, mentre l'utilizzo del Servizio ospitato resta regolato dai presenti Termini.
+
+I dati che inserisci rimangono di tua proprietà. Marchi, identità visiva e contenuti del sito restano del Titolare, che non ne concede alcun uso salvo quanto previsto dalla licenza del codice.
+
+5. Sospensione e cessazione dell'account
+
+Puoi chiudere il tuo account in qualsiasi momento dalla sezione Impostazioni → Zona Pericolo → Elimina account: l'eliminazione è irreversibile e comporta la cancellazione di tutti i tuoi dati.
+
+Il Titolare si riserva di sospendere o disabilitare account in caso di violazione dei presenti Termini, di usi abusivi del Servizio o per motivi di sicurezza.
+
+6. Limitazione di responsabilità
+
+Il Servizio è fornito "così com'è" e "come disponibile". Nella misura massima consentita dalla legge, il Titolare non risponde di interruzioni, malfunzionamenti, perdita di dati, danni diretti o indiretti derivanti dall'uso o dall'impossibilità di usare il Servizio. Non è garantita la continuità assoluta del servizio né l'assenza di errori.
+
+Si raccomanda di mantenere copie di backup dei dati rilevanti utilizzando la funzione di esportazione disponibile in Impostazioni.
+
+7. Modifiche al Servizio e ai Termini
+
+Il Titolare può aggiornare o modificare il Servizio e i presenti Termini. Le modifiche ai Termini entrano in vigore dalla pubblicazione su questa pagina. Un uso continuato del Servizio dopo le modifiche equivale ad accettazione.
+
+8. Legge applicabile e foro competente
+
+I presenti Termini sono regolati dalla legge italiana e dal Regolamento (UE) 2016/679 (GDPR). Per qualsiasi controversia è competente in via esclusiva il Foro del domicilio del Titolare, salva diversa disposizione inderogabile di legge a tutela del consumatore.
+
+9. Contatti
+
+Per domande sui presenti Termini, contatta il Titolare all'indirizzo info@savely.cc.
+
+Vedi anche la Privacy Policy e la Cookie Policy.

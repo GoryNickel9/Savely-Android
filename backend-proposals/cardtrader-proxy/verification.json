@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "scope": "cardtrader-proxy tracked review proposal",
+  "status": "review-ready-not-deployed",
+  "preparedAtUtc": "2026-10-14T14:45:40.586530+00:00",
+  "webSource": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "deployedPreimageObserved": {
+    "created_at": 1775066463422,
+    "entrypoint_path": "file:///tmp/user_fn_crqnfbahytzenisospcx_23c851ba-f056-4fe2-a04d-52a8536a266a_17/source/supabase/functions/cardtrader-proxy/index.ts",
+    "id": "23c851ba-f056-4fe2-a04d-52a8536a266a",
+    "import_map_path": null,
+    "name": "cardtrader-proxy",
+    "slug": "cardtrader-proxy",
+    "status": "ACTIVE",
+    "updated_at": 1788023380248,
+    "verify_jwt": false,
+    "version": 17
+  },
+  "deployedSourceByteEqualPinnedWeb": true,
+  "stagingVerification": {
+    "path": "artifacts/s02-proxy-preparation/verification.json",
+    "sha256": "e383e9a5622e35917508cb1f209951ac2b911e61c6e03acfdb0b00d9bd4669e6",
+    "originalFilesUnchanged": true
+  },
+  "copiedTestedFiles": [
+    {
+      "path": "index.ts",
+      "sha256": "7cf548a09c79384083e85017b31bc71104695e6683bd6f827e6a5248f536ec98",
+      "bytes": 8434,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "quote-contract.ts",
+      "sha256": "8d9c48e045af778ca448f4ab0415143d8646e82f496220f2e0580f9db7d1fee8",
+      "bytes": 5406,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "quote-contract_test.ts",
+      "sha256": "07e82d9b488af13467da026bc0c22b694f361bba7583c13287a7602fda757eba",
+      "bytes": 5764,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "run-offline.mjs",
+      "sha256": "d6f886e361cfff18e3298122939b3cf078e95178a1677c6a3bbe58f71d16e7a2",
+      "bytes": 9363,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "tsconfig.offline.json",
+      "sha256": "0d3ffe146464646f024fec48ff3311887239976472bd466908e3b98e0a68cf36",
+      "bytes": 234,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "upstream.patch",
+      "sha256": "b6e31162d06aa505dad2cf8813353f97bf18530ea3f4130abe9ee7fc3f496f69",
+      "bytes": 8915,
+      "byteEqualTestedStaging": true
+    }
+  ],
+  "runtime": {
+    "node": "24.19.0",
+    "typescriptStrictCompiler": "5.8.3",
+    "deno": "2.9.7",
+    "denoTypeScript": "6.0.3",
+    "denoBinarySha256": "e020f3e232bd16e33768dee528e5983349c962952051ced0a5d58ad42f5d9b33",
+    "edgeRuntimeVerified": false,
+    "upstreamSdkSpecifier": "https://esm.sh/@supabase/supabase-js@2",
+    "sdkSpecifierPinned": false
+  },
+  "historicalStagingResults": {
+    "node": {
+      "passed": 28,
+      "failed": 0,
+      "pure": 16,
+      "handler": 12,
+      "exitCode": 0,
+      "log": "artifacts/s02-proxy-preparation/offline-final.log"
+    },
+    "deno": {
+      "passed": 16,
+      "failed": 0,
+      "samePureCasesAsNode": true,
+      "runtimePermissions": "all denied",
+      "reportedDurationMs": 464,
+      "exitCode": 0,
+      "log": "artifacts/s02-proxy-preparation/deno-test-final.log"
+    },
+    "initialFailure": {
+      "scope": "test fixture typecheck before test execution",
+      "code": "TS18048",
+      "log": "artifacts/s02-proxy-preparation/deno-test-attempt1.log",
+      "correction": "options.headers -> options?.headers; exact header assertion retained",
+      "productionSourceChanged": false
+    },
+    "initialNode": {
+      "passed": 28,
+      "failed": 0,
+      "log": "artifacts/s02-proxy-preparation/offline-attempt1.log"
+    },
+    "kotlin": {
+      "newJvmCasesPrepared": 10,
+      "androidClassMethods": 3,
+      "androidClassMethodsAdded": 0,
+      "unsafeDtoVariantsAddedToExistingAndroidCase": 4,
+      "profiles": 2,
+      "compiled": false,
+      "executed": false
+    }
+  },
+  "historicalStagingCommands": [
+    {
+      "scope": "helper strict types[]",
+      "command": "node ../Savely/node_modules/typescript/bin/tsc --project artifacts/s02-proxy-preparation/tsconfig.offline.json --pretty false",
+      "exitCode": 0,
+      "log": "artifacts/s02-proxy-preparation/strict-typecheck-attempt1.log"
+    },
+    {
+      "scope": "Deno handler check only",
+      "command": "artifacts/runtime/deno-v2.9.7/deno.exe check --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --allow-import=esm.sh artifacts/s02-proxy-preparation/index.ts",
+      "exitCode": 0,
+      "log": "artifacts/s02-proxy-preparation/deno-check-attempt1.log"
+    },
+    {
+      "scope": "upstream patch applicable only; not applied",
+      "command": "git -C ../Savely apply --check C:/Users/GoryNickel/Documents/GitHub/Savely-Android/artifacts/s02-proxy-preparation/upstream.patch",
+      "exitCode": 0,
+      "log": "artifacts/s02-proxy-preparation/patch-check.log"
+    },
+    {
+      "scope": "native active patch applicable only; not applied",
+      "command": "git apply --check artifacts/s02-proxy-preparation/native-v12/native-active.patch",
+      "exitCode": 0,
+      "log": "artifacts/s02-proxy-preparation/native-v12/patch-check.log"
+    },
+    {
+      "command": "node artifacts/s02-proxy-preparation/run-offline.mjs"
+    },
+    {
+      "command": "artifacts/runtime/deno-v2.9.7/deno.exe test --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --deny-net --deny-env --deny-read --deny-write --deny-run --deny-ffi --deny-sys --deny-import --no-prompt artifacts/s02-proxy-preparation/quote-contract_test.ts"
+    }
+  ],
+  "verificationReuse": {
+    "basis": "exact byte identity of source/helper/tests/runner/tsconfig/patch",
+    "testsRerunDuringCopy": false,
+    "nodePassed": 28,
+    "denoPassed": 16,
+    "denoRepeatsNodePureCases": true,
+    "runnerRelativePathUnchanged": true,
+    "runnerResolvesSameLocalTypeScript": true,
+    "runnerRelativeDependency": "../../../Savely/node_modules/typescript/lib/typescript.js",
+    "permanentCommandsExecuted": false
+  },
+  "reproduciblePermanentCommands": [
+    "node backend-proposals/cardtrader-proxy/run-offline.mjs",
+    "node ../Savely/node_modules/typescript/bin/tsc --project backend-proposals/cardtrader-proxy/tsconfig.offline.json --pretty false",
+    "artifacts/runtime/deno-v2.9.7/deno.exe check --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --allow-import=esm.sh backend-proposals/cardtrader-proxy/index.ts",
+    "artifacts/runtime/deno-v2.9.7/deno.exe test --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --deny-net --deny-env --deny-read --deny-write --deny-run --deny-ffi --deny-sys --deny-import --no-prompt backend-proposals/cardtrader-proxy/quote-contract_test.ts"
+  ],
+  "ignoredHistoricalEvidence": [
+    {
+      "path": "artifacts/s02-proxy-preparation/deno-check-attempt1.log",
+      "sha256": "94812f0c5febddc02e325834e449d9a9920e0283fff739098c615927012c7414",
+      "bytes": 48
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/deno-test-attempt1.log",
+      "sha256": "919582ede3eddefb92a681ba63cea7dc26ddb3cd0b5af703d8bb2c431dece3ce",
+      "bytes": 557
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/deno-test-final.log",
+      "sha256": "8b84bc2e3d054700f370062c2ebec57a0d3176a7e2737ae44d3533011ccce308",
+      "bytes": 1556
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/deployed-backup/body.eszip",
+      "sha256": "abe60a7cef81679b9b4aee5734a66dee784e4e2a65b2f7be4a699de4bb4dbb65",
+      "bytes": 262925
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/deployed-backup/index.ts",
+      "sha256": "715c2e5b6e940de1efec3ea4cdbc15f8b415c46b56086e2207fe531f7348bfbb",
+      "bytes": 9542
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/deployed-backup/metadata.json",
+      "sha256": "bc50e98ecbe2f09ee40a4950eec725c3bbd30621b24eefbd1c083d6bbde23328",
+      "bytes": 379
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/deployed-backup/read-result.json",
+      "sha256": "719b0261b4be6bd0ef619d59fbfa9dced313c01ca97c83e971485850d5f24378",
+      "bytes": 879
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/deployed-backup/source-extraction.json",
+      "sha256": "6ebe4e75e4ee0768e07bbdb2ce468184302a6e1219bc931ddeeb1eb7f9b7a08f",
+      "bytes": 424
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/native-v12/patch-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/offline-attempt1.log",
+      "sha256": "e249f94eee81384ce83d6b74afd5e2767f93ea536f8e7948ba229e222992b8c0",
+      "bytes": 23871
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/offline-final.log",
+      "sha256": "e249f94eee81384ce83d6b74afd5e2767f93ea536f8e7948ba229e222992b8c0",
+      "bytes": 23871
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/patch-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "artifacts/s02-proxy-preparation/strict-typecheck-attempt1.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  ],
+  "nativeProposal": {
+    "scope": "V12 source-only proposal in ignored staging",
+    "path": "artifacts/s02-proxy-preparation/native-v12/",
+    "compiled": false,
+    "executed": false,
+    "newJvmCasesPrepared": 10,
+    "androidTestMethodsAdded": 0,
+    "unsafeDtoVariantsAdded": 4,
+    "stagingTestMethods": 3
+  },
+  "deployment": {
+    "executed": false,
+    "bundleOnlyExecuted": false,
+    "canaryExecuted": false,
+    "userAuthorizationRequired": true,
+    "approvalSeparateFrom": "update-prices and the other S02 service",
+    "plan": "DEPLOYMENT_PLAN.md",
+    "noCronInvocationOrCustomerWrites": true
+  },
+  "copyOperation": {
+    "networkRequests": 0,
+    "backendWrites": 0,
+    "activeNativeFilesChanged": false,
+    "webRepositoryChanged": false,
+    "commitCreated": false,
+    "lfPolicy": "* text eol=lf, same as existing backend-proposals/update-prices"
+  },
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 75,
+      "sha256": "07e4921ff78548c0f97633ba38be57c19ee03fdfe302d420fef5822b98120a1f"
+    },
+    {
+      "path": "DEPLOYMENT_PLAN.md",
+      "bytes": 4008,
+      "sha256": "30267e0dbb225bc51d067943f4a7fc71a93acd4649339fc78afe85f6a5781182"
+    },
+    {
+      "path": "index.ts",
+      "bytes": 8434,
+      "sha256": "7cf548a09c79384083e85017b31bc71104695e6683bd6f827e6a5248f536ec98"
+    },
+    {
+      "path": "quote-contract.ts",
+      "bytes": 5406,
+      "sha256": "8d9c48e045af778ca448f4ab0415143d8646e82f496220f2e0580f9db7d1fee8"
+    },
+    {
+      "path": "quote-contract_test.ts",
+      "bytes": 5764,
+      "sha256": "07e82d9b488af13467da026bc0c22b694f361bba7583c13287a7602fda757eba"
+    },
+    {
+      "path": "README.md",
+      "bytes": 11371,
+      "sha256": "ca6c8063a0242cbf94f8359a7dccb278654d5ccbb684c2d4d6a68fc4b6c22652"
+    },
+    {
+      "path": "run-offline.mjs",
+      "bytes": 9363,
+      "sha256": "d6f886e361cfff18e3298122939b3cf078e95178a1677c6a3bbe58f71d16e7a2"
+    },
+    {
+      "path": "tsconfig.offline.json",
+      "bytes": 234,
+      "sha256": "0d3ffe146464646f024fec48ff3311887239976472bd466908e3b98e0a68cf36"
+    },
+    {
+      "path": "upstream.patch",
+      "bytes": 8915,
+      "sha256": "b6e31162d06aa505dad2cf8813353f97bf18530ea3f4130abe9ee7fc3f496f69"
+    }
+  ]
+}

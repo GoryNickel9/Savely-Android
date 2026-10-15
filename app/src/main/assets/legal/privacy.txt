@@ -1,0 +1,107 @@
+Privacy Policy
+
+Informativa ex art. 13 del Regolamento (UE) 2016/679 (GDPR)
+
+La presente informativa descrive come Luca Baldino (di seguito, il "Titolare") tratta i dati personali degli utenti della piattaforma Savely (il "Servizio"). Leggila con attenzione prima di registrarti o utilizzare l'app.
+
+1. Titolare del trattamento
+
+• Nome: Luca Baldino
+
+• Email: privacy@savely.cc
+
+• Codice fiscale: BLDLCU95H20I452X
+
+• Sede: Via Ettore Sacchi 102, 07046 Porto Torres (SS), Italia
+
+Per qualsiasi richiesta relativa ai tuoi dati personali (compreso l'esercizio dei diritti di cui alla sez. 7) puoi scrivere al Titolare all'email sopra indicata.
+
+2. Tipologie di dati trattati
+
+Il Servizio tratta le seguenti categorie di dati personali:
+
+• Dati di registrazione e account: nome, indirizzo email, password (criptata), dati di autenticazione.
+
+• Dati finanziari inseriti dall'utente: transazioni, entrate/uscite, budget, risparmi, obiettivi di risparmio.
+
+• Dati di portfolio: asset finanziari, quantità, prezzi, ISIN, movimentazioni inserite manualmente o importate da file CSV.
+
+• Dati di profilazione e categorie: categorie personalizzate con etichette, emoji e colori.
+
+• Dati opzionali dei moduli: spese ricorrenti, dati sul fumo, collezioni TCG, libreria, spese condivise con familiare.
+
+• Dati tecnici: indirizzo IP, tipo di browser, dati di sessione necessari per il funzionamento e la sicurezza.
+
+Nessun dato di pagamento viene raccolto o trattato: il Servizio è gratuito e non gestisce transazioni finanziarie reali. I dati finanziari presenti sono soltanto quelli che tu inserisci manualmente a fini di monitoraggio.
+
+3. Finalità e basi giuridiche del trattamento
+
+I tuoi dati sono trattati per le seguenti finalità, ciascuna con la propria base giuridica:
+
+• Erogazione del Servizio (art. 6 lett. b GDPR — contratto): creazione e gestione dell'account, autenticazione, salvataggio e visualizzazione dei dati finanziari.
+
+• Obblighi di legge (art. 6 lett. c GDPR): eventuali adempimenti fiscali o contabili, conservazione dei log di sicurezza.
+
+• Legittimo interesse (art. 6 lett. f GDPR): sicurezza del Servizio, prevenzione di abusi o frodi, miglioramento tecnico e diagnosi di malfunzionamenti.
+
+• Consenso (art. 6 lett. a GDPR): per eventuali funzionalità opzionali che lo richiedano. Il consenso è revocabile in qualsiasi momento.
+
+Il trattamento è necessario per fornirti il Servizio: senza i dati di account e finanziari, Savely non può funzionare. Rifiutarti di fornirli comporta l'impossibilità di registrarti o usare l'app.
+
+4. Destinatari dei dati e subprocessori
+
+I tuoi dati sono trattati esclusivamente dal Titolare e dai seguenti responsabili esterni del trattamento (subprocessori), selezionati per fornire l'infrastruttura tecnica del Servizio:
+
+• Supabase Inc. — Autenticazione, database (PostgreSQL), storage e funzioni serverless (regione: Unione Europea (Irlanda)). Informativa privacy.
+
+• Vercel Inc. — Hosting dell'applicazione web e funzioni serverless (regione: Unione Europea (Dublino)). Informativa privacy.
+
+I dati non vengono venduti, ceduti a terzi a fini commerciali né utilizzati per profilazione o pubblicità.
+
+5. Trasferimento dei dati al di fuori dell'UE
+
+L'infrastruttura del Servizio risiede nell'Unione Europea: il database è ospitato in Irlanda (Supabase) e l'applicazione è distribuita dalla regione di Dublino (Vercel). Non sono previsti trasferimenti intenzionali dei dati fuori dallo Spazio Economico Europeo; qualora in futuro fossero necessari trasferimenti tecnici extra-UE, avverrebbero con le garanzie adeguate previste dal GDPR (es. clausole contrattuali tipo approvate dalla Commissione Europea) e unicamente per le finalità tecniche necessarie.
+
+6. Periodo di conservazione
+
+I dati sono conservati per l'intera durata del tuo account. Puoi richiedere in qualsiasi momento l'accesso, la rettifica o la cancellazione dei tuoi dati (sez. 7). L'eliminazione dell'account comporta la cancellazione definitiva di tutti i dati associati, inclusi transazioni, budget, obiettivi, portfolio e dati dei moduli opzionali.
+
+I log tecnici necessari per la sicurezza possono essere conservati per un periodo limitato anche successivamente all'eliminazione dell'account, ove previsto da obblighi di legge o di tutela.
+
+7. I tuoi diritti (artt. 15–22 GDPR)
+
+In qualità di interessato hai diritto di:
+
+• Accesso (art. 15): ottenere conferma del trattamento e una copia dei tuoi dati.
+
+• Rettifica (art. 16): correggere dati inesatti o incompleti.
+
+• Cancellazione (art. 17 — "diritto all'oblio"): richiedere la cancellazione dei tuoi dati e del tuo account.
+
+• Limitazione (art. 18): limitare il trattamento in determinate condizioni.
+
+• Portabilità (art. 20): ricevere i tuoi dati in formato strutturato e riutilizzabile (CSV).
+
+• Opposizione (art. 21): opporti al trattamento per legittimo interesse.
+
+• Revoca del consenso (art. 7): revocare un consenso precedentemente prestato.
+
+• Reclamo all'autorità (art. 77): proporre reclamo al Garante per la Protezione dei Dati Personali (garanteprivacy.it).
+
+8. Sicurezza dei dati
+
+Il Titolare adotta misure tecniche e organizzative adeguate a proteggere i dati personali, tra cui: crittografia in transito (TLS/HTTPS), autenticazione con password, isolamento dei dati per utente tramite Row Level Security a livello di database, e accesso limitato ai sistemi. Nessun sistema è tuttavia inattaccabile: nessuna garanzia di sicurezza assoluta può essere fornita.
+
+9. Profiling e decisioni automatizzate
+
+Il Servizio non effettua profilazione né decisioni automatizzate con effetti giuridici o similmente significative sull'utente (art. 22 GDPR).
+
+10. Modifiche all'informativa
+
+Il Titolare si riserva di aggiornare la presente informativa per riflettere cambiamenti normativi o funzionali del Servizio. La data di ultimo aggiornamento è indicata in fondo alla pagina. Ti invitiamo a consultare periodicamente questa pagina.
+
+11. Contatti
+
+Per qualsiasi domanda, richiesta o segnalazione relativa al trattamento dei dati personali, contatta il Titolare all'indirizzo privacy@savely.cc.
+
+Vedi anche la Cookie Policy e i Termini di servizio.

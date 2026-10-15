@@ -1,0 +1,293 @@
+{
+  "status": "deployed-readback-and-scoped-qa-canary-passed",
+  "web_baseline": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "baseline_index_sha256": "5673b9694706fad8f8ba8426a7c6d400bc2e6593f00ecaad50f3443c71faa91c",
+  "auth_jwt_cron_block_unchanged": true,
+  "quote_contract_version": 2,
+  "offline_result": {
+    "scope": "offline-synthetic-only",
+    "total": 28,
+    "passed": 28,
+    "failed": 0
+  },
+  "offline_evidence": {
+    "path": "artifacts/v06-price-contract-preparation/package-lf-offline-run.log",
+    "sha256": "461ddbd30708067808160f03cacb97733af6d25e95e23f4b4d41564abdd735d5"
+  },
+  "offline_execution": "Executed on the LF package with Node and existing sibling web TypeScript; fake providers and database only, no network.",
+  "deno_validation_executed": true,
+  "live_validation_executed": true,
+  "deployment_authorized": true,
+  "deployment_executed": true,
+  "new_schema_or_config": false,
+  "files": {
+    "index.ts": "edb0e48b02a5cae884f256f2a635ad0522452086ce63d4e26a04e042f5376f6f",
+    "quote-contract.ts": "a231e311459cdcc18282c961586a18ae9efb54e0c86387b7a5bbdeeb0c7ac050",
+    "quote-contract_test.ts": "57c8f19f241bb33d51d9713604e57df406f8e31d325001f67688241b2de794e0",
+    "run-offline.mjs": "a73c98b032594d6e76da8021755c75e999479092f5b87d51340b92e1c330a32b",
+    "upstream.patch": "fa1c6767234f8617d65a15bd88ea596b52d95f1cf61b62e33686b2be2bd7b943",
+    "tsconfig.offline.json": "bce6d76a75be347165245f555c8fbd048e292f55c70abf817b54aea6a7401d1a",
+    ".gitattributes": "07e4921ff78548c0f97633ba38be57c19ee03fdfe302d420fef5822b98120a1f",
+    "README.md": "74a2e15855ff350ec538f605343b2ac57c3cbe4f2abd7e7dcac24fedcf792bf3",
+    "DEPLOYMENT_PLAN.md": "3bd3c7fabb5473f24b4eff6561ae2a93cdb21eebf5bafda8729e87b3a224f7ea",
+    "DEPLOYMENT_REPORT.md": "159d83e75bcd65643119ae7019f259ae3210f77f20aaf8f55744287945778454"
+  },
+  "historical_offline_verification": {
+    "scope": "before-cash-read-preflight-change",
+    "offline_result": {
+      "scope": "offline-synthetic-only",
+      "total": 27,
+      "passed": 27,
+      "failed": 0
+    },
+    "offline_evidence": {
+      "path": "artifacts/v06-price-contract-preparation/offline-run.log",
+      "sha256": "5a2f40d830c4738fe5e5f1d4c365297b04ce217f4aca0b6971d43599496afba8"
+    },
+    "files": {
+      "index.ts": "ea6ef15e756a6ac3057057449c7f6f01de536c99aad4b503ba56b3d3b1f31b6b",
+      "quote-contract.ts": "a231e311459cdcc18282c961586a18ae9efb54e0c86387b7a5bbdeeb0c7ac050",
+      "quote-contract_test.ts": "57c8f19f241bb33d51d9713604e57df406f8e31d325001f67688241b2de794e0",
+      "run-offline.mjs": "bc46d4b6a3c169c328fc85d0ab24b6a7e587d839a7330206500ce6e8b30c4c47",
+      "upstream.patch": "e7a9d58a49e199a5ca645aaaa8b71503c359e98676ec162f09e4f9ed145b8256"
+    }
+  },
+  "offline_result_scope": "current-LF-package-files",
+  "offline_case_counts": {
+    "pure_cases": 18,
+    "handler_cases": 10
+  },
+  "typecheck": {
+    "status": "passed",
+    "exit_code": 0,
+    "typescript_version": "5.8.3",
+    "scope": "quote-contract.ts only; ES2022 and DOM standard types; no Deno/index.ts/remote SDK validation",
+    "command": "node ../Savely/node_modules/typescript/lib/tsc.js --project backend-proposals/update-prices/tsconfig.offline.json --pretty false",
+    "strict": true,
+    "types": [],
+    "network_used": false,
+    "evidence": {
+      "path": "artifacts/v06-price-contract-preparation/package-lf-strict-typecheck.log",
+      "sha256": "e6ef22bfc5a8a2ab91cbe61e903c2fd614fe89369d05e18055a77f26ea639815"
+    }
+  },
+  "patch_check": {
+    "status": "passed",
+    "exit_code": 0,
+    "command": "git -C ../Savely apply --check -- <absolute-package-path>/upstream.patch",
+    "web_baseline": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "web_modified": false,
+    "evidence": {
+      "path": "artifacts/v06-price-contract-preparation/patch-check.log",
+      "sha256": "aa2bc641d9d69155d1f1ab7f478ffcc5f1b4093f434b36a3f55e8ba01fc3cb44"
+    }
+  },
+  "line_endings": {
+    "package": "LF pinned by nested .gitattributes",
+    "normalized_files": [
+      "index.ts",
+      "run-offline.mjs"
+    ],
+    "offline_runner_and_strict_typecheck_repeated_after_normalization": true
+  },
+  "historical_cash_preflight_verification": {
+    "scope": "staging-before-package-LF-normalization",
+    "offline_result": {
+      "scope": "offline-synthetic-only",
+      "total": 28,
+      "passed": 28,
+      "failed": 0
+    },
+    "offline_evidence": {
+      "path": "artifacts/v06-price-contract-preparation/cash-preflight-offline-run.log",
+      "sha256": "6389ed57c49a9a84e101ee9502c0cffb98aeacf0d6fa49b017e1ca224d0fcf6a",
+      "tested_files": {
+        "index.ts": "a7410daf048997cbe28f07de6a9b5a2da3056946d01cd88a33d1cab807c034c9",
+        "quote-contract.ts": "a231e311459cdcc18282c961586a18ae9efb54e0c86387b7a5bbdeeb0c7ac050",
+        "quote-contract_test.ts": "57c8f19f241bb33d51d9713604e57df406f8e31d325001f67688241b2de794e0",
+        "run-offline.mjs": "84b9bfd651e2efe0425521063c7450314ac3364d7b4a00bf8beb639572d0b382",
+        "upstream.patch": "fa1c6767234f8617d65a15bd88ea596b52d95f1cf61b62e33686b2be2bd7b943"
+      }
+    }
+  },
+  "offline_exit_code": 0,
+  "deno_runtime": {
+    "version": "2.9.7",
+    "source": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+    "official_release": "https://github.com/denoland/deno/releases/tag/v2.9.7",
+    "archive_sha256": "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238",
+    "archive_digest_source": "GitHub official release asset digest",
+    "binary_sha256": "e020f3e232bd16e33768dee528e5983349c962952051ced0a5d58ad42f5d9b33",
+    "global_install": false,
+    "path": "artifacts/runtime/deno-v2.9.7/deno.exe",
+    "typescript_version": "6.0.3",
+    "v8_version": "15.0.245.2-rusty",
+    "supabase_edge_runtime_version_verified": false
+  },
+  "deno_check": {
+    "status": "passed",
+    "exit_code": 0,
+    "scope": "handler plus local helper and remote SDK declarations; typecheck only, no handler execution",
+    "command": "deno check --no-config --no-lock --no-npm --node-modules-dir=none --allow-import=esm.sh backend-proposals/update-prices/index.ts",
+    "import_network_hosts": [
+      "esm.sh"
+    ],
+    "resolved_sdk_version": "2.117.3",
+    "source_sdk_specifier_unchanged": "https://esm.sh/@supabase/supabase-js@2",
+    "evidence": {
+      "path": "artifacts/v06-price-contract-preparation/deno-check-attempt2.log",
+      "sha256": "2c5bf86ac0bfb3460774fb33cfafb3b6654894aba2b0644609f6555e8ea963eb"
+    },
+    "earlier_cli_rejection": {
+      "exit_code": 1,
+      "reason": "unsupported check flag --no-prompt; source not checked",
+      "path": "artifacts/v06-price-contract-preparation/deno-check-attempt1.log",
+      "sha256": "face846e802d5813cb518a19cfb0c056aa7891190824f5486f5c134e80d209fe"
+    }
+  },
+  "deno_test": {
+    "status": "passed",
+    "exit_code": 0,
+    "total": 18,
+    "passed": 18,
+    "failed": 0,
+    "scope": "pure quote contract; synthetic fetch only; no real backend/provider",
+    "command": "deno test --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --deny-net --deny-env --deny-read --deny-write --deny-run --deny-ffi --deny-sys --deny-import --no-prompt backend-proposals/update-prices/quote-contract_test.ts",
+    "evidence": {
+      "path": "artifacts/v06-price-contract-preparation/deno-test.log",
+      "sha256": "94ee7b5fb106ec2844b3a7f0b702b76c4485cb301c7f5d2b4126db6e3fb294b8"
+    }
+  },
+  "deployment_plan": {
+    "path": "DEPLOYMENT_PLAN.md",
+    "executed": true,
+    "expected_preimage_version": 16,
+    "verify_jwt": false,
+    "backup_eszip_sha256": "1348961e3f0e8f62a38d2fd16277da38a97b0d55b17283cb32cf47b669d3b01d",
+    "version_number_preserved_by_redeploy": false,
+    "rollback_executed": false
+  },
+  "historical_proposal_status": "proposal-not-applied-not-deployed",
+  "deployment": {
+    "backup_sha256": "1348961e3f0e8f62a38d2fd16277da38a97b0d55b17283cb32cf47b669d3b01d",
+    "exact_original_module_hashes": {
+      "index.ts": "edb0e48b02a5cae884f256f2a635ad0522452086ce63d4e26a04e042f5376f6f",
+      "quote-contract.ts": "a231e311459cdcc18282c961586a18ae9efb54e0c86387b7a5bbdeeb0c7ac050"
+    },
+    "function_id": "ebab8b27-d721-4b3b-80a9-c8945de4691f",
+    "function_invoked": false,
+    "post_attempts": 1,
+    "post_http_status": 201,
+    "previous_version": 16,
+    "proposal_commit": "ca9754784c8c15f5588e1797e3a60d8597cc37eb",
+    "qa_test_executed": false,
+    "readback_bytes": 293813,
+    "readback_sha256": "74801a62b657a8f4bad0490538e2d8ad2321049d67238987b087dffa2ee274c4",
+    "rollback_executed": false,
+    "run_id": "4d0fdd26-0a67-418a-b1cf-9a44f6116105",
+    "stage": "deployed_readback_verified",
+    "status": "ACTIVE",
+    "verify_jwt": false,
+    "version": 17,
+    "scope": "deployment-only phase; function_invoked and qa_test_executed describe this phase, not the later canary"
+  },
+  "deployment_result_sha256": "158115d8a67b719e9505eee1e08a430237abdee7fa5dd33ffcfe91d61fd7c385",
+  "live_validation_scope": "A native AAPL USD positive; B host BTC USD mismatch; exact adopted-row cleanup; not all providers/currencies/cron",
+  "qa_canary": {
+    "run_id": "1216fd9d-fa37-409f-afff-00280e208259",
+    "path": "artifacts/v06-price-canary/1216fd9d-fa37-409f-afff-00280e208259",
+    "status": "passed",
+    "function_version": 17,
+    "quote_contract_version": 2,
+    "device_api": 31,
+    "locale": "en",
+    "release_sha256": "bf86519c97c4b1dca8fb971800e6da6fec4f3b6b682a86f06f6f4b8b9947fe39",
+    "harness_sha256": "e7d28ff36ae9e90258f0020bb46790985886de4850b6f04ac37649305d79e7cc",
+    "install_scope": "fresh install after exact owned synthetic debug-package replacement; not authenticated upgrade",
+    "positive": {
+      "actor": "qa_a",
+      "transport": "native form",
+      "symbol": "AAPL",
+      "currency": "USD",
+      "asset_price": "345.53",
+      "history_price": "345.53",
+      "checked": 1,
+      "updated": 1,
+      "errors": [],
+      "manual_updates": 1,
+      "price_logs": 1
+    },
+    "negative": {
+      "actor": "qa_b",
+      "transport": "host JWT memory only",
+      "symbol": "BTC",
+      "currency": "USD",
+      "http_status": 200,
+      "checked": 1,
+      "updated": 0,
+      "error": "QUOTE_CURRENCY_MISMATCH",
+      "asset_price_unchanged": "0.02",
+      "asset_history_manual_writes": 0,
+      "expected_price_logs": 1
+    },
+    "native_tests": {
+      "total": 3,
+      "passed": 3,
+      "login_seconds": 12.923,
+      "prices_seconds": 23.36,
+      "logout_seconds": 17.004,
+      "total_seconds": 53.287,
+      "historical_crud_test_count": 17,
+      "historical_crud_run_is_separate": true
+    },
+    "offline_guards": {
+      "total": 13,
+      "passed": 13,
+      "failed": 0,
+      "duration_seconds": 0.204,
+      "evidence_path": "artifacts/v06-price-canary-preparation/offline-guards-attempt3.log",
+      "sha256": "2f78362bfbe225eb546a0cafd35e44beb845496a11d337538fe580b391624f03"
+    },
+    "review_path": "artifacts/v06-price-canary-review.json",
+    "runner_sha256": "0c601cd144cd7b7dbb781e43f82947c8c2afeef4c268cb0b4ce130a57be4d993",
+    "guards_sha256": "3e6e5eab0080800360a8973cbad999ad5b71cc2fcf687f807de216c9237d782f",
+    "guard_tests_sha256": "b6f3c255c1b50a65020497f29c7b9efea4a3ec43cb0bce2643ad2b6569c172d9",
+    "cleanup": {
+      "baseline_restored": true,
+      "cleanup_pending": false,
+      "deleted_rows": {
+        "portfolio_assets": 2,
+        "asset_price_history": 1,
+        "manual_price_updates": 1,
+        "price_update_logs": 2
+      },
+      "total_deleted": 6,
+      "categories_preserved": 33,
+      "net_worth_snapshots_preserved": 6,
+      "server_sessions_zero": true,
+      "server_factors_zero": true,
+      "completed_at_utc": "2026-10-14T14:25:22.917393+00:00",
+      "rollback_executed": false
+    },
+    "evidence_sha256": {
+      "evidence/result.json": "f7784c397790cd0125fa41e6a9bf32f6b695c80805e701b3a8732b82cce5241c",
+      "evidence/preflight.json": "e1604ba80c41c5fd14972de768d7839bdf50049689f016d64810bac0ff8cbacb",
+      "evidence/a-prices-observed.json": "70f1076e5466f7fc0492f1837af62a6b83e306783027ad3cd669f8388a9950b7",
+      "evidence/b-prices-observed.json": "5580e729a22d45c2d38afe5379d76b3480a621be19eefa1e07f60376baf971f0",
+      "evidence/a-logged-out.json": "f4ddb1df0f4837bd07a51ab2ed1836ec5ddc77ef09f2e0b041e5471409df7d37",
+      "evidence/b-logged-out.json": "8eff1276581d0aee8b08652072e1a344ef98044d39d36555abb5b63b28a2d1c4",
+      "evidence/cleanup-price_update_logs-dfdaf00d-b821-426c-93a9-8bbeebefd488-observed.json": "519e772b5272bd5fac290938c4773a0cbe59accd442857b79cc0456f7d0482a9",
+      "evidence/login-native-result.json": "67f1bfa7c1b893cfff67939664abacc2a200d5a53f4179694f485a42928cd65a",
+      "evidence/prices-native-result.json": "85ce3c6c1d18cdc719ce6f1d928966d59dcbd29324735b8e1107b8990285b5ef",
+      "evidence/logout-native-result.json": "b9fce93ab17dd4057914fe371ddccfca8a71017df719e76d428a54d4265f5f60"
+    },
+    "limits": [
+      "one accepted symbol/currency and one rejected mismatch",
+      "B negative is host API, not native UI",
+      "not a cron or all-provider availability qualification",
+      "no independent raw Yahoo tick comparison",
+      "previous incorrect prices not repaired",
+      "web source patch not applied"
+    ]
+  }
+}

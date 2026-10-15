@@ -1,0 +1,55 @@
+name: Build signed APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-apk:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      SAVELY_STORE_PASSWORD: ${{ secrets.SAVELY_STORE_PASSWORD }}
+      SAVELY_KEY_PASSWORD: ${{ secrets.SAVELY_KEY_PASSWORD }}
+      SAVELY_KEY_ALIAS: ${{ secrets.SAVELY_KEY_ALIAS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SAVELY_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_ANON_KEY"
+          test -n "$KEYSTORE_BASE64" && test -n "$SAVELY_STORE_PASSWORD"
+          test -n "$SAVELY_KEY_PASSWORD" && test -n "$SAVELY_KEY_ALIAS"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/savely-release.jks"
+          printf 'SAVELY_KEYSTORE=%s\n' "$RUNNER_TEMP/savely-release.jks" >> "$GITHUB_ENV"
+      - name: Build and verify
+        shell: bash
+        run: |
+          bash gradlew :app:assembleRelease :app:lintRelease :app:testDebugUnitTest --no-daemon
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          cd app/build/outputs/apk/release
+          sha256sum app-release.apk > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: savely-signed-alpha
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/SHA256SUMS
+            app/build/outputs/mapping/release/mapping.txt
+            app/build/reports/lint-results-release.html
+      - name: Remove temporary signing key
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/savely-release.jks"

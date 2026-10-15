@@ -1,0 +1,4 @@
+# Public client configuration only. Never use a service_role or secret key.
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_OR_PUBLISHABLE_KEY
+WEB_URL=https://savely.cc

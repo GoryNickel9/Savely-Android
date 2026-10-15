@@ -1,0 +1,16 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+savely.properties
+*.jks
+*.keystore
+signing.properties
+signing/
+.idea/
+captures/
+artifacts/
+tools/.cache/
+supabase/.temp/
+**/__pycache__/
+*.log

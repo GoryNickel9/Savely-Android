@@ -20,7 +20,7 @@ Il Gestore attività mostra applicazioni, processi e risorse; può esporre ulter
 
 Gradle e Kotlin possono mantenere daemon dopo la build; ADB mantiene un server sul computer. Prima di riprendere altre attività, chiudere gli strumenti di sviluppo e terminare normalmente le sessioni di test. Non terminare indiscriminatamente tutti i processi Java, perché possono appartenere ad altre applicazioni. [Gradle Daemon](https://docs.gradle.org/current/userguide/gradle_daemon.html), [Kotlin daemon](https://kotlinlang.org/docs/gradle-compilation-and-caches.html), [ADB](https://developer.android.com/tools/adb), [Android Emulator](https://developer.android.com/studio/run/emulator-commandline).
 
-Durante questa attività sono stati eseguiti soltanto letture, ricerche, operazioni Git e scrittura di documentazione. Non sono stati avviati Android Studio, build Gradle, ADB o emulatori.
+Durante lo sviluppo sono stati eseguiti build Gradle, test JVM, ADB e l'emulatore SavelyTest. I risultati effettivi sono in [TESTING.md](TESTING.md). L'app non interagisce con il client poker.
 
 ## Cosa dichiarano le fonti PokerStars
 

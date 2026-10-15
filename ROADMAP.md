@@ -1,8 +1,118 @@
 # Roadmap Savely Android
 
-Data: 11 ottobre 2026. Stato: pianificazione, sviluppo non avviato.
+**[V12, TCG: fixture locali qualificate](docs/TCG_QUALIFICATION.md)**. Passano 623 JVM per variante, lint debug/release senza errori e **8/8 API 31 in 110,582 s**, con 111,942 s host; 16 PNG e 16 JSON IT/EN revisionati. Il parser CardTrader v2 verifica identità, EUR e centesimi interi. Conservati il primo 6/8 e le correzioni del solo test, con main invariato. **V12 e il residuo nativo S02 restano aperti al percorso sul release firmato: 15 criteri chiusi localmente, 18 aperti.** Nessun nuovo R8 o rilascio pubblico. Il lavoro si ferma a V12; emulatore QA API 31 spento.
+
+**[V11, Fumo: fixture locali qualificate](docs/FUMO_QUALIFICATION.md)**. Passano 611 JVM per variante, lint senza errori, 72 confronti web e **15/15 API 31 in 256,038 s**; dieci PNG/JSON IT/EN revisionati. Corretti TIMESTAMPTZ, arrotondamenti ed esiti incerti dei form; le failure precedenti restano conservate. **V11 resta aperto alle 16 invocazioni firmate: 15 criteri chiusi localmente, 18 aperti.** Nessun nuovo R8 o rilascio pubblico; segue V12, TCG.
+
+**[V10, Poker, è PASS LOCALE](docs/POKER_QUALIFICATION.md)**: 601 JVM per variante, lint debug senza errori e **12/12 API 31 in 442,269 s**, nove PNG/JSON IT/EN revisionati. Corretti cutoff locale della mediana, overflow e gestione degli esiti incerti di Next Cut. Sei risultati del codice web fissato coincidono. Due client QA hanno entrambi creato lo stesso mese: assenza di unicità server documentata, sole due righe rimosse con CAS e baseline ripristinato. **15 criteri chiusi localmente, 18 aperti**; nessun nuovo R8 o rilascio pubblico. V09 conserva il percorso firmato; segue V11, Fumo.
+
+## Stato corrente — FIRE V09: fixture locali qualificate
+
+**[V09 resta aperto](docs/FIRE_QUALIFICATION.md).** Sorgente `eb2ffed`, main debug congelato `923037…`: 593 JVM per variante, 24/24 FIRE API 31 in 261,134 s. Dieci nuovi casi qualificano form EN e confini del login; le fixture precedenti verificano draft, persistenza, default DB, import/condivisione e proiezione. Cinque failure iniziali e isolato conservati; correzioni limitate alle fixture. Il percorso firmato da 21 invocazioni, force-stop/nuovo PID e annullamento del chooser reale resta da eseguire. **14 criteri chiusi localmente, 19 aperti**; nessuna nuova qualifica R8 o parità globale.
+
+## Consuntivo Portafoglio V06 e Insights V08 — candidata locale 0.1.17-alpha
+
+**[V08 è PASS LOCALE](docs/INSIGHTS_QUALIFICATION.md)**: 593 JVM per variante, lint debug senza errori, 11/11 API 31 in 79,068 s e 18 PNG/18 JSON IT/EN revisionati. Otto rilevatori, soglie, filtri/severità, testi e stati vuoto/errore sono verificati nelle fixture. Il testo delle perdite allinea i pareggi negativi a `Math.round`; i tentativi iniziali e diagnostici falliti restano conservati.
+
+**Quattordici criteri chiusi localmente, 19 aperti.** Il canary V06 sul servizio v17 passa: AAPL USD aggiornato dal form, BTC USD rifiutato per valuta incompatibile e baseline QA ripristinato. Flag globali invariati, nessuna pubblicazione o nuova build R8. Segue **V09, FIRE**.
+
+## Consuntivo Patrimonio V07
+
+**[V07 è PASS LOCALE](docs/NET_WORTH_QUALIFICATION.md)** nel criterio delle fixture e del confronto con le fonti web. Passano 590 JVM per variante, lint debug senza errori e 10/10 API 31 in 67,506 s. Revisionati dieci PNG e dieci JSON IT/EN. Snapshot senza valuta e totale corrente per valuta restano distinti; i componenti malformati sono rifiutati. La percentuale sulla base negativa coincide con il web. Nessuna mutazione QA o nuova build release R8.
+
+Alla chiusura di V07 erano **dodici criteri chiusi localmente e 21 aperti**. Flag globali invariati, nessuna pubblicazione. V08 è qualificato nel perimetro sopra.
+
+## Consuntivo Portafoglio V06 — candidata locale 0.1.17-alpha
+
+[V06](docs/PORTFOLIO_QUALIFICATION.md) passa 586 JVM per variante, 14/14 fixture API 31 e 17 verifiche native sul release firmato, con baseline QA ripristinato. Il servizio v16 poteva applicare quotazioni nella valuta errata. La correzione `ca97547`, verificata offline/Deno, è [distribuita come v17 con bundle verificato](backend-proposals/update-prices/DEPLOYMENT_REPORT.md). Il canary separato passa tre metodi nativi API 31 e il rifiuto host B: asset/storico AAPL entrambi 345,53 USD, BTC invariato salvo il log atteso. Sei record adottati eliminati con CAS; alle 14:25:22,917393 UTC del 14 ottobre 2026 sessioni/fattori zero, 33 categorie e sei snapshot conservati. **V06 è PASS LOCALE.** La CI `38567179309` passa build e 222/224 Android; due timeout iniziali restano falliti, con causa non dimostrata e diagnostica aggiunta solo ai test.
+
+Al checkpoint CRUD erano **undici criteri chiusi localmente e 22 aperti**. Con V07, V08 e il canary V06 conclusi sono **14 chiusi e 19 aperti**. Nessuna pubblicazione; flag globali invariati. Nella nuova CI `38580288372` il job build è fallito e il job UI conclude 229/230, con una verifica raster USD da diagnosticare; questo campione locale non ne cambia gli esiti. Segue **V09, FIRE**.
+
+## Consuntivo Grafici V05 — candidata locale 0.1.16-alpha
+
+**[V05 è PASS LOCALE](docs/CHARTS_QUALIFICATION.md)** nel criterio delle fixture comuni e acquisizioni IT/EN. Corretti i filtri rimasti su categorie/valute rimosse, aggiunto il tasso di risparmio decimale per valuta e sistemati i pulsanti dei grafici a font 200%. Produzione `522051c`, code 17; passano **570 JVM per variante**, lint senza errori e **13/13 Grafici API 31 in 107,677 s**. I test finali riproducono i due difetti sulle rispettive build precedenti.
+
+La [CI finale](https://github.com/GoryNickel9/Savely-Android/actions/runs/38558425255), fonte `522051c`, passa entrambi i job: **570 JVM e 219/219 Android 15/API 35**, zero failure/skip, UI 11m1,56s. La sola estensione della fixture `f84eb25` aggiunge i controlli Torta: **1/1 API 31 in 37,797 s**, con produzione invariata; non è una nuova suite completa API 35. **20 PNG e 20 JSON** revisionati, viewport effettivi 360×577 dp IT/font 100% e 320×577 dp EN/font 200%; gli 800 dp dei nomi sono la richiesta della fixture. Tentativi falliti, ANR SystemUI e run annullato restano documentati.
+
+**Undici criteri chiusi localmente, 22 aperti.** Nessun accesso o mutazione sul backend QA; emulatore locale spento. La candidata resta alpha e locale, senza pubblicazione: `globalParityVerified=false`, `verifiedApkVersion=null` e `datasetCasesExecuted=false` restano invariati. Prossimo blocco: **V06, Portafoglio**.
+
+## Consuntivo Ricorrenze V04 — candidata locale 0.1.15-alpha
+
+[V04 è PASS LOCALE](docs/RECURRING_FORM_QUALIFICATION.md): 14 form sul release firmato API 31/EN, con calendario, pausa/ripresa, prima creazione, reset della data, deduplica e annullamento della cancellazione. Corretti validazione prima dell'HTTP, PATCH ambigui, isolamento dell'ignore e controlli durante riconciliazione. Passano 567 JVM per variante, 38 Finance + una preferenze API 31 e la [CI finale: 213/213 Android 15](https://github.com/GoryNickel9/Savely-Android/actions/runs/38549914173); lint senza errori.
+
+Il coordinatore host originale resta fallito per il parser numerico; la ripresa completa solo i due CAS e ripristina il baseline QA. Zero transazioni/budget/ricorrenze/sessioni/fattori QA; 33 categorie originali ed emulatore locale spento. La RLS richiede di provare il soft delete nella fixture locale e pulire sul backend la ricorrenza ancora in pausa e visibile. Nessuna policy modificata.
+
+**V01/V02/V03/V04/R01/C01/C02/A04/A05/D01: dieci righe chiuse localmente, 23 aperte.** Parità globale non qualificata e nessuna pubblicazione. Alla chiusura di V04 seguiva V05, ora qualificato nel perimetro sopra.
+
+## Consuntivo Finance V03 — candidata 0.1.14-alpha
+
+[V03 è PASS LOCALE](docs/FINANCE_FORM_QUALIFICATION.md) nel perimetro Finance: 18 verifiche dai form API 31/EN e 14 CRUD con riletture sul server. Corretti i confini della sessione per letture/salvataggi e la validazione prima dell'HTTP. Il logout originale resta fallito per timeout; il recupero UI separato passa in 15,571 s, poi due cleanup host esatti ripristinano il baseline. Passano 558 JVM per variante, 34 guardie host, 37/37 Finance e 13/13 navigazione per ciascuna API 31/35; lint senza errori. QA originali, sessioni/fattori zero e AVD di qualifica spenti.
+
+**V01/V02/V03/R01/C01/C02/A04/A05/D01: nove righe chiuse localmente, 24 aperte.** Parità globale non qualificata, nessuna CI o pubblicazione. Dopo V03 il blocco successivo era **V04**, ora qualificato nel perimetro descritto sopra.
+
+Consuntivo V02 sulla precedente candidata locale 0.1.13-alpha:
+
+[V02](docs/NAVIGATION_FORM_QUALIFICATION.md) è **PASS LOCALE**. Produzione `3ae685f`, release firmato code 14/SHA-256 `38fb4b33a8db74912c0c294d486db4310a4e2b5eb4756492ad662d4471f138d5`. Il run finale conclude tutti i quindici checkpoint, con tre account QA, quattro sessioni distinte e i soli cambi autorizzati di B.Fire. Le destinazioni Admin/A/B, Indietro, azione nativa «Altro», diniego, revoca e ripristino sono osservati; il client Admin secondario tiene i token in RAM.
+
+Il ritorno a Dashboard non ripristina più il child salvato. Il callback Back del menu viene registrato nuovamente alla sua apertura; nuovi login ricreano navigazione e cache, mentre il refresh conserva lo stato dello stesso login. La regressione Dashboard fallisce sulla build precedente e passa su quella corretta con lo stesso APK test. Passano 552 JVM per variante e, per ciascuna API 31/35, 13 casi navigazione e 33 sicurezza. Lint senza errori; tentativi falliti e recuperi conservati.
+
+Snapshot finale **13:54:57,827055 UTC del 13 ottobre 2026**: permessi/proiezioni dei tre QA originali, sessioni/fattori zero e registrazioni disabilitate. AVD QA31/QA35 spenti. **V01/V02/R01/C01/C02/A04/A05/D01: otto righe chiuse localmente, 25 aperte.** La candidata resta alpha e locale; nessuna CI o pubblicazione, parità globale non qualificata. I gruppi selezionati non sono una nuova suite completa dell'app.
+
+Alla chiusura di V02 il blocco successivo era **V03**, ora concluso nel perimetro descritto sopra.
+
+## Consuntivo precedente — qualifica Admin locale 0.1.12-alpha
+
+[D01](docs/ADMIN_FORM_QUALIFICATION.md) è **PASS LOCALE**: produzione `a104e8c`, release firmato code 13/SHA-256 `3e5252bb4c4ff0b3b7c1630c92598cd8d909c1e27b48077699c1fea33fc74bd6`. Un metodo nativo API 31/EN conclude undici checkpoint in 84,583 s. Annullamento, modifica/ripristino Fire, concessione temporanea del ruolo Admin a QA B, revoca del ruolo principale con cache/dialogo svuotati, ripristino e logout sono osservati. QA B è un client host con token in RAM, non un secondo telefono.
+
+Passano **545 JVM per variante debug/release**, 24 guardie host offline e **12/12 fixture Admin su ciascuna API 31/35**, in 49,164/54,507 s; lint zero errori, 32 warning e sei hint per variante. Le patch rileggono il ruolo prima delle azioni e della pubblicazione e vincolano le letture alla sessione. I primi tentativi del driver, il timeout JVM intermedio e tre esecuzioni UI bloccate sono conservati. La regola Compose standard passa i casi isolati e le suite finali; la causa precisa del blocco dei frame non è dimostrata. La correzione Finance riguarda solo la sincronizzazione della fixture.
+
+I tre profili QA tornano ai permessi iniziali; fattori/sessioni e attività nelle tabelle controllate sono zero, registrazioni disabilitate, emulatori spenti. **V01/R01/C01/C02/A04/A05/D01: sette righe chiuse nei rispettivi perimetri locali, 26 aperte.** La candidata resta locale; nessuna CI o pubblicazione. Non sono qualificati reset email, eliminazione utenti, toggle globale o tutti i flussi dell'app sul nuovo APK.
+
+In quel consuntivo il prossimo blocco era V02, ora qualificato nel perimetro indicato sopra.
+
+## Consuntivo precedente — qualifica sessioni locale 0.1.11-alpha
+
+[A05](docs/SESSION_FORM_QUALIFICATION.md) è **PASS LOCALE**: sul release firmato invariato code 12, un metodo nativo API 31/EN conclude nove checkpoint in 253,075 s. Annulla conserva entrambe le sessioni; la revoca singola dal form elimina il bersaglio e il suo refresh restituisce HTTP 400 `refresh_token_not_found`. La revoca corrente riporta l'app al login; una terza sessione host distinta continua a rinnovarsi con lo stesso UUID, poi il logout locale lascia zero fattori/sessioni QA. Proiezioni selezionate d'identità/profili invariate, registrazioni disabilitate e attività QA zero nelle tabelle controllate.
+
+Passano 543 JVM per variante debug/release e 7/7 fixture SettingsSecurity per API 31/35 in 32,511/56,665 s; lint zero errori, 32 warning e sei hint. Conservati il primo fallimento JVM, corretto nel teardown, e il crash Compose API 31 durante distruzione dell'Activity, con isolato e suite successiva sullo stesso APK superati. La causa definitiva del crash Compose resta non dimostrata. I client secondari sono host in RAM, non telefoni; il refresh diretto della sessione corrente già cancellata dallo store non viene esercitato. Nessuna nuova suite completa dell'app o parità globale.
+
+**Sei righe chiuse nei rispettivi perimetri locali, 27 aperte in quel consuntivo.** Produzione e versione 0.1.11-alpha invariate; nessuna CI o pubblicazione. Il successivo blocco D01 è consuntivato sopra.
+
+## Consuntivo precedente — qualifica MFA locale 0.1.11-alpha
+
+[A04](docs/MFA_FORM_QUALIFICATION.md) è **PASS LOCALE nel criterio dei form con setup manuale e QR nelle fixture**. Produzione `44274e7`, release code 12/hash `5cdaca53d41d67d42cb05c0d2753f2611d6ba4d2f830067cde094d3355c757cd`: un metodo nativo API 31/EN passa 14 checkpoint in 207,03 s, con due fattori e due sessioni QA distinti. Codice errato, pending riaperto senza segreto, annulla, attivazione AAL2, nuovo login con gate e rimozione sono osservati. Dopo la rimozione il server riporta AAL1; dopo logout fattori/sessioni zero, registrazioni disabilitate e proiezioni QA invariate. Entrambi gli AVD sono spenti.
+
+Passano 540 JVM per variante debug/release; lint zero errori, 32 warning e sei hint. Le 14 fixture mirate `ced3a93` passano su API 31/35 in 41,232/96,471 s: non sono una nuova suite completa da 184 casi. I fallimenti iniziali Compose e i tentativi del driver restano nel rapporto. Il campione reale usa la chiave manuale: QR del provider non visualizzato, decodifica dei pixel e scanner esterno non qualificati. **Cinque righe chiuse nei rispettivi perimetri locali, 28 aperte**; nessuna CI, nuova pubblicazione o parità globale.
+
+Il successivo blocco A05 è consuntivato sopra. La qualifica completa della candidata code 12 e i gate esterni della stabile restano distinti.
+
+## Consuntivo precedente — qualifica locale 0.1.10-alpha
+
+La candidata locale 0.1.10-alpha/code 11 usa produzione `459bbac` e APK release immutabile SHA-256 `d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa`. Passano 536 JVM per variante debug/release; lint di entrambe: zero errori, 32 avvertenze e 6 suggerimenti. La suite debug API 35 passa 170/170 in 562,616 s sul test source `74d7d0d`; API 31 passa 170/170 in 551,778 s, senza failure/skip, in una singola esecuzione completa. Il campione sul release firmato R8 è una prova distinta dalla suite debug.
+
+La [qualifica firmata](docs/SIGNED_RELEASE_QUALIFICATION.md) osserva sul release R8 l’upgrade autenticato API 35, sessione e preferenze conservate, export/annulla e recovery esplicito dopo process death. Il nuovo run firmato API 31 passa login, profilo, upgrade, English/Light e logout con continuità della sessione server e pulizia finale. Export e preview BANK/USD sul nuovo hash appartengono al precedente run separato, con logout UI/server zero. API 31 passa 170/170 in 551,778 s, senza failure/skip. Il form FX API 31 salva 0,01 USD/cambio 0,894370, poi elimina fisicamente il solo record QA; Books positivo resta bloccato da 429.
+
+Conservati 81 PNG e 81 JSON per API; raccolta conclusa ed emulatori spenti, come confermato dal responsabile dell’integrazione.
+
+Consuntivo precedente, prima di C01: la matrice qualificava V01 e R01 nel perimetro locale e manteneva 31 righe aperte. Le prove residue comprendono anche form/stati locali e percorsi QA esclusi, oltre ai gate esterni. Nessuna data della stabile o nuova pubblicazione. I risultati successivi non vengono attribuiti retroattivamente ai sorgenti delle sezioni sotto.
+
+Consuntivo precedente [C01 — inviti Coppia](docs/COUPLE_INVITATION_QUALIFICATION.md): **PASS LOCALE**, con sette fixture mirate superate su ciascuna API 31/35 in 19,716/40,444 s, source test `b5860c3`. Sullo stesso release firmato API 31/EN, i form QA verificano codice invalido, invito pending che impedisce un nuovo invio, rifiuto A→B e cancellazione B→A. Quattro riletture REST per ruolo coincidono; pulizia limitata alle due richieste/quattro audit e sessioni finali zero. Il primo logout automatico A fallisce, poi logout manuale verificato; driver corretto e successivi logout nativi conservano evidenze separate. Allora V01/R01/C01 erano le tre righe chiuse localmente: **30 rimanevano aperte**. Le suite storiche da 170 casi non diventano una nuova suite completa da 173 casi. Il consuntivo immutabile conserva 22 acquisizioni XML/PNG e hash; entrambi gli AVD sono spenti.
+
+Aggiornamento [C02 — form Coppia](docs/COUPLE_FORM_QUALIFICATION.md): **PASS LOCALE** sul medesimo release/API 31/EN. Quote EUR 10,01 a metà (5,01+5,01 con avviso di 0,01), USD 7 custom (2,01/4,99), budget EUR 3→4 sullo stesso UUID, quattro rimozioni da Coppia/Transazioni, revoca annullata poi confermata e archivio in sola lettura sono osservati. Sette fasi REST completano 220 letture ripetute per ruolo; pulizia CAS di 16 righe adottate e zero sessioni QA non scadute/fattori/righe residue, con sole proiezioni d'identità e profili A/B confrontati. Passano 14 fixture per API 31/35 in 47,894/56,859 s, source `b069756`, cinque nuove e nove precedenti. Il primo API 35 crasha in Compose durante distruzione dell'Activity: causa non dimostrata, tentativo conservato; isolato e run finale passano sullo stesso APK senza edit. Il report conserva anche i recuperi del driver e il limite del capture budget zero fuori viewport. **V01/R01/C01/C02 chiuse localmente: 29 righe aperte**. Le suite complete da 170 casi restano storiche; il consuntivo C02 conserva 45 PNG/45 XML con hash e AVD spenti. Nessuna nuova build dell'app, CI o pubblicazione.
+
+Stima precedente di pianificazione per il residuo tecnico: 36–60 ore cumulative, circa 4,5–7,5 giornate da otto ore, riusando fixture e driver disponibili. Comprende form/stati/confronti, percorsi QA autorizzati, file/interruzioni e regressioni/pacchetto; le righe aperte non equivalgono a funzioni mancanti e la stima non assegna una data della stabile. Mailbox, telefono, cloud, Books e recovery su altro computer hanno tempi di calendario separati. La stima va rivista dopo i blocchi qualificati o nuovi difetti osservati; C01/C02 concluse non permettono di sottrarre automaticamente una durata nominale.
+
+Evidenza storica al 12 ottobre 2026: 0.1.9-alpha pubblicata con APK firmato, 503 JVM e due suite Android complete da 130 casi (API 31 e 35). Il codice successivo corregge timestamp, cambio account Admin e sovrapposizione del recupero MFA; 514 JVM e la suite finale Android 12 da 132 casi passano. Creati tre account QA dopo autorizzazione, con registrazioni ripristinate disabilitate. Accesso nativo con password, TOTP/revoca sessioni, flusso Coppia e lettura/diniego/ripristino permessi Admin hanno prove reali con scope dichiarato in [QA_QUALIFICATION.md](docs/QA_QUALIFICATION.md). Nessuna nuova release pubblica o parità globale deriva automaticamente da questi PASS. La 1.0.0 richiede ancora i gate in [PARITY_0_1_9.md](docs/PARITY_0_1_9.md). I cinque blocchi precedenti conservano l’evidenza storica in docs/ROADMAP_CLOSURE.md.
+
+Audit statico successivo: [STATIC_PARITY_AUDIT_2026_10_12.md](docs/STATIC_PARITY_AUDIT_2026_10_12.md), inizialmente senza test. La [verifica locale autorizzata](docs/STATIC_AUDIT_VERIFICATION.md) passa 528 JVM, 36 host Python e 132/132 su entrambe le API 31/35, in singoli run finali completi. Lint senza errori; sorgente `4d6a376`, hash invariati, nessuna CI o nuova prova backend. I PASS QA reali sopra restano associati a `0714f39`. I [gate non di codice](docs/STABLE_NON_CODE_GATES.md) e la parità globale restano aperti.
+
+Confronto sul [dataset comune](docs/COMMON_DATASET_PARITY_REVIEW.md): fissati 50 casi di base con input, ruoli fittizi e attese dai sorgenti. Dopo l'autorizzazione ai test, tre subagent hanno rieseguito 528 JVM e 36 host Python, tutti superati; output TypeScript FIRE/Fumo identici al golden. Nessuna nuova modifica alla produzione, CI, emulatore, prova backend o release. Completata allora la preparazione del confronto; le acquisizioni successive sono documentate qui sotto.
+
+Il [confronto osservato Android/web](docs/COMMON_VISUAL_PARITY_REVIEW.md) sul dataset comune registra una nuova esecuzione di 530 test JVM e un run completo di 28/28 test mirati su Android 12/API 31, con 81 PNG nativi e 114 PNG web appaiati. Corretti layout Sicurezza/storico e accesso a Dati con testo grande, tastiera dei grafici e percentuali/scala FIRE; aggiunta la distribuzione TCG per quantità. Lint debug senza errori; risultati circoscritti a fixture locali, senza CI, backend reale o nuova release. Il confronto di tutti i flussi e i gate della stabile restano aperti.
 
 ## 1. Risultato richiesto e vincoli
+
+Revisione successiva: [STABLE_VERIFICATION_MATRIX.md](docs/STABLE_VERIFICATION_MATRIX.md) collega 33 verifiche al codice, alle fixture e ai 50 casi comuni. Corrette staticamente opzioni import e bozza profilo, sorgente `de53ac7`, poi preparate otto regressioni. La [verifica locale autorizzata](docs/RECREATION_REGRESSION_VERIFICATION.md) passa 530 JVM, 36 host Python e due suite complete da 164/164 casi API 31/35; lint senza errori. Corretti soltanto i callsite di montaggio delle fixture in `f60ab38`, con sei failure iniziali conservati. V01 qualificata localmente, altre 32 verifiche aperte. Nessuna CI, prova backend, modifica web o nuova release pubblica; emulatori spenti.
 
 Realizzare un'app Android nativa con tutte le funzioni attualmente disponibili in Savely, account e dati condivisi, APK firmato distribuibile direttamente e schermate utilizzabili senza caricare il sito.
 
@@ -187,14 +297,14 @@ Per il primo rilascio scegliere il meccanismo più semplice: link alla release e
 
 ## 8. File da implementare successivamente
 
-I percorsi seguenti sono previsti, non creati da questa attività di documentazione.
+I percorsi seguenti descrivono il piano. Sono già presenti app, wrapper, contratti per area, baseline, mapping JSON, fixture, workflow build/test e audit manuale. La distribuzione stabile resta subordinata ai gate della fase 5.
 
 | Percorso indicativo | Scopo | Quando |
 |---|---|---|
 | `app/`, Gradle wrapper e configurazione | Progetto Android e codice nativo | Fase 2 |
 | `docs/API_CONTRACTS.md` | Query, RPC, endpoint e autorizzazioni | Fase 1 |
 | `parity/web-baseline.json` | Revisioni web e versione APK verificata | Fasi 1-2 |
-| `parity/source-map.yml` | Mapping sorgenti-funzioni | Fasi 1-2 |
+| `parity/source-map.json` | Mapping sorgenti-funzioni | Fasi 1-2 |
 | `parity/fixtures/` | Input sintetici e risultati attesi | Dalla fase 1 |
 | `.github/workflows/web-parity-audit.yml` | Report differenze in sola lettura | Entro fase 3 |
 | `.github/workflows/android.yml` | Build, test e artifact | Fase 2 |
@@ -214,8 +324,28 @@ I percorsi seguenti sono previsti, non creati da questa attività di documentazi
 | Stime ridotte artificialmente dal parallelismo | Integrare presto; misurare attività completate e lavoro residuo |
 | Client PokerStars aperto durante sviluppo/test | Procedura in [DEVELOPMENT_AND_TESTING.md](docs/DEVELOPMENT_AND_TESTING.md); nessuna garanzia di autorizzazione specifica |
 
-## 10. Stato e prossimo lavoro
+## 10. Stato dei cinque blocchi
 
-Completato: audit iniziale in sola lettura, inventario dei moduli, piano dei subagent e documentazione della manutenzione. Nessun codice Android, workflow o test applicativo è stato eseguito nell'ambito della scrittura di questa roadmap.
+Il dettaglio delle prove e dei limiti è in [ROADMAP_CLOSURE.md](docs/ROADMAP_CLOSURE.md), [TESTING.md](docs/TESTING.md) e [RELEASE.md](docs/RELEASE.md). Le attività autorizzate sono eseguite localmente, senza GitHub CI; il workflow build/test ora richiede avvio manuale.
 
-Il prossimo lavoro di sviluppo è la fase 1: dettagliare i contratti e i casi di parità prima di iniziare il progetto Gradle.
+1. **Funzioni native:** callback PKCE, conferma email e recupero password, archivio Coppia revocati, donut categorie e collegamenti Dashboard implementati. Archivio limitato ai metadati consentiti dalle RLS. Bank inventariato: interoperabilità CSV inclusa, convertitore PDF separato.
+2. **Identità web:** icona originale, palette, font locali e cinque destinazioni di navigazione implementati. Tre screenshot di fixture controllati; accessibilità, lingua e font grandi coperti dai test registrati. Il confronto visivo di tutte le pagine non è certificato.
+3. **Backend:** la prova storica passa 41 contratti su 42; Google Books risponde HTTP 429. Le successive prove QA verificano password/TOTP/revoca, il flusso Coppia e le operazioni Admin elencate in QA_QUALIFICATION.md, con pulizia completa. Nessuno di questi risultati copre tutti i percorsi o le correzioni statiche successive.
+4. **Lifecycle e file:** la 0.1.9 passa due suite complete da 130 casi su API 31 e 35. Il sorgente successivo `0714f39` passa 132 casi ordinari su API 31; API 35 non è stata rieseguita su quel sorgente. Picker di sistema, provider cloud e terminazione reale del processo restano verifiche distinte. Nessuna suite eseguita durante l'audit statico.
+5. **Distribuzione:** APK pubblico 0.1.9-alpha con firma continua, repository separato per APK e metadati, backup portabile cifrato verificato. Aggiornamento 0.1.8→0.1.9 provato sul solo AVD anonimo. Il codice successivo non è distribuito; aggiornamento autenticato e copia della firma su un altro dispositivo restano aperti.
+
+## 11. Gate esterni ancora aperti
+
+Sono disponibili due utenti QA e un Admin dedicati, creati con apertura temporanea autorizzata delle registrazioni e ripristino immediato di `false`. Password, TOTP, revoca delle altre sessioni e i percorsi Coppia/Admin documentati hanno prove reali. Gli indirizzi sintetici non hanno mailbox: consegna email, conferma e recupero PKCE restano aperti. I PASS storici non includono modifiche email/password, eliminazione di un account sacrificabile e tutte le operazioni Admin. Rifiuto/cancellazione degli inviti hanno ora il campione distinto [C01](docs/COUPLE_INVITATION_QUALIFICATION.md), senza estendere retroattivamente i PASS storici.
+
+L’utente conferma installazione e uso generale della 0.1.7 sul Doogee S100 Android 12, ma non proverà direttamente i nuovi flussi. Le prove su emulatori non vengono attribuite al telefono. I gate originari relativi al dispositivo restano quindi non verificati, salvo le conferme già documentate.
+
+`parity/web-baseline.json` conserva `globalParityVerified=false` e `verifiedApkVersion=null`. Mapping ISIN/categorie e import CSV sono presenti; XLS/XLSX, restore globale e convertitore PDF nativo non sono requisiti del web. Restano confronto finale sullo stesso dataset, import reale e provider cloud, servizi esterni, percorsi dei ruoli esclusi e qualifica dell'APK firmato finale.
+
+## 12. Prossime attività per la stabile
+
+1. **Completato — audit statico:** confronto del riferimento web `1cfcf629`, correzioni delle lacune dimostrate e regressioni inizialmente scritte senza eseguirle.
+2. **Completato — verifica locale:** 528 JVM, 36 host Python, suite finali Android 12/15 da 132 casi ciascuna e lint senza errori. Due problemi di attesa/scroll delle fixture corretti senza rimuovere gli assert. Revisione testuale dei documenti e riproduzione 12/12 asset completate; nessuna prova reale aggiunta ai PASS QA storici.
+3. **Completato — campione visuale locale:** 530 JVM, 28/28 mirati API 31, 81 PNG nativi e 114 PNG web appaiati; [confronto e differenze](docs/COMMON_VISUAL_PARITY_REVIEW.md). Ogni form/stato, servizi e API 35 sul nuovo sorgente restano fuori da questo run.
+4. **Completato nel perimetro locale — SC01/SC02 e V01:** 14/14 mirati finali e due suite complete da 164/164 API 31/35, 530 JVM, 36 host Python, lint senza errori. [Rapporto con sorgenti e failure](docs/RECREATION_REGRESSION_VERIFICATION.md). Allora restavano 32 verifiche della matrice: form/stati web/Android esclusi, percorsi account/Coppia/Admin reali, picker/provider e servizi. Risolvere il gate mailbox prima delle prove email/PKCE; eventuali correzioni dipenderanno dagli esiti.
+5. **Completato localmente — candidata firmata, C01 e C02:** firma/R8, campioni autenticati API 31/35 e suite complete debug da 170 casi per API sono qualificati. R01 è PASS LOCALE nel criterio originale. C01 chiude inviti QA e sette fixture mirate per API; C02 chiude quote/budget/rimozioni/revoca/archivio nel campione form con 14 fixture per API e letture/pulizia QA. Restano **29 righe** della matrice, inclusi form/stati, altri percorsi QA, provider cloud e dispositivo fisico; tentativi falliti conservati. Pubblicare 1.0.0 solo sul perimetro qualificato o con esclusioni esplicitamente accettate.

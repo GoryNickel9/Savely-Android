@@ -1,0 +1,1317 @@
+{
+  "schemaVersion": 1,
+  "referenceRepository": "GoryNickel9/Savely",
+  "inspectedRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "deployedWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "verifiedApkVersion": null,
+  "globalParityVerified": false,
+  "verificationCandidate": {
+    "version": "0.1.9-alpha",
+    "inventoryUpdatedAt": "2026-10-12",
+    "referenceRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "jvm": {
+      "tests": 503,
+      "status": "passed",
+      "evidence": "artifacts/parity-0.1.9-final-integrated-debug.txt",
+      "scope": "local-unit-and-TLS-contract-fixtures-not-real-backend"
+    },
+    "android": {
+      "expectedCases": 130,
+      "status": "passed",
+      "finalResultAssigned": true,
+      "scope": "final-frozen-source-ordinary-suites-opt-in-live-classes-excluded",
+      "api35": {
+        "tests": 130,
+        "passed": 130,
+        "singleCompleteExecution": true,
+        "durationSeconds": 770.007
+      },
+      "api31": {
+        "tests": 130,
+        "passed": 130,
+        "singleCompleteExecution": true,
+        "durationSeconds": 623.733
+      }
+    },
+    "apkVerified": true,
+    "backendFlowsVerified": false,
+    "historicalEvidencePolicy": "Existing feature verification flags and testedBuilds describe their recorded scopes only; candidate implementation audit does not broaden historical backend or device PASS results.",
+    "implementationAudit": [
+      {
+        "id": "fire-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/hooks/useFireCalculatorParams.ts",
+          "src/hooks/useFireDefaultsFromDB.ts",
+          "src/pages/fire/StandardFIRE.tsx",
+          "src/pages/fire/BaristaFIRE.tsx",
+          "src/components/fire/charts/ProjectionChart.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/modules/ModuleScreen.kt",
+          "app/src/main/java/cc/savely/android/modules/FireDatabaseDefaults.kt",
+          "app/src/main/java/cc/savely/android/modules/FireProjectionChart.kt"
+        ],
+        "scope": [
+          "current-valid-draft-results-and-invalid-draft-output-suppression",
+          "nominal-real-chart-point-selection-and-progress-target",
+          "monthly-annual-input-units",
+          "owner-bound-24-month-database-defaults",
+          "selective-database-reset-preserves-expenses"
+        ],
+        "pending": [
+          "FIRE-real-process-death-disk-failure-and-login-isolation"
+        ]
+      },
+      {
+        "id": "module-records-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/pages/PokerHourlyEarnings.tsx",
+          "src/pages/PokerRakeback.tsx",
+          "src/components/fumo/FumoCrudPage.tsx",
+          "src/lib/fumoCrud.ts",
+          "src/pages/libreria/Manga.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/modules/ModuleScreen.kt",
+          "app/src/main/java/cc/savely/android/modules/ModuleRecordValues.kt",
+          "app/src/main/java/cc/savely/android/modules/MangaVolumes.kt"
+        ],
+        "scope": [
+          "existing-Poker-month-read-only-and-current-year-details",
+          "Fumo-saved-duration-independent-derived-values-and-web-legacy-alias-fallback",
+          "Manga-series-owner-revision-and-restored-auth-session-identity-binding"
+        ],
+        "pending": [
+          "same-month-Poker-two-client-race",
+          "real-legacy-Fumo-records",
+          "Manga-restored-series-after-real-login-change"
+        ]
+      },
+      {
+        "id": "transfer-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/components/settings/RevolutImportDialog.tsx",
+          "src/components/settings/BankImportDialog.tsx",
+          "src/components/settings/ISINMappingsDialog.tsx",
+          "src/components/settings/ImportExportSection.tsx",
+          "src/lib/importFileSecurity.ts",
+          "src/lib/csv.ts",
+          "src/lib/constants.ts"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/transfer/TransferRules.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferRepository.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferViewModel.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferDialogs.kt",
+          "app/src/main/java/cc/savely/android/transfer/TransferScreen.kt"
+        ],
+        "scope": [
+          "CSV-only-security-validator-and-explicit-row-preview-selection",
+          "ISIN-to-portfolio-position-creation",
+          "persistent-owner-category-and-ISIN-mapping-management",
+          "staged-new-categories",
+          "source-specific-keyword-description-and-note-rewrites",
+          "effective-description-deduplication-before-commit",
+          "stable-UUID-owner-revision-bound-write-ledger-and-explicit-reconciliation",
+          "mapping-expected-before-CAS",
+          "existing-web-table-CSV-export-and-transaction-CSV-roundtrip",
+          "Bank2CSV-external-browser-link",
+          "structured-IT-EN-validation-notices"
+        ],
+        "pending": [
+          "system-picker-and-cloud-document-provider",
+          "real-QA-import-and-complete-reconciliation",
+          "real-Bank2CSV-output-to-native-import"
+        ],
+        "limits": [
+          "sequential-writes-can-have-confirmed-prefix-and-partial-failure",
+          "ViewModel-ledger-survives-configuration-change-not-process-death",
+          "XLS-XLSX-and-global-account-restore-are-not-web-parity-requirements"
+        ]
+      },
+      {
+        "id": "finance-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/pages/Transactions.tsx",
+          "src/hooks/useSharedExpenses.ts",
+          "src/components/settings/CategoriesSection.tsx",
+          "src/components/settings/CurrencySection.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/finance/FinanceSharedTransactions.kt",
+          "app/src/main/java/cc/savely/android/finance/FinanceExchangeRates.kt",
+          "app/src/main/java/cc/savely/android/finance/FinanceScreen.kt"
+        ],
+        "scope": [
+          "transaction-partner-share-splits-received-rows-and-only-shared-filter",
+          "automatic-public-FX-to-EUR-with-manual-fallback",
+          "web-category-icon-and-color-palette"
+        ],
+        "pending": [
+          "real-two-account-shared-transaction-flow",
+          "real-public-FX-service-and-manual-fallback"
+        ]
+      },
+      {
+        "id": "security-legal-candidate",
+        "codePresent": true,
+        "webSources": [
+          "src/components/settings/SecuritySection.tsx",
+          "src/hooks/useActiveSessions.ts",
+          "src/pages/Privacy.tsx",
+          "src/pages/Cookies.tsx",
+          "src/pages/Termini.tsx",
+          "src/components/legal/LegalLayout.tsx"
+        ],
+        "androidSources": [
+          "app/src/main/java/cc/savely/android/ui/SettingsScreen.kt",
+          "app/src/main/java/cc/savely/android/data/SupabaseApi.kt",
+          "app/src/main/java/cc/savely/android/ui/LegalScreen.kt",
+          "app/src/main/assets/legal",
+          "app/src/main/assets/legal/en",
+          "tools/export-legal.cjs"
+        ],
+        "scope": [
+          "TOTP-local-QR-rendering-with-external-resource-rejection",
+          "explicit-confirmations-and-sign-out-other-sessions",
+          "session-identity-bound-mutations-no-new-owner-retry",
+          "IT-EN-legal-extraction-and-native-links-with-Android-storage-addendum"
+        ],
+        "pending": [
+          "real-TOTP-enrollment-and-challenge",
+          "real-revoke-session-RPC",
+          "complete-IT-EN-editorial-legal-comparison"
+        ]
+      }
+    ],
+    "openGates": [
+      "real-email-password-PKCE-and-MFA-flows",
+      "two-account-couple-and-session-revocation",
+      "authorized-admin-and-synthetic-account-deletion",
+      "same-dataset-web-native-calculation-and-visual-comparison",
+      "real-import-external-catalog-and-FX-service-flows",
+      "system-file-picker-and-cloud-provider-validation"
+    ],
+    "apkVerificationScope": "v2-signature-code10-min26-target36-in-place-code9-upgrade-English-anonymous-AVD-not-global-parity",
+    "realBackendContracts": {
+      "passed": 41,
+      "total": 42,
+      "allPassed": false,
+      "failed": "GoogleBooks-HTTP429",
+      "temporaryDataAndSessionCleanupVerified": true
+    },
+    "hostPublicFxContractVerified": true,
+    "newPhysicalPhoneValidation": "not-performed-user-opted-out-of-further-detailed-device-tests",
+    "sourceCommit": "c470258e6be6241fc3dae05915a49667a92a2a0a",
+    "publicDistributionVerified": true,
+    "publicReleaseUrl": "https://github.com/GoryNickel9/Savely-Android-Releases/releases/tag/v0.1.9-alpha",
+    "apkSHA256": "a994ae06b3919753c8b6d9547f05586000e9242a0816b70ab0f628c740c931f1"
+  },
+  "features": [
+    {
+      "id": "fire",
+      "implemented": [
+        "standard",
+        "barista",
+        "annual-projections",
+        "import-24-month-account-defaults",
+        "account-specific-persistent-parameters",
+        "reset-defaults",
+        "versioned-local-parameter-validation",
+        "ten-parameter-standard-barista-share-url",
+        "native-share-chooser",
+        "pasted-url-preview-and-explicit-account-save",
+        "nominal-real-interactive-projection-chart-and-progress-target",
+        "monthly-annual-inputs",
+        "selective-account-database-reset-preserves-expenses"
+      ],
+      "verification": {
+        "webFixtureExecuted": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM formulas and codec; four Android fixture tests: ten-field disk commit, fresh-screen restore, account isolation, reset and invalid snapshots",
+        "verificationScope": [
+          "fixture-ten-parameters-committed-XML-and-fresh-screen-restore",
+          "fixture-two-account-isolation-reset-corrupt-and-incomplete-drafts",
+          "fixture-share-url-roundtrip-invalid-origin-duplicate-overflow-and-range",
+          "fixture-share-chooser-preview-cancel-account-disk-commit-and-stale-owner-guard"
+        ]
+      },
+      "differences": [
+        "Local parameters are isolated per account instead of web browser-wide localStorage",
+        "Corrupt/unknown-version snapshot is preserved until explicit reset"
+      ],
+      "remaining": [
+        "final-candidate-Android-database-chart-monthly-and-reset-fixtures",
+        "real-process-death-storage-failure-and-account-login-tests"
+      ]
+    },
+    {
+      "id": "poker",
+      "implemented": [
+        "next-cut",
+        "manual-expenses-crud",
+        "hourly-crud",
+        "net-won-ev",
+        "rakeback-crud",
+        "yearly-metrics",
+        "current-year-hourly-rakeback-detail-filter",
+        "existing-record-month-read-only"
+      ],
+      "verification": {
+        "sourceFormulasInspected": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM formulas, parsing, repository contracts; three TLS fixture UI tests for hourly save, zero/invalid inputs, duplicate month, single submit, persisted gross rates and literal net-of-deal rounding; real backend remains unverified",
+        "webRateRoundingFixturesExecuted": true
+      },
+      "differences": [
+        "NextCut creates and writes only after explicit Save; empty-record P/L starts at zero rather than copying the web's hardcoded 1804.87",
+        "deal validated in (0,1]"
+      ],
+      "remaining": [
+        "final-candidate-Android-Poker-fixtures",
+        "backend-duplicate-month-race",
+        "730-day-boundary-timezone-test"
+      ]
+    },
+    {
+      "id": "fumo",
+      "implemented": [
+        "cbd-crud",
+        "thc-crud",
+        "liquid-crud",
+        "derived-daily-monthly-cost",
+        "yearly-summary",
+        "cost-per-gram-liquid-daily-summary",
+        "current-year-detail-filter",
+        "saved-duration-and-derived-values-with-web-legacy-fallback",
+        "independent-nullable-daily-detail-fields"
+      ],
+      "verification": {
+        "webFixtureExecuted": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM formulas and repository contracts; two TLS fixture UI tests for liquid create, validation, single submit, derived amounts, editing and null reset; real backend unverified"
+      },
+      "differences": [
+        "Reject finished date before arrival"
+      ],
+      "remaining": [
+        "final-candidate-Android-Fumo-fixtures",
+        "real-legacy-record-comparison"
+      ]
+    },
+    {
+      "id": "tcg",
+      "implemented": [
+        "magic-pokemon-yugioh-crud",
+        "manual-prices",
+        "collection-cost-value",
+        "cardtrader-search",
+        "cardtrader-prices",
+        "text-filter",
+        "native-card-images",
+        "collection-set-filters",
+        "cardtrader-expansion-filter",
+        "full-owner-paginated-overview-with-explicit-currency"
+      ],
+      "verification": {
+        "sourceSchemaInspected": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM models and repositories; Android TLS fixture test for Magic uppercase deduplication, Pokemon exact-case sets and Yugioh name-only search; backend pending",
+        "verificationScope": [
+          "fixture-selected-card-price503-single-insert-null-price-purchase-cost-value-fallback",
+          "fixture-full-overview-pagination-currency-category-filters-and-error-without-partial-totals"
+        ]
+      },
+      "remaining": [
+        "real-backend-collection-filter-flows"
+      ]
+    },
+    {
+      "id": "libreria",
+      "implemented": [
+        "books-comics-manga-manual-crud",
+        "collection-cost-value",
+        "google-books-search",
+        "metadata-cover-url-persistence",
+        "text-filter",
+        "native-cover-images",
+        "author-publisher-year-filters",
+        "manga-volume-ranges",
+        "manga-stable-UUID-reconciliation-and-explicit-resume",
+        "manga-series-origin-owner-revision-auth-session-binding",
+        "full-owner-paginated-overview-with-explicit-currency"
+      ],
+      "verification": {
+        "sourceSchemaInspected": true,
+        "nativeTestsRun": true,
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "nativeTestScope": "JVM collection filters and fourteen Manga tests; three Android TLS fixture tests for invalid range, saved-composition resume after ambiguous commit and combined filters with invariant totals; backend pending",
+        "verificationScope": [
+          "fixture-nullable-library-prices-single-PATCH-note-quantity-and-foreign-row-isolation",
+          "fixture-full-overview-pagination-currency-category-filters-and-error-without-partial-totals"
+        ]
+      },
+      "remaining": [
+        "real-backend-collection-filter-flows",
+        "final-candidate-Android-Manga-origin-session-guards"
+      ]
+    },
+    {
+      "id": "finance",
+      "verification": {
+        "backendFlowVerified": true,
+        "deviceFlowVerified": true,
+        "nativeTestsRun": true,
+        "verificationScope": [
+          "fixture-calculations-and-transaction-UI",
+          "real-E2E-transaction-repository-CRUD-and-native-read-after-activity-recreation",
+          "fixture-recurring-toggle-single-submit-partial-error-refresh-and-deduplicated-rerun",
+          "fixture-portfolio-TCG-valuation-and-explicit-exclusions",
+          "real-E2E-host-created-marker-read-on-canonical-deployed-web-with-cleanup",
+          "fixture-budget-global-monthly-median-and-currency-union",
+          "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup",
+          "fixture-budget-literal-half-cent-display-and-nine-currency-HALF_UP-regression",
+          "fixture-saving-month-currency-specific-baseline-severity-counts-and-filters",
+          "fixture-new-recurring-top-three-cadences-owner-pagination-inactive-and-account-dismissals",
+          "fixture-recurring-price-exact-threshold-pipeline-limits-currencies-ties-and-read-only-UI",
+          "real-QA-production-FinanceScreen-form-CRUD-test-transport-UUID-and-complete-cleanup",
+          "fixture-dashboard-periods-comparisons-and-month-budget",
+          "fixture-read-only-recurring-calendar",
+          "fixture-chart-filters-granularity-bar-pie-line-exact-tables-and-point-limit",
+          "fixture-portfolio-reconstructed-recorded-history-coverage-periods-and-allocation",
+          "fixture-net-worth-raw-server-history-periods-metrics-and-errors",
+          "fixture-position-group-close-sequential-CAS-partial-result-and-reconciliation-write-gate",
+          "fixture-eight-insight-detectors-local-suite"
+        ]
+      },
+      "owner": "finance-agent",
+      "remaining": [
+        "real-password-login",
+        "physical-phone",
+        "all-finance-module-backend-flows",
+        "complete-web-parity"
+      ]
+    },
+    {
+      "id": "auth-account-admin",
+      "verification": {
+        "backendFlowVerified": true,
+        "deviceFlowVerified": true,
+        "nativeTestsRun": true,
+        "verificationScope": [
+          "fixture-auth-MFA-and-expiry-revocation",
+          "real-E2E-temporary-session-identity-permissions-Keystore-reopen-and-logout",
+          "real-E2E-new-process-session-restore-native-dashboard-and-logout",
+          "fixture-foreground-session-invalidation-transient-errors-token-rotation-and-stale-owner-guards",
+          "fixture-canonical-web-api-transport-original-callback-origin-and-rejected-redirect",
+          "fixture-MFA-invalid-code-and-transient-error-retry-without-premature-profile-read",
+          "fixture-Admin-denial-clears-data-and-dialogs-transient503-preserves-session",
+          "fixture-IT-EN-local-preference-navigation-session-preservation-and-opaque-values"
+        ]
+      },
+      "owner": "auth-agent",
+      "remaining": [
+        "real-password-login",
+        "real-MFA-enrollment-and-challenge",
+        "native-email-callback",
+        "two-user-session-revocation",
+        "real-admin-role-flows",
+        "synthetic-account-deletion"
+      ]
+    },
+    {
+      "id": "couple",
+      "verification": {
+        "backendFlowVerified": false,
+        "deviceFlowVerified": true,
+        "verificationScope": [
+          "fixture-partner-code-invitation-guards-budget-median-and-custom-split-UI"
+        ]
+      },
+      "owner": "integration"
+    },
+    {
+      "id": "bank",
+      "implemented": [
+        "Bank2CSV-external-browser-link",
+        "CSV-output-import-through-native-owner-bound-preview-and-mapping"
+      ],
+      "verification": {
+        "apiContractAvailable": false
+      },
+      "remaining": [
+        "real-external-conversion-and-native-CSV-import",
+        "final-candidate-Android-link-fixture"
+      ]
+    }
+  ],
+  "verificationDate": "2026-10-11",
+  "testedBuilds": [
+    {
+      "version": "0.1.0-alpha",
+      "variant": "debug",
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "real-E2E-session-dashboard-transaction-recreate",
+        "real-E2E-new-process-session-restore-dashboard-and-logout"
+      ]
+    },
+    {
+      "version": "0.1.0-alpha",
+      "variant": "release",
+      "sha256": "ada5e306ef285191ce6949e7d2be01d1e87a97466251acf458c12481cb58c035",
+      "scope": [
+        "signature-install-anonymous-login-layout"
+      ]
+    },
+    {
+      "version": "0.1.1-alpha",
+      "variant": "debug",
+      "jvmTests": 193,
+      "androidTests": 32,
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup"
+      ]
+    },
+    {
+      "version": "0.1.1-alpha",
+      "versionCode": 2,
+      "variant": "release",
+      "sha256": "2a53238a2a46cb96b0af0f5163675e7e87d2c27e4bfa58b3fff1f69135eb4e04",
+      "scope": [
+        "signature-versionCode1-to2-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.2-alpha",
+      "variant": "debug",
+      "jvmTests": 212,
+      "androidTests": 36,
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "real-E2E-native-created-marker-native-UI-and-canonical-web-read-with-cleanup",
+        "real-E2E-new-process-session-restore-native-dashboard-and-logout"
+      ]
+    },
+    {
+      "version": "0.1.2-alpha",
+      "versionCode": 3,
+      "variant": "release",
+      "sha256": "080ed2c9da69779d5e64f2e19186bee537a4e4ade4c93c3edceead7cbbbdd384",
+      "scope": [
+        "signature-versionCode2-to3-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.3-alpha",
+      "variant": "debug",
+      "jvmTests": 226,
+      "androidTests": 39,
+      "scope": [
+        "fixture-unit-and-device-tests"
+      ]
+    },
+    {
+      "version": "0.1.3-alpha",
+      "versionCode": 4,
+      "variant": "release",
+      "sha256": "beb12d54d9660e18ae08ed01fac7177e2ca1f9d334a071a5edbd71ec38f5aaaf",
+      "scope": [
+        "signature-versionCode3-to4-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.4-alpha",
+      "variant": "debug",
+      "jvmTests": 232,
+      "androidTests": 43,
+      "scope": [
+        "fixture-unit-and-device-tests"
+      ]
+    },
+    {
+      "version": "0.1.4-alpha",
+      "versionCode": 5,
+      "variant": "release",
+      "sha256": "c70de53adc8732ccd46b38a17749d5d236a6776e4b3a1d56290ea46bb8c74789",
+      "scope": [
+        "signature-versionCode4-to5-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.5-alpha",
+      "variant": "debug",
+      "jvmTests": 232,
+      "androidTests": 44,
+      "scope": [
+        "fixture-unit-and-device-tests",
+        "opt-in-real-QA-form-CRUD-with-test-transport-UUID-and-cleanup"
+      ]
+    },
+    {
+      "version": "0.1.5-alpha",
+      "versionCode": 6,
+      "variant": "release",
+      "sha256": "5c19146f97ddab4eb4e3e311440bcebadf6b6050a1c07a6cede41f217ee7d63e",
+      "scope": [
+        "signature-versionCode5-to6-upgrade-and-anonymous-login-layout-on-AVD"
+      ]
+    },
+    {
+      "version": "0.1.7-alpha",
+      "variant": "debug",
+      "jvmTests": 366,
+      "androidTests": 87,
+      "scope": [
+        "local-fixture-unit-and-device-tests-no-new-real-backend-smoke"
+      ]
+    },
+    {
+      "version": "0.1.7-alpha",
+      "versionCode": 8,
+      "variant": "release",
+      "sha256": "9f9a0394f862013f5ce05b9376a46d60ba1b9170364633c3a6c132d96ea98947",
+      "scope": [
+        "signature-versionCode6-to8-upgrade-and-anonymous-login-layout-on-AVD-local-only"
+      ]
+    }
+  ],
+  "deploymentEvidence": {
+    "checkedAt": "2026-10-12",
+    "githubDeploymentId": 6158289175,
+    "environment": "Production",
+    "state": "success",
+    "canonicalAndDeploymentAssetSha256": "acc9d0b830e2522cfd551a9b413fafe9d85e19b9685934d1bc51964cbbc9c399",
+    "scope": "deployment-metadata-and-identical-public-javascript-asset-not-global-functional-parity"
+  },
+  "unreleasedQaQualification": {
+    "date": "2026-10-12",
+    "sourceCommit": "0714f3974cd29bcdbedada193dde70d5b1553b4a",
+    "sourceState": "after-public-0.1.9-not-released",
+    "report": "docs/QA_QUALIFICATION.md",
+    "provisioningRun": "5ef2838c-ae5b-47d9-ac05-72dc5362b6a9",
+    "registrationsRestoredDisabled": true,
+    "jvm": {
+      "tests": 514,
+      "status": "passed"
+    },
+    "hostPython": {
+      "tests": 36,
+      "status": "passed"
+    },
+    "androidApi31": {
+      "tests": 132,
+      "passed": 132,
+      "durationSeconds": 373.054,
+      "singleCompleteExecution": true
+    },
+    "nativeAuth": {
+      "run": "9cd19c6e-bbdd-4a06-b1db-dbf368297c58",
+      "status": "passed",
+      "scope": "password-api-keystore-totp-other-session-refresh-revocation",
+      "cleanupPending": false
+    },
+    "nativeCouple": {
+      "run": "2eafa3d8-a68d-43dd-9331-1314329eeedd",
+      "status": "passed",
+      "scope": "invitation-acceptance-equal-custom-shares-private-isolation-budget-revocation-archive",
+      "cleanupPending": false
+    },
+    "nativeAdmin": {
+      "run": "77485cf6-305d-4739-8f37-1013de64cea7",
+      "status": "passed",
+      "scope": "standard-denial-admin-read-QA-B-tcg-permission-restoration",
+      "cleanupPending": false
+    },
+    "pending": [
+      "real-email-delivery-confirmation-recovery-PKCE",
+      "account-profile-password-email-change-and-sacrificial-deletion",
+      "uncovered-couple-admin-paths-and-final-web-matrix",
+      "signed-upgrade-with-authenticated-session",
+      "google-books-success",
+      "final-source-api35-and-physical-device-qualification"
+    ]
+  },
+  "staticAudit": {
+    "date": "2026-10-12",
+    "startingAndroidRevision": "0714f3974cd29bcdbedada193dde70d5b1553b4a",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "report": "docs/STATIC_PARITY_AUDIT_2026_10_12.md",
+    "status": "source-reviewed-fixes-unverified",
+    "testsExecuted": false,
+    "buildExecuted": false,
+    "backendAccessed": false,
+    "webModified": false,
+    "inheritsPriorTestResults": false,
+    "apkPublished": false
+  },
+  "postAuditVerification": {
+    "date": "2026-10-12",
+    "report": "docs/STATIC_AUDIT_VERIFICATION.md",
+    "sourceCommit": "4d6a37667961acf91e042a457c0af6b0e572975a",
+    "jvmExecutedSourceCommit": "935c7ba5a2817cbc2e67179d710060537fb383de",
+    "jvmInputsUnchangedAfterAndroidTestOnlyFix": true,
+    "sourceFiles": 202,
+    "sourcesUnchangedDuringFinalSuites": true,
+    "status": "local-fixtures-passed-not-global-parity",
+    "jvm": { "tests": 528, "failures": 0, "errors": 0, "skipped": 0 },
+    "hostPython": { "tests": 36, "status": "passed" },
+    "androidApi31": { "tests": 132, "passed": 132, "skipped": 0, "durationSeconds": 666.191, "singleCompleteExecution": true },
+    "androidApi35": { "tests": 132, "passed": 132, "skipped": 0, "durationSeconds": 644.736, "singleCompleteExecution": true },
+    "lint": { "errorsPerVariant": 0, "warningsPerVariant": 32, "hintsPerVariant": 6 },
+    "legalFilesMatched": 12,
+    "backendTestsExecuted": false,
+    "physicalDeviceTested": false,
+    "apkPublished": false,
+    "remainingGates": "docs/STABLE_NON_CODE_GATES.md"
+  },
+  "commonDatasetReview": {
+    "date": "2026-10-12",
+    "report": "docs/COMMON_DATASET_PARITY_REVIEW.md",
+    "dataset": "parity/fixtures/static-common-dataset.json",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "testedAndroidRevision": "614bdbfa358b13726fe54399be502d744ba157d5",
+    "productionAndJvmRevision": "935c7ba5a2817cbc2e67179d710060537fb383de",
+    "staticBaseCases": 50,
+    "datasetCasesExecuted": false,
+    "status": "source-comparison-and-existing-regressions-not-global-parity",
+    "jvm": { "tests": 528, "suites": 58, "failures": 0, "errors": 0, "skipped": 0, "freshCompleteExecution": true },
+    "hostPython": { "tests": 36, "status": "passed" },
+    "webOracle": {
+      "scope": ["calculateStandardFIRE", "calculateBaristaFIRE", "computeDerived-fumo"],
+      "fixedClock": "2026-10-11T12:00:00Z",
+      "goldenByteEqual": true,
+      "sha256": "03167ad4787c282983f64b4c694fed11adc6bab72ea984357395efbdfc26d705"
+    },
+    "ciExecuted": false,
+    "emulatorStarted": false,
+    "backendAccessed": false,
+    "physicalDeviceTested": false,
+    "apkPublished": false
+  },
+  "commonVisualReview": {
+    "date": "2026-10-12",
+    "report": "docs/COMMON_VISUAL_PARITY_REVIEW.md",
+    "sourceCommit": "16c70112f5d2240abb61478074fcf4e19c779d21",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "datasetSha256": "40a18e403c3020910a8762bad716ec3f76490b3db2ed90a1c25a221221048774",
+    "status": "local-observed-subset-not-global-parity",
+    "datasetCasesExecuted": false,
+    "jvm": {
+      "tests": 530,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "androidApi31": {
+      "started": 28,
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0,
+      "singleCompleteRun": true,
+      "durationSeconds": 103.01,
+      "interruptedByRoot": false,
+      "logSha256": "934c4316ac66784d873bb40e815c99abc53531964363d90c91085d3c83d69905"
+    },
+    "lintDebug": {
+      "Warning": 32,
+      "Hint": 6
+    },
+    "nativePng": 81,
+    "pairedWebPng": 114,
+    "sourcesUnchanged": true,
+    "apks": [
+      {
+        "path": "app\\build\\outputs\\apk\\debug\\app-debug.apk",
+        "sha256": "826ef9085b82fb38b789287510e67a248220f2a31129ee73a2bee3d08ccceba4"
+      },
+      {
+        "path": "app\\build\\outputs\\apk\\androidTest\\debug\\app-debug-androidTest.apk",
+        "sha256": "ab8855a43b9a549b6203fac47e3a0b5d3fa7faabc049b2ffff2b57b14c0ec445"
+      }
+    ],
+    "backendAccessed": false,
+    "ciExecuted": false,
+    "api35Executed": false,
+    "physicalDeviceTested": false,
+    "apkPublished": false,
+    "evidence": "artifacts/visual-parity/native-final-summary.json"
+  },
+  "localRegressionQualification": {
+    "date": "2026-10-12",
+    "report": "docs/RECREATION_REGRESSION_VERIFICATION.md",
+    "sourceCommit": "f60ab38cbb50f650cd2cf5e26fe054cbe308e267",
+    "jvmRunSourceCommit": "5f058dcca4e449d2ea039467ece656505a1eed6b",
+    "productionAndJvmSourcesUnchangedBetweenRuns": true,
+    "status": "local-suites-passed-real-gates-open",
+    "jvmTests": 530,
+    "hostPythonTests": 36,
+    "goldenWebByteEqual": true,
+    "targetedApi31": { "tests": 14, "failures": 0, "skipped": 0, "seconds": 50.804 },
+    "initialTargetedApi31": { "tests": 14, "failures": 6, "skipped": 0, "seconds": 75.043, "logRetained": true },
+    "fullApi31": { "tests": 164, "failures": 0, "skipped": 0, "seconds": 483.804 },
+    "fullApi35": { "tests": 164, "failures": 0, "skipped": 0, "seconds": 598.852 },
+    "ordinaryCasesPerApi": 140,
+    "visualCasesPerApi": 24,
+    "nativePngPerApi": 81,
+    "lintErrorsPerVariant": 0,
+    "lintWarningsPerVariant": 32,
+    "lintHintsPerVariant": 6,
+    "qualifiedVerificationRows": ["V01"],
+    "openVerificationRows": 32,
+    "localFixRegressionsPassed": ["SC01", "SC02"],
+    "apks": [
+      { "variant": "debug", "sha256": "f46c5c1bfa9a6bcf3b93db5c1c39e272228ba4658641eb937677d189a31c76a3" },
+      { "variant": "debugAndroidTest", "sha256": "04525fdd43cf8233bd6da15811d7592203541685988387f4df896ae2d5e61259" }
+    ],
+    "datasetCasesExecuted": false,
+    "backendAccessed": false,
+    "ciExecuted": false,
+    "physicalDeviceTested": false,
+    "emulatorsStopped": true,
+    "apkPublished": false,
+    "evidence": "artifacts/stable-regressions/verification-summary.json"
+  },
+  "staticRegressionPreparation": {
+    "date": "2026-10-12",
+    "baseRevision": "23f817e",
+    "productionFixSourceCommit": "de53ac70d46ab567766f57298501dbdf5d7fdf55",
+    "status": "prepared-not-compiled-or-executed",
+    "newAndroidTestCases": 8,
+    "existingAndroidCasesStrengthened": 1,
+    "classes": [
+      "cc.savely.android.transfer.TransferDocumentScreenTest",
+      "cc.savely.android.ui.SettingsProfileRecreationTest"
+    ],
+    "testsExecuted": false,
+    "buildExecuted": false,
+    "lintExecuted": false,
+    "ciExecuted": false,
+    "emulatorStarted": false,
+    "backendAccessed": false,
+    "apkPublished": false
+  },
+  "staticMissingVerificationReview": {
+    "date": "2026-10-12",
+    "report": "docs/STABLE_VERIFICATION_MATRIX.md",
+    "documentationBaseRevision": "5b79e75",
+    "sourceCommit": "de53ac70d46ab567766f57298501dbdf5d7fdf55",
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "status": "static-review-with-unverified-code-fixes",
+    "openVerificationRows": 33,
+    "mappedDatasetCases": 50,
+    "fixesAwaitingVerification": ["SC01", "SC02"],
+    "datasetCasesExecuted": false,
+    "testsExecuted": false,
+    "buildExecuted": false,
+    "lintExecuted": false,
+    "ciExecuted": false,
+    "emulatorStarted": false,
+    "backendAccessed": false,
+    "apkPublished": false
+  },
+  "signedReleaseCandidateQualification": {
+    "date": "2026-10-12",
+    "version": "0.1.10-alpha",
+    "versionCode": 11,
+    "status": "local-qualified-scoped-not-global",
+    "report": "docs/SIGNED_RELEASE_QUALIFICATION.md",
+    "verificationMatrixRow": "R01",
+    "matrixStatus": "PASS LOCALE",
+    "productionSourceCommit": "459bbac1a380f05b598f0712ee8e66bda3d4eae1",
+    "androidFixtureSourceCommit": "74d7d0dfbb59bbc22674b301cefb2e9ac075375b",
+    "referenceWebCommit": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "releaseApk": {
+      "path": "artifacts/release-qualification/qualified-apks/savely-0.1.10-alpha-release.apk",
+      "sha256": "d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa",
+      "bytes": 2747518,
+      "v2Verified": true,
+      "certificateSha256": "e103e92b4ab9576d4ecd1b27dd237f9cda697fd781cebce6585a308b8aaf93c1",
+      "debuggable": false,
+      "r8ReleaseFull": true,
+      "staticInspection": "artifacts/release-qualification/apk-static-qualified.json"
+    },
+    "jvm": {
+      "debug": {
+        "tests": 536,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "release": {
+        "tests": 536,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "scope": "existing-local-unit-TLS-fixtures-not-deployed-backend"
+    },
+    "lintPerVariant": {
+      "errors": 0,
+      "warnings": 32,
+      "hints": 6
+    },
+    "debugAndroid": {
+      "scope": "ordinary-debug-fixtures-distinct-from-minified-signed-release-sample",
+      "api35": {
+        "tests": 170,
+        "passed": 170,
+        "failures": 0,
+        "skipped": 0,
+        "seconds": 562.616,
+        "singleCompleteExecution": true,
+        "summary": "artifacts/release-qualification/android35-full-qualified-summary.json",
+        "log": "artifacts/release-qualification/android35-full-qualified.log",
+        "logSha256": "adfbcb3fafe175c2cf8d5035a59c09a806fbe0b39c3548b18b9df5418e282d4c"
+      },
+      "api31": {
+        "tests": 170,
+        "passed": 170,
+        "failures": 0,
+        "skipped": 0,
+        "seconds": 551.778,
+        "singleCompleteExecution": true,
+        "finalResultAssigned": true,
+        "summary": "artifacts/release-qualification/android31-full-qualified-summary.json",
+        "log": "artifacts/release-qualification/android31-full-qualified.log",
+        "logSha256": "a49479a85a2ff8eaae65bbb3d877491bcaabdaa7023e591871afb3ce5f3ef9e4",
+        "summarySha256": "70b5f9a063955db6ff95ecca103a9b653a4a47897387be21fac052663c05bcb3"
+      },
+      "testApkSha256": "8be8c7eb741c8dde3bddec23ea3dfe312c8f7f8fd50983d793be600c35f95a15",
+      "initialApi35": {
+        "tests": 170,
+        "passed": 169,
+        "failures": 1,
+        "seconds": 606.51,
+        "retained": true,
+        "summary": "artifacts/release-qualification/android35-full-final-summary.json",
+        "cause": "stale-result-fixture-registry-key-already-consumed-callback-not-delivered",
+        "fix": "test-only-public-registry-state-restore-before-replay"
+      },
+      "appApkSha256": "cac39f0af66a2a32d269f5094de6a565306cdc4405aa7731a71b021b02da99e5",
+      "appApkManifest": "artifacts/release-qualification/qualified-apks/manifest.json",
+      "testApkManifest": "artifacts/release-qualification/qualified-test-fix-apks/manifest.json",
+      "releaseR8TestCaseCountClaimed": false
+    },
+    "signedReleaseRuntimeSample": {
+      "scope": "accessibility-black-box-self-instrumented-local-AVDs-and-owned-QA-only-not-all-feature-flows",
+      "api35": {
+        "status": "passed-for-recorded-sample",
+        "authenticatedUpgradeCode10To11": true,
+        "sessionPreferencesPreserved": true,
+        "logoutAndServerZeroVerified": true,
+        "summary": "artifacts/release-qualification/android35-signed-final-summary.json",
+        "harnessLastChangedSourceCommit": "3e1365cd7253ebf3e8aa3dc62f4a2e5af77ac219",
+        "harnessApkSha256": "a0f3c2a41674ff3af1970d4bbefac5205310f63586981be424da02cc5d0e59c9"
+      },
+      "api31": {
+        "status": "passed-for-new-upgrade-sample",
+        "authenticatedUpgradeCode10To11": true,
+        "sessionPreferencesPreserved": true,
+        "loginFormSubmitted": true,
+        "profileRead": true,
+        "sameSingleBackendSessionAcrossUpgrade": true,
+        "logoutAndServerZeroVerified": true,
+        "runId": "b6e80895-2fb4-4a31-8e9f-fcb28fa74064",
+        "summary": "artifacts/release-qualification/android31-signed-final-summary.json",
+        "harnessSourceCommit": "f59fe64fe21acc60bc46adf1c513b9cc81d3aa3e",
+        "harnessApkSha256": "4009c7f62b869842c368dc09fd3f346800db2c55b3c7d4c8122970690850603b",
+        "failedHarnessAttemptsRetained": 4,
+        "failedAttemptsScope": "navigation-accessibility-bounds-and-profile-return-before-logout-not-converted-to-passes",
+        "finalBackendCounts": {
+          "qaIdentities": 3,
+          "qaSessions": 0,
+          "qaTransactions": 0,
+          "factors": 0,
+          "registrationsEnabled": false
+        }
+      }
+    },
+    "localDocuments": {
+      "api31And35": {
+        "normalExportRows": 11,
+        "entity": "categories",
+        "bytes": 1696,
+        "csvSha256": "056d8149ce94ed633d2a444a195eb05694613646024ac6986335bf192d16867a",
+        "tablesRead": 25,
+        "normalCancelObserved": true,
+        "pendingPickerProcessDeathObserved": true,
+        "explicitReprepareMessageObserved": true,
+        "onlyNewVerifiedEmptyDocumentRemoved": true
+      },
+      "api31Bank": {
+        "currency": "USD",
+        "amount": "12.50",
+        "pendingPickerProcessDeathObserved": true,
+        "normalizedCurrency": "EUR",
+        "normalizedAmount": "12.50",
+        "importCommitted": false,
+        "runId": "abd8d2dd-d137-484a-9d6e-b42690d757e5"
+      },
+      "scope": "DocumentsUI-local-Downloads-observed-not-cloud-or-all-URI-authorities",
+      "realMultipageExportVerified": false
+    },
+    "services": {
+      "nativeFxApi31": {
+        "status": "passed-owned-single-record-sample",
+        "amount": "0.01",
+        "currency": "USD",
+        "exchangeRateEur": "0.894370",
+        "persistedBackendReadObserved": true,
+        "uiPhysicalDeleteObserved": true,
+        "remainingQaRows": 0,
+        "evidence": "artifacts/release-qualification/native-fx/53ea707d-d025-4cd7-a04f-c232f8a389b2/",
+        "separateFromNewUpgradeRun": true,
+        "providerQuoteDateObservedFromAndroid": false
+      },
+      "googleBooks": {
+        "httpStatus": 429,
+        "positiveSearchVerified": false,
+        "evidence": "artifacts/release-qualification/services/20261012T144150655292Z-books-dune.json"
+      },
+      "cardTraderNewPositiveFlowVerified": false
+    },
+    "signingBackup": {
+      "sameHostRecoveredKeyUsedForSignature": true,
+      "tamperRejected": true,
+      "privateTemporaryFilesRemoved": true,
+      "offDeviceVerified": false,
+      "evidence": "artifacts/release-qualification/recovered-signing-verification.json"
+    },
+    "licenseInventory": {
+      "runtimeArtifactCoordinates": 80,
+      "pomDeclarations": 110,
+      "licenseAssetsByteMatchSource": true,
+      "upstreamNoticeAndMplTextNormalization": "CRLF-to-LF-only-not-upstream-byte-identity",
+      "legalComplianceClaim": false
+    },
+    "historicalEvidencePreserved": true,
+    "initialReleaseHashWithObservedExportFailure": "ac914bc580091ae435afa7f15a3a6ff4e50be7715e0574b0ba472a4b165ea5bd",
+    "ciExecuted": false,
+    "published": false,
+    "globalParityQualified": false,
+    "physicalDeviceQualified": false,
+    "openVerificationRows": 31,
+    "remainingScope": [
+      "unqualified-local-forms-states-and-QA-paths-in-matrix",
+      "real-multipage-export-and-cloud-providers",
+      "positive-Google-Books-search-and-unqualified-service-paths",
+      "controlled-email-mailbox-and-physical-device",
+      "off-device-signing-backup-recovery-and-release-decision"
+    ],
+    "hostOffline": {
+      "pythonTests": 36,
+      "pythonPassed": 36,
+      "backupGuardTests": 9,
+      "backupGuardPassed": 9,
+      "credentialReads": 0,
+      "backupWrites": 0,
+      "aclChanges": 0,
+      "evidence": "artifacts/release-qualification/host-final/",
+      "scope": "existing-offline-tools-tests-not-Android-or-backend"
+    },
+    "scopedSummaries": {
+      "api31SignedUpgrade": {
+        "runId": "b6e80895-2fb4-4a31-8e9f-fcb28fa74064",
+        "status": "passed",
+        "summary": "artifacts/release-qualification/android31-signed-final-summary.json",
+        "scope": "upgrade-object-only-same-single-session-through-code10-to11-with-final-logout",
+        "summarySha256": "06c24f4bc58171f735efb0099036260c181d9af6f6628e9d5d4b49d8923b3d6f"
+      },
+      "api31EarlierExportBankFx": {
+        "runId": "abd8d2dd-d137-484a-9d6e-b42690d757e5",
+        "summary": "artifacts/release-qualification/android31-signed-final-summary.json",
+        "scope": "export-importPreview-nativeFx-objects-only-separate-server-session-from-new-upgrade",
+        "manualUiLogoutAndServerZeroVerified": true,
+        "mergedWithNewUpgradeSession": false,
+        "summarySha256": "06c24f4bc58171f735efb0099036260c181d9af6f6628e9d5d4b49d8923b3d6f"
+      },
+      "api35SignedSample": {
+        "runId": "fdbfe17c-1bf5-4fe0-9c5f-d95c3ded0a4f",
+        "status": "passed",
+        "summary": "artifacts/release-qualification/android35-signed-final-summary.json",
+        "scope": "its-original-harness-and-session-not-new-api31-harness",
+        "summarySha256": "d204b50409228bfb6681927b5e0d0796c804bd7cc566264f612bcecd1ad9becd"
+      }
+    },
+    "qualifiedVerificationRows": [
+      "V01",
+      "R01"
+    ],
+    "matrixClosureScope": "original-R01-optimized-signed-build-version-hash-cert-lint-debug-suites-both-OS-same-app-source-plus-observed-R8-runtime-sample-not-all-feature-flows",
+    "artifactCollection": {
+      "api31": {
+        "status": "collected-and-format-hash-verified",
+        "pngCount": 81,
+        "metadataCount": 81,
+        "manifest": "artifacts/release-qualification/android31-full-qualified-visual-files.json",
+        "manifestSha256": "863cf1bae5e1421380d7e97fa858357ebab8b24a4c213e1200aa7d07b4eb71aa",
+        "retrieval": "individual-adb-exec-out-cat-bounded-PNG-footer-and-JSON-verified",
+        "scope": "debug-suite-captures-not-new-complete-web-or-R8-visual-comparison"
+      },
+      "api35": {
+        "status": "collected-and-format-hash-verified",
+        "pngCount": 81,
+        "metadataCount": 81,
+        "manifest": "artifacts/release-qualification/android35-full-qualified-visual-files.json",
+        "manifestSha256": "221a1a921d7af70bc94a16052f526aece7c28089b04cb11859c0ebbf7a5fbb4f",
+        "retrieval": "individual-adb-exec-out-cat-bounded-PNG-footer-and-JSON-verified",
+        "scope": "debug-suite-captures-not-new-complete-web-or-R8-visual-comparison"
+      },
+      "emulatorShutdown": {
+        "status": "confirmed-by-root",
+        "api31Stopped": true,
+        "api35Stopped": true,
+        "api31WindowSizeDensityReset": true,
+        "api31FontScaleReset": "1",
+        "adbDevicesEmpty": true,
+        "api31OwnedEmulatorAndQemuPidsAbsent": true,
+        "newDeviceAccessDuringDocumentUpdate": false
+      },
+      "separateFromSuiteResult": true
+    },
+    "historicalScopePolicy": "Earlier localRegressionQualification retains openVerificationRows=32 as its historical result; current qualification closes V01/R01 locally and leaves31."
+  },
+  "coupleInvitationQualification": {
+    "verificationRow": "C01",
+    "status": "local-qualified-C01-scoped-not-global",
+    "matrixStatus": "PASS LOCALE",
+    "qualifiedVerificationRows": ["V01", "R01", "C01"],
+    "openVerificationRows": 30,
+    "report": "docs/COUPLE_INVITATION_QUALIFICATION.md",
+    "runId": "e8aafd09-c2bb-474d-a638-828cf12bde13",
+    "evidenceDirectory": "artifacts/couple-invitation-ui/e8aafd09-c2bb-474d-a638-828cf12bde13/",
+    "immutableResult": "artifacts/couple-invitation-ui/e8aafd09-c2bb-474d-a638-828cf12bde13/result.json",
+    "productionCommit": "459bbac1a380f05b598f0712ee8e66bda3d4eae1",
+    "releaseApkSha256": "d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa",
+    "releaseApkChanged": false,
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "nativeSample": {
+      "api": 31,
+      "language": "en",
+      "loginFormActors": ["A1", "B", "A2"],
+      "invalidCode": "OABC2345",
+      "invalidCodeClientRejected": true,
+      "invalidCodeRequests": 0,
+      "pendingBlocksNewNonemptyCode": true,
+      "pendingBlockCapture": "artifacts/couple-invitation-ui/e8aafd09-c2bb-474d-a638-828cf12bde13/c01-a-pending-blocks-new-code.xml",
+      "declinedRequest": {
+        "id": "d9d58b0d-b21f-4772-90e4-72d5f300cf9b",
+        "direction": "A-to-B",
+        "actor": "B",
+        "status": "rejected",
+        "auditAction": "request_rejected",
+        "evidence": "evidence/first-terminal.json"
+      },
+      "cancelledRequest": {
+        "id": "551b2662-5c1f-4401-8a76-6151956f9742",
+        "direction": "B-to-A",
+        "actor": "B",
+        "status": "cancelled",
+        "auditAction": "request_cancelled",
+        "evidence": "evidence/reverse-terminal.json"
+      },
+      "a1AutomaticLogout": {
+        "status": "failed-retained",
+        "failureCode": "ACCOUNT_CONTENT_MISSING",
+        "manualUiLogoutAndServerZeroVerified": true,
+        "driverFixCommit": "2d7d70f",
+        "applicationChanged": false
+      },
+      "bAndA2NativeLogoutPassed": true,
+      "a2PendingInvitationsEmpty": true,
+      "correctedHarnessApkSha256": "b67ae850c0b357f0e1b7f7dbc9c2befd4a4562e5274b902eb2ec6033e03dce6e",
+      "singleErrorFreeAutomaticRunClaimed": false
+    },
+    "roleVisibility": {
+      "scope": "separate-host-REST-login-and-local-logout-per-QA-role-not-native-terminal-row-display",
+      "status": "passed",
+      "reads": 4,
+      "allFieldsMatch": true,
+      "hostLogoutBothPassed": true,
+      "evidence": "visibility-result.json"
+    },
+    "cleanup": {
+      "ownedRequestsDeleted": 2,
+      "ownedAuditRowsDeleted": 4,
+      "exactFullJsonCompareAndPerIdAbsence": true,
+      "requests": 0,
+      "auditRows": 0,
+      "qaSessions": 0,
+      "qaTransactions": 0,
+      "factors": 0,
+      "connections": 0,
+      "qaIdentities": 3,
+      "registrationsEnabled": false,
+      "qaMetadataAndProfilesUnchanged": true,
+      "evidence": ["evidence/cleanup-reservation.json", "evidence/cleanup-complete.json", "server-final-cleanup.json"],
+      "allServiceRecordsUnchangedClaimed": false
+    },
+    "offlineHostGuards": {
+      "tests": 18,
+      "passed": 18,
+      "seconds": 0.983,
+      "secretReadsDuringSelfcheck": 0,
+      "log": "artifacts/couple-invitation-ui/host-guard-selfcheck.log"
+    },
+    "targetedDebugFixtures": {
+      "existingCases": 4,
+      "addedCases": 3,
+      "newCases": ["incoming-reject-receiver-pending-cas", "outgoing-cancel-sender-pending-cas", "late-patch-response-after-owner-change"],
+      "fixtureSourceCommit": "b5860c30c5730a745227e1ecf97eb8c24dc16616",
+      "testApk": "qualified-androidTest-final.apk",
+      "testApkSha256": "180d746d8a85f82e80c3d9463705b79fecfa3b62ae154e8c8604ea4342277722",
+      "appDebugApkSha256": "cac39f0af66a2a32d269f5094de6a565306cdc4405aa7731a71b021b02da99e5",
+      "api31Final": {"status": "passed", "tests": 7, "passed": 7, "failures": 0, "skipped": 0, "seconds": 19.716, "singleCompleteClassExecution": true, "log": "android31-couple-fixtures-qualified.log", "logSha256": "0ab22a251b173da540f2e817e3c96eb6636782d9a849e00744c063d0e1f3a56f"},
+      "api35Final": {"status": "passed", "tests": 7, "passed": 7, "failures": 0, "skipped": 0, "seconds": 40.444, "singleCompleteClassExecution": true, "log": "android35-couple-fixtures-qualified.log", "logSha256": "4f0fb467dca430982051920a27e3df007f4b20861cee4529cb364d14e3cf6384"},
+      "executionsAcrossTwoApis": 14,
+      "distinctCases": 7,
+      "priorApi31FailuresRetained": [
+        {"tests": 7, "passed": 6, "failure": "fixture-guard-excluded-sender-pending-select-id-limit-one", "log": "android31-couple-fixtures.log"},
+        {"tests": 7, "passed": 6, "failure": "read-rpc-counted-as-write-expected-one-actual-two", "log": "android31-couple-fixtures-final.log"}
+      ],
+      "newComplete173CaseSuiteClaimed": false,
+      "historicalFullSuite": {"appCommit": "459bbac", "testCommit": "74d7d0d", "testsPerApi": 170, "jvmPerVariant": 536}
+    },
+    "scope": "owned-QA-native-decline-cancel-invalid-pending-plus-local-late-response-fixtures-not-C02-or-global-parity",
+    "historicalQualificationObjectsPreserved": true,
+    "historicalScopePolicy": "Prior localRegressionQualification retains open32 and signedReleaseCandidateQualification retains open31; this later C01 qualification closes V01/R01/C01 locally and leaves30 without changing their original suites or flags.",
+    "artifactCollection": {"nativeXmlAndPngCaptures": 22, "movedIntoRunWithBytesPreserved": true, "perFileHashesRecordedInResult": true, "mutableEmulatorLogsExcludedFromImmutableResult": true},
+    "emulatorShutdown": {"status": "confirmed-by-integrator", "api31StoppedBeforeApi35Started": true, "api35Stopped": true, "api35WindowSizeDensityFontReset": true, "adbDevicesEmpty": true, "ownedParentAndQemuPidsAbsent": true, "newDeviceAccessDuringDocumentUpdate": false},
+    "ciExecuted": false,
+    "published": false,
+    "globalParityQualified": false,
+    "schemaOrWebChanged": false,
+    "emailTriggered": false
+  },
+  "coupleFormQualification": {
+    "status": "pass-local-scoped-not-global",
+    "matrixRow": "C02",
+    "closedRowsLocal": ["V01", "R01", "C01", "C02"],
+    "openMatrixRows": 29,
+    "runId": "c6e879e4-9ec4-46b3-9940-1a01cefcad94",
+    "runDirectory": "artifacts/couple-form-ui/c6e879e4-9ec4-46b3-9940-1a01cefcad94",
+    "report": "docs/COUPLE_FORM_QUALIFICATION.md",
+    "result": {"file": "result.json", "sha256": "bc5c3b22ed5cc1e1ecb6d3dfee87bb0502bc6b99251ddce6c790997992510778", "offlineFinalizerPassed": true},
+    "productionSourceCommit": "459bbac1a380f05b598f0712ee8e66bda3d4eae1",
+    "releaseApkSha256": "d6c4ccb0ab8b16c9fa893a4b119253aa4b3ff859249ccfb2dd344d15e12f0daa",
+    "versionName": "0.1.10-alpha",
+    "versionCode": 11,
+    "productionChanged": false,
+    "referenceWebRevision": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+    "nativeSample": {
+      "api": 31,
+      "language": "en",
+      "operations": 16,
+      "connectionId": "25240d05-e7a2-4b12-b120-093672b3a333",
+      "equalSplit": {"currency": "EUR", "originalAmount": "10.01", "creatorShare": "5.01", "partnerShare": "5.01", "roundingWarning": "0.01", "sqlRoundingChanged": false},
+      "customSplit": {"currency": "USD", "originalAmount": "7.00", "creatorShare": "4.99", "partnerShare": "2.01", "rejectedInputs": ["0", "7", "2.001"]},
+      "budget": {"currency": "EUR", "before": "3", "after": "4", "sameUuid": true, "zeroRejectedObservation": "coordinator-history-and-no-write-plus-distinct-debug-fixture", "zeroErrorVisibleInCapture": false},
+      "removalPaths": ["couple-creator", "couple-partner", "transactions-partner", "transactions-creator"],
+      "distinctShareUuids": 5,
+      "removedShareUuids": 4,
+      "originalTransactionsPreserved": true,
+      "originalsOwnerOnly": true,
+      "revocationCancelledThenConfirmed": true,
+      "oneShareAndBudgetPresentBeforeRevocation": true,
+      "archiveBothRoles": {"captures": ["c02-a-archive-details", "c02-b7-archive-complete"], "labels": ["Created", "Revoked", "Read-only"]},
+      "nativeAuthentication": {
+        "pairs": 13,
+        "invocations": 26,
+        "passed": 26,
+        "earlierHarness": {"authSource": "2d7d70f", "apkSha256": "b67ae850c0b357f0e1b7f7dbc9c2befd4a4562e5274b902eb2ec6033e03dce6e", "actors": ["A1", "A2", "A3", "A4", "B1", "B2", "B3"]},
+        "extendedHarness": {"source": "4def664", "apkSha256": "cc28312b6a17360cfd14e6d86b3062b173cb0f0ee9a4dfdc9f60da0dff4f68b2", "actors": ["A5", "A6", "B4", "B5", "B6", "B7"]},
+        "loginLogoutMethodsChangedByExtension": false
+      },
+      "publicFieldSetters": {"source": "4def664", "passed": 3, "whitelistAndValueRegexBeforeAction": true, "completeValueVerified": true},
+      "singleErrorFreeAutomaticRunClaimed": false,
+      "driverAttemptsRetained": ["incorrect-partner-code-label-unsubmitted-captures", "refused-tap-no-insert-NEW_ROW_NOT_UNIQUE", "wrong-budget-scroll-direction-and-cancel-label", "missing-for-in-remove-sharing-description", "cp1252-stdout-encoding-error", "concurrent-ui-dumps-ADB_FAILURE-before-reservation", "emoji-keyboard-interception-recovered-with-bounded-public-field-setter"]
+    },
+    "roleVisibility": {
+      "scope": "separate-host-REST-QA-role-reads-with-local-logout-not-native-UI-or-global-session-count",
+      "observerSource": "700a56c",
+      "status": "passed",
+      "phases": [
+        {"label": "active-shares", "reads": 22},
+        {"label": "active-budget", "reads": 24},
+        {"label": "post-removal-one", "reads": 26},
+        {"label": "post-removal-two", "reads": 26},
+        {"label": "post-removal-three", "reads": 34},
+        {"label": "post-removal-four", "reads": 40},
+        {"label": "post-revoke", "reads": 48}
+      ],
+      "totalRepeatedReads": 220,
+      "bothOwnHostLogoutsPerPhasePassed": true,
+      "cleanupPending": false,
+      "postRevokeHidden": ["shared_expenses", "shared_expenses_view", "couple_budgets", "connection-scoped-couple_audit_log"],
+      "postRevokeMetadataVisible": ["revoked-connection", "accepted-request"],
+      "allServicePoliciesQualified": false
+    },
+    "cleanup": {
+      "residualRowsDeletedWithCas": 16,
+      "deletedByType": {"shared_expenses": 1, "couple_audit_log": 10, "couple_budgets": 1, "transactions": 2, "couple_connections": 1, "couple_connection_requests": 1},
+      "sixQaTablesRemainingRows": 0,
+      "qaNonExpiredSessions": 0,
+      "sessionCountScope": "three-QA-identities-not_after-null-or-future",
+      "qaFactors": 0,
+      "registrationsEnabled": false,
+      "unchangedIdentityProjection": ["id", "email", "confirmed", "qa_run"],
+      "unchangedProfileProjection": {"actors": ["A", "B"], "fields": ["couple-code", "permissions"]},
+      "allUserFieldsOrAdminProfileCompared": false,
+      "reservationSnapshotRetainsPriorUiSession": true,
+      "freshGuardZeroActiveSessionsBeforeDelete": true,
+      "offlineFinalizerReservationExpectationCorrectedWithoutLedgerChange": true,
+      "evidence": ["evidence/cleanup-reservation.json", "evidence/cleanup-complete.json", "server-final-cleanup.json", "server-final-records.json"]
+    },
+    "offlineHostGuards": {
+      "form": {"tests": 16, "passed": 16, "seconds": 5.884, "log": "host-form-guard.log"},
+      "role": {"tests": 15, "passed": 15, "seconds": 0.639, "log": "host-role-guard-qualified.log"},
+      "initialRoleFailureRetained": {"tests": 15, "passed": 14, "log": "host-role-guard.log", "expectedErrorCodeCorrectedTo": "NUMERIC_INVALID", "privacyAndLogoutAssertionsPreserved": true},
+      "secretReadsDuringSelfcheck": 0
+    },
+    "targetedDebugFixtures": {
+      "fixtureSourceCommit": "b069756",
+      "existingCases": 9,
+      "addedCases": 5,
+      "distinctCases": 14,
+      "classes": {"CoupleScreenTest": 11, "FinanceSharingScreenTest": 3},
+      "testApk": "qualified-androidTest.apk",
+      "testApkSha256": "a878fe68e18f8f4041f63bb79dadbc3fda969c9fa8e1d35b224e41e4304feae8",
+      "appDebugApkSha256": "cac39f0af66a2a32d269f5094de6a565306cdc4405aa7731a71b021b02da99e5",
+      "api31Final": {"status": "passed", "tests": 14, "passed": 14, "failures": 0, "skipped": 0, "seconds": 47.894, "log": "android31-couple-fixtures.log", "logSha256": "93b6793cb12604831ab3ebee5c40103ede11f07d5f9257ddebcec3af085bcef5"},
+      "api35Final": {"status": "passed", "tests": 14, "passed": 14, "failures": 0, "skipped": 0, "seconds": 56.859, "log": "android35-couple-fixtures-qualified.log", "logSha256": "ef0fcb6625a5371ee7b8f9853746207af96ef4fbfafad6303ac54f29d728c465"},
+      "executionsAcrossFinalTwoApis": 28,
+      "initialApi35CrashRetained": {"log": "android35-couple-fixtures.log", "test": "lateRejectResponseFromOldOwnerClearsStaleInvitationsWithoutWritingAsNewOwner", "phase": "Activity-destruction-Compose-SlotWriter", "error": "ArrayIndexOutOfBoundsException-length2560-index-minus2056", "causeDemonstrated": false, "fixedClaimed": false},
+      "isolatedApi35SameApk": {"tests": 1, "passed": 1, "seconds": 6.821, "log": "android35-couple-isolated.log", "sourceEditedBeforeFinalRerun": false},
+      "newComplete175CaseSuiteClaimed": false,
+      "historicalFullSuite": {"appCommit": "459bbac", "testCommit": "74d7d0d", "testsPerApi": 170, "jvmPerVariant": 536}
+    },
+    "lintDebug": {"errors": 0, "warnings": 32, "hints": 6},
+    "buildAttempts": {"loopbackFailuresBeforeCompiler": 2, "logs": ["fixture-build.log", "fixture-build-jbr.log"], "qualifiedLog": "fixture-build-qualified.log", "qualifiedDuration": "2m6s", "productionApkRebuilt": false},
+    "artifactCollection": {"pngFiles": 45, "xmlFiles": 45, "hashesInResult": true},
+    "emulatorShutdown": {"evidence": "emulators-final-shutdown.json", "bothStopped": true, "adbDevicesEmpty": true, "ownedProcessesAbsent": true, "newDeviceAccessDuringDocumentUpdate": false},
+    "historicalQualificationObjectsPreserved": true,
+    "historicalScopePolicy": "Prior open32/open31/open30 qualification objects remain historical; this later C02 closes V01/R01/C01/C02 locally and leaves29 without changing their original suites or flags.",
+    "scope": "owned-QA-native-shares-budgets-four-removals-revoke-archive-role-isolation-cleanup-plus-fourteen-local-debug-fixtures-not-global-parity",
+    "limitations": ["native-real-server-sample-API31-only-API35-synthetic-debug-fixtures", "native-budget-deletion-not-exercised-fixture-only", "USD-manual-exchange-rate-one-no-FX-service-qualification", "initial-API35-disposal-crash-cause-not-established", "session-count-not-expired-three-QA-identities-only", "identity-and-profile-selected-fields-only", "driver-failures-retained-not-one-error-free-run"],
+    "ciExecuted": false,
+    "published": false,
+    "globalParityQualified": false,
+    "schemaOrWebChanged": false,
+    "emailTriggered": false
+  }
+}

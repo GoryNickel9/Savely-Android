@@ -1,0 +1,390 @@
+{
+  "version": 1,
+  "scope": "update-tcg-prices tracked review proposal",
+  "status": "review-ready-not-deployed",
+  "preparedAtUtc": "2026-10-14T14:45:40.777087+00:00",
+  "webSource": "1cfcf6297e85d56bfafe3522362ceecef6f6b281",
+  "deployedPreimageObserved": {
+    "created_at": 1775066472683,
+    "entrypoint_path": "file:///tmp/user_fn_crqnfbahytzenisospcx_5a4e22f8-4203-4f1f-a0ce-08df296a5125_15/source/supabase/functions/update-tcg-prices/index.ts",
+    "id": "5a4e22f8-4203-4f1f-a0ce-08df296a5125",
+    "import_map_path": null,
+    "name": "update-tcg-prices",
+    "slug": "update-tcg-prices",
+    "status": "ACTIVE",
+    "updated_at": 1782996225317,
+    "verify_jwt": false,
+    "version": 17
+  },
+  "deployedSourceByteEqualPinnedWeb": true,
+  "stagingVerification": {
+    "path": "artifacts/s02-backend-preparation/verification.json",
+    "sha256": "74e1e3962e9bb27d950420596c1b15a3922ccb8323febccd1442a6f51b4ad0b6",
+    "originalFilesUnchanged": true
+  },
+  "copiedTestedFiles": [
+    {
+      "path": "index.ts",
+      "sha256": "27890cd72ddea8a84d44dfa710340ff8e0ca334c3fea343500e8da7513a04219",
+      "bytes": 7016,
+      "byteEqualTestedStaging": false,
+      "originalStagingSha256": "94a4e1d214403325b403e8e9c1b9712dfee2ad6ccb12bc58ebfc4ce35543ad56",
+      "difference": "one final LF removed"
+    },
+    {
+      "path": "price-contract.ts",
+      "sha256": "68c2971d96d5c68073e1f2b6745cb66436cadaf7454dba0fc65c3677c821961b",
+      "bytes": 4796,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "price-contract_test.ts",
+      "sha256": "a54269e5fe7df6b77006dbf5c824bebcec4d9e63ffaacb477b1821253e6566d0",
+      "bytes": 4617,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "run-offline.mjs",
+      "sha256": "c55bab76af08279b229a2d18da0236745bc04f382773714bc849db13d76783a1",
+      "bytes": 9918,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "tsconfig.offline.json",
+      "sha256": "a3a1edd60be3b5260f41e0fcb771d6663a18343f881bdac1c64ee9dbadb8d1be",
+      "bytes": 234,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "upstream.patch",
+      "sha256": "46a33bf2efb21e3c15a8ff0d6613ecdf4c19e7394e8f95c36f5ea5054068566b",
+      "bytes": 12985,
+      "byteEqualTestedStaging": false,
+      "originalStagingSha256": "8e2dbd16488d4cdc3bbd102889892833af8865a9e687e36bb9d95198809068fe",
+      "difference": "regenerated after final LF removal from index"
+    }
+  ],
+  "runtime": {
+    "node": "24.19.0",
+    "typescriptStrictCompiler": "5.8.3",
+    "deno": "2.9.7",
+    "denoTypeScript": "6.0.3",
+    "denoBinarySha256": "e020f3e232bd16e33768dee528e5983349c962952051ced0a5d58ad42f5d9b33",
+    "denoBinaryMatchesExistingRuntimeManifest": true,
+    "edgeRuntimeVerified": false
+  },
+  "historicalStagingResults": {
+    "node": {
+      "total": 24,
+      "passed": 24,
+      "failed": 0,
+      "exitCode": 0,
+      "pureCases": 12,
+      "handlerCases": 12,
+      "log": "artifacts/s02-backend-preparation/offline-attempt1.log"
+    },
+    "deno": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "exitCode": 0,
+      "reportedDurationMs": 71,
+      "samePureCasesAsNode": true,
+      "runtimePermissions": "all denied",
+      "log": "artifacts/s02-backend-preparation/deno-test-attempt1.log"
+    },
+    "status": "passed-offline-synthetic-only",
+    "firstAttemptsAllPassed": true,
+    "sourceCorrectionsRequired": false
+  },
+  "historicalStagingCommands": [
+    {
+      "command": "node ../Savely/node_modules/typescript/bin/tsc --project artifacts/s02-backend-preparation/tsconfig.offline.json --pretty false",
+      "exitCode": 0,
+      "strict": true,
+      "types": [],
+      "scope": "price-contract.ts only",
+      "log": "artifacts/s02-backend-preparation/strict-typecheck-attempt1.log",
+      "logMaterializedAfterEmptyOutput": true
+    },
+    {
+      "command": "artifacts/runtime/deno-v2.9.7/deno.exe check --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --allow-import=esm.sh artifacts/s02-backend-preparation/index.ts",
+      "exitCode": 0,
+      "scope": "handler and helper; no handler execution",
+      "log": "artifacts/s02-backend-preparation/deno-check-attempt1.log",
+      "resolvedSdk": "2.117.3",
+      "sourceSpecifierUnchanged": "https://esm.sh/@supabase/supabase-js@2"
+    },
+    {
+      "command": "node artifacts/s02-backend-preparation/run-offline.mjs"
+    },
+    {
+      "command": "artifacts/runtime/deno-v2.9.7/deno.exe test --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --deny-net --deny-env --deny-read --deny-write --deny-run --deny-ffi --deny-sys --deny-import --no-prompt artifacts/s02-backend-preparation/price-contract_test.ts"
+    }
+  ],
+  "verificationReuse": {
+    "basis": "four byte-identical helper/test/runner/tsconfig files; handler one-LF formatting delta retested in permanent package; patch regenerated",
+    "testsRerunDuringCopy": false,
+    "nodePassed": 24,
+    "denoPassed": 12,
+    "denoRepeatsNodePureCases": true,
+    "runnerRelativePathUnchanged": true,
+    "runnerResolvesSameLocalTypeScript": true,
+    "runnerRelativeDependency": "../../../Savely/node_modules/typescript/lib/typescript.js",
+    "permanentCommandsExecuted": true,
+    "testsRerunAfterFormatting": true,
+    "permanentCommandsExecutedSubset": [
+      "node backend-proposals/update-tcg-prices/run-offline.mjs",
+      "artifacts/runtime/deno-v2.9.7/deno.exe check --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --allow-import=esm.sh backend-proposals/update-tcg-prices/index.ts"
+    ]
+  },
+  "reproduciblePermanentCommands": [
+    "node backend-proposals/update-tcg-prices/run-offline.mjs",
+    "node ../Savely/node_modules/typescript/bin/tsc --project backend-proposals/update-tcg-prices/tsconfig.offline.json --pretty false",
+    "artifacts/runtime/deno-v2.9.7/deno.exe check --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --allow-import=esm.sh backend-proposals/update-tcg-prices/index.ts",
+    "artifacts/runtime/deno-v2.9.7/deno.exe test --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --deny-net --deny-env --deny-read --deny-write --deny-run --deny-ffi --deny-sys --deny-import --no-prompt backend-proposals/update-tcg-prices/price-contract_test.ts"
+  ],
+  "ignoredHistoricalEvidence": [
+    {
+      "path": "artifacts/s02-backend-preparation/deployed-backup/body.eszip",
+      "sha256": "d7dde8d167a814a05d21c5daad0ca810f943e1fa8bf9f5378a9676219adf577e",
+      "bytes": 250834
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/deployed-backup/index.ts",
+      "sha256": "3ea21a177a8184de608e1ba71f4edbb8873d6682850a2cc4c05352f8144ecfd7",
+      "bytes": 7812
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/deployed-backup/metadata.json",
+      "sha256": "fed43fc85166c03d895a201f4456cfbce13c369461ed2d93ef2a480218af71ac",
+      "bytes": 382
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/deployed-backup/read-result.json",
+      "sha256": "0e949dbf53551c836101a4b9360bf9a77b1549547b3e20828298f342f3c871cf",
+      "bytes": 882
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/deployed-backup/source-extraction.json",
+      "sha256": "585a50d4cf77fd77f0186fcc3c4d5b0fe016b0ab84f06a5a511a7524881d2a99",
+      "bytes": 425
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/verification-pre-execution.json",
+      "sha256": "1bea872794ac526e9adcae6de645a51b1d10c58595abed7b0615ebbaf252037a",
+      "bytes": 2778
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/offline-attempt1.log",
+      "sha256": "ac7b798fab6d4145b6816d69d9444afb678cc60742510ac24367c848f960fa99",
+      "bytes": 2789
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/strict-typecheck-attempt1.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/deno-check-attempt1.log",
+      "sha256": "d681961266e6487522379247b5fcb794f01c2c32d11249c2697aea3f38de6516",
+      "bytes": 3568
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/deno-test-attempt1.log",
+      "sha256": "5eaa62f7b6733d09f4b441b7834d8a349e3b248d0ca7bd9f427af810034e92c0",
+      "bytes": 1221
+    },
+    {
+      "path": "artifacts/s02-backend-preparation/evidence-materialization-attempt1.json",
+      "sha256": "92a92e462783269e2121a165830b8120211e419788abad43570c76733306688f",
+      "bytes": 398
+    }
+  ],
+  "nativeProposal": null,
+  "deployment": {
+    "executed": false,
+    "bundleOnlyExecuted": false,
+    "canaryExecuted": false,
+    "userAuthorizationRequired": true,
+    "approvalSeparateFrom": "update-prices and the other S02 service",
+    "plan": "DEPLOYMENT_PLAN.md",
+    "noCronInvocationOrCustomerWrites": true
+  },
+  "copyOperation": {
+    "networkRequests": 0,
+    "backendWrites": 0,
+    "activeNativeFilesChanged": false,
+    "webRepositoryChanged": false,
+    "commitCreated": false,
+    "lfPolicy": "* text eol=lf, same as existing backend-proposals/update-prices"
+  },
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 75,
+      "sha256": "07e4921ff78548c0f97633ba38be57c19ee03fdfe302d420fef5822b98120a1f"
+    },
+    {
+      "path": "DEPLOYMENT_PLAN.md",
+      "bytes": 4865,
+      "sha256": "aa0e78efde1eaa94bde4892558b4ec66e57c2dc75b26a8384c17254e2235ec67"
+    },
+    {
+      "path": "index.ts",
+      "bytes": 7016,
+      "sha256": "27890cd72ddea8a84d44dfa710340ff8e0ca334c3fea343500e8da7513a04219"
+    },
+    {
+      "path": "price-contract.ts",
+      "bytes": 4796,
+      "sha256": "68c2971d96d5c68073e1f2b6745cb66436cadaf7454dba0fc65c3677c821961b"
+    },
+    {
+      "path": "price-contract_test.ts",
+      "bytes": 4617,
+      "sha256": "a54269e5fe7df6b77006dbf5c824bebcec4d9e63ffaacb477b1821253e6566d0"
+    },
+    {
+      "path": "README.md",
+      "bytes": 11760,
+      "sha256": "9f70e2897e656caa02ed96eec36cdce339abaa2c28be562a7424ac5184123004"
+    },
+    {
+      "path": "run-offline.mjs",
+      "bytes": 9918,
+      "sha256": "c55bab76af08279b229a2d18da0236745bc04f382773714bc849db13d76783a1"
+    },
+    {
+      "path": "tsconfig.offline.json",
+      "bytes": 234,
+      "sha256": "a3a1edd60be3b5260f41e0fcb771d6663a18343f881bdac1c64ee9dbadb8d1be"
+    },
+    {
+      "path": "upstream.patch",
+      "bytes": 12985,
+      "sha256": "46a33bf2efb21e3c15a8ff0d6613ecdf4c19e7394e8f95c36f5ea5054068566b"
+    }
+  ],
+  "initialCopiedTestedFiles": [
+    {
+      "path": "index.ts",
+      "sha256": "94a4e1d214403325b403e8e9c1b9712dfee2ad6ccb12bc58ebfc4ce35543ad56",
+      "bytes": 7017,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "price-contract.ts",
+      "sha256": "68c2971d96d5c68073e1f2b6745cb66436cadaf7454dba0fc65c3677c821961b",
+      "bytes": 4796,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "price-contract_test.ts",
+      "sha256": "a54269e5fe7df6b77006dbf5c824bebcec4d9e63ffaacb477b1821253e6566d0",
+      "bytes": 4617,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "run-offline.mjs",
+      "sha256": "c55bab76af08279b229a2d18da0236745bc04f382773714bc849db13d76783a1",
+      "bytes": 9918,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "tsconfig.offline.json",
+      "sha256": "a3a1edd60be3b5260f41e0fcb771d6663a18343f881bdac1c64ee9dbadb8d1be",
+      "bytes": 234,
+      "byteEqualTestedStaging": true
+    },
+    {
+      "path": "upstream.patch",
+      "sha256": "8e2dbd16488d4cdc3bbd102889892833af8865a9e687e36bb9d95198809068fe",
+      "bytes": 12965,
+      "byteEqualTestedStaging": true
+    }
+  ],
+  "permanentFormattingReview": {
+    "delta": {
+      "delta": "Remove exactly one final LF from index.ts; regenerate data-only upstream.patch against pinned web and unchanged helper",
+      "removedBytes": 1,
+      "beforeIndexSha256": "94a4e1d214403325b403e8e9c1b9712dfee2ad6ccb12bc58ebfc4ce35543ad56",
+      "afterIndexSha256": "27890cd72ddea8a84d44dfa710340ff8e0ca334c3fea343500e8da7513a04219",
+      "beforePatchSha256": "8e2dbd16488d4cdc3bbd102889892833af8865a9e687e36bb9d95198809068fe",
+      "afterPatchSha256": "46a33bf2efb21e3c15a8ff0d6613ecdf4c19e7394e8f95c36f5ea5054068566b",
+      "stagingChanged": false,
+      "helperChanged": false
+    },
+    "initialWhitespaceCheck": {
+      "exitCode": 2,
+      "cause": "new blank line at EOF in index.ts:176",
+      "log": "artifacts/s02-package-review/cron-eof/whitespace-initial.log"
+    },
+    "node": {
+      "passed": 24,
+      "failed": 0,
+      "exitCode": 0,
+      "pure": 12,
+      "handler": 12,
+      "log": "artifacts/s02-package-review/cron-eof/node-final.log",
+      "command": "node backend-proposals/update-tcg-prices/run-offline.mjs"
+    },
+    "denoCheck": {
+      "exitCode": 0,
+      "scope": "corrected permanent handler; no execution",
+      "log": "artifacts/s02-package-review/cron-eof/deno-check-final.log",
+      "command": "artifacts/runtime/deno-v2.9.7/deno.exe check --no-config --no-lock --no-npm --node-modules-dir=none --cached-only --allow-import=esm.sh backend-proposals/update-tcg-prices/index.ts"
+    },
+    "patchCheck": {
+      "exitCode": 0,
+      "applied": false,
+      "log": "artifacts/s02-package-review/cron-eof/patch-check-final.log"
+    },
+    "unchangedPureDenoAndStrictHelperNotRerun": true,
+    "originalStagingUnchanged": true,
+    "proxyPackageUnchanged": true,
+    "activeAppChanged": false,
+    "backendInvocation": false,
+    "deployed": false,
+    "evidence": [
+      {
+        "path": "artifacts/s02-package-review/cron-eof/deno-check-final.log",
+        "bytes": 52,
+        "sha256": "a7955a57cc5e9dc1116f86091ebd2f700557b4ee864e620cd1850aaf088c7501"
+      },
+      {
+        "path": "artifacts/s02-package-review/cron-eof/formatting-delta.json",
+        "bytes": 580,
+        "sha256": "085fa6531535a316ddcbb8c65e874897dc574c08f78570f1bf303636aef9c75a"
+      },
+      {
+        "path": "artifacts/s02-package-review/cron-eof/node-final.log",
+        "bytes": 2789,
+        "sha256": "ac7b798fab6d4145b6816d69d9444afb678cc60742510ac24367c848f960fa99"
+      },
+      {
+        "path": "artifacts/s02-package-review/cron-eof/patch-check-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "artifacts/s02-package-review/cron-eof/verification-before-formatting.json",
+        "bytes": 9716,
+        "sha256": "50dd008940609592c4884f63e29818e23aafe0442d5a2321eac4344bffafaefd"
+      },
+      {
+        "path": "artifacts/s02-package-review/cron-eof/whitespace-initial.log",
+        "bytes": 74,
+        "sha256": "b55724a3de7bc5de34ea532c359b793908b3ace6ad99ad0ed88b8398937f5402"
+      }
+    ],
+    "finalWhitespaceCheck": {
+      "exitCode": 0,
+      "command": "git diff --cached --check -- backend-proposals/update-tcg-prices ':(exclude)backend-proposals/update-tcg-prices/upstream.patch'",
+      "dataOnlyPatchExcluded": true,
+      "log": "artifacts/s02-package-review/cron-eof/whitespace-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}
