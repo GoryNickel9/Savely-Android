@@ -1,5 +1,9 @@
 # Verifica Savely Android
 
+## Diagnostico CI USD concluso
+
+La [diagnosi](CI_VISUAL_GLYPH_DIAGNOSIS.md) sul sorgente `2747631` passa build/lint e 593 JVM, più il solo test portfolio-glyph IT/EN API 35. Verificati 14 file e sei PNG: il viewport sintetico rispetta ora gli inset di sistema. La suite completa storica `38580288372` resta fallita; il nuovo diagnostico non include le modifiche Poker locali.
+
 ## FIRE V09 — fixture locali, percorso firmato aperto
 
 [V09](FIRE_QUALIFICATION.md), sorgente `eb2ffed`: **593 JVM per variante e 24/24 FIRE API 31 in 261,134 s**. Form EN Standard/Barista, ultimo draft valido, reset, import confermato e confini UID/SID verificati nelle fixture; il refresh token dello stesso SID resta ammesso. Primo gruppo 19/24 e isolato fallito conservati; corretti solo focus/IME, scroll sui pulsanti del dialogo e contenitore del grafico isolato. I cinque casi corretti passano prima 5/5 e poi nel gruppo completo, stesso main `923037…` e test `86215b…`.
@@ -32,7 +36,7 @@ Run `1216fd9d-fa37-409f-afff-00280e208259`; 13 guardie host finali PASS. Sei cle
 
 [Rapporto V06](PORTFOLIO_QUALIFICATION.md): produzione `41f2098`, 586 JVM per variante e lint senza errori; 14/14 fixture API 31, 22 PNG IT/EN revisionati, 14 guardie host e 17 verifiche native sul release firmato, tutte superate. Baseline QA ripristinato alle 13:40:19,710710 UTC del 14 ottobre 2026, con 33 categorie e sei snapshot preesistenti conservati. Nessuna richiesta prezzi nel run CRUD. Il difetto del servizio v16 ha una correzione `ca97547` verificata offline/Deno e [distribuita come v17](../backend-proposals/update-prices/DEPLOYMENT_REPORT.md), con bundle verificato. Il successivo canary QA sopra chiude V06 nel perimetro locale, senza modificare gli esiti di questo primo run CRUD.
 
-La [CI sulla stessa produzione](https://github.com/GoryNickel9/Savely-Android/actions/runs/38567179309) passa il job build; UI **222/224 PASS, due timeout iniziali, zero skip**. Causa non dimostrata; la successiva diagnostica test-only non modifica deadline, asserzioni o retry. Gli APK UI della CI non sono archiviati. Non è una CI completamente riuscita né una qualifica globale della candidata. La nuova [CI `38580288372`](https://github.com/GoryNickel9/Savely-Android/actions/runs/38580288372) ha il job build fallito e il job UI ancora in corso; questo report non attribuisce un PASS alla CI.
+La [CI sulla stessa produzione](https://github.com/GoryNickel9/Savely-Android/actions/runs/38567179309) passa il job build; UI **222/224 PASS, due timeout iniziali, zero skip**. Causa non dimostrata; la successiva diagnostica test-only non modifica deadline, asserzioni o retry. Gli APK UI della CI non sono archiviati. Non è una CI completamente riuscita né una qualifica globale della candidata. La nuova [CI `38580288372`](https://github.com/GoryNickel9/Savely-Android/actions/runs/38580288372) conclude con build fallita e UI 229/230; questo report non attribuisce un PASS alla CI.
 
 ## Qualifica Grafici V05 — candidata locale 0.1.16-alpha
 
