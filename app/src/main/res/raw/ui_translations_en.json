@@ -750,7 +750,7 @@
   "Quantità della collezione non valida": "Invalid collection quantity",
   "Quantità non valida": "Invalid quantity",
   "Quantità oltre il limite del database": "Quantity exceeds the database limit",
-  "Quanto manca al prossimo cut": "Time until the next cut",
+  "Quanto manca al prossimo cut": "Amount needed for the next cut",
   "Query non valida.": "Invalid query.",
   "Questa alpha controlla anche le anteprime pubblicate su GitHub.": "This alpha also checks previews published on GitHub.",
   "Questa build non contiene una configurazione valida. Installa l’APK configurato del progetto.": "This build does not contain a valid configuration. Install the project's configured APK.",
@@ -1260,5 +1260,6 @@
   "Criptovalute": "Cryptocurrencies",
   "Obbligazioni": "Bonds",
   "Operazione sul portafoglio non confermata. Aggiorna i dati e verifica la posizione prima di continuare.": "Portfolio operation not confirmed. Refresh the data and check the position before continuing.",
-  "Positivi": "Positive"
+  "Positivi": "Positive",
+  "Esito del salvataggio incerto. Aggiorna i dati prima di riprovare.": "The save result is uncertain. Refresh the data before trying again."
 }

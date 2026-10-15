@@ -470,6 +470,8 @@ private fun PokerScreen(api: SupabaseApi, modifier: Modifier) {
 @Composable
 private fun NextCutScreen(api: SupabaseApi, modifier: Modifier) {
     val scope = rememberCoroutineScope()
+    val writeBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    var reconciliationRequired by rememberSaveable { mutableStateOf(false) }
     var record by remember { mutableStateOf<JSONObject?>(null) }
     var owner by remember { mutableStateOf("") }
     var ownerRevision by remember { mutableStateOf<Long?>(null) }
@@ -490,12 +492,12 @@ private fun NextCutScreen(api: SupabaseApi, modifier: Modifier) {
             val transactions = api.userRows("transactions").map { PokerCalculations.Expense(
                 LocalDate.parse(it.getString("date").take(10)), it.getDouble("amount"), it.getString("type")) }
             val manual = api.userRows("poker_manual_expenses").sumOf { it.getDouble("amount") }
-            val monthly = PokerCalculations.medianMonthlySpending(transactions, LocalDate.now().minusDays(730)) + manual
+            val monthly = PokerCalculations.medianMonthlySpending(transactions) + manual
             check(api.isSessionOwnerCurrent(expectedRevision)) { "Account cambiato. Riapri la schermata." }
             api.withCurrentSessionOwner(expectedRevision) {
                 owner = snapshot.userId; ownerRevision = expectedRevision; record = loadedRecord; spending = monthly
                 deal = loadedRecord?.getDouble("deal")?.toString() ?: "0,55"; profit = loadedRecord?.getDouble("profit_loss")?.toString() ?: "0"
-                error = null; dataReady = true
+                error = null; dataReady = true; reconciliationRequired = false
             }
         } catch (failure: CancellationException) { throw failure }
         catch (failure: Exception) { error = failure.message ?: "Impossibile leggere Next Cut" }
@@ -513,24 +515,36 @@ private fun NextCutScreen(api: SupabaseApi, modifier: Modifier) {
             Metric("Quanto manca al prossimo cut", need?.let(::money) ?: "Controlla il deal e il P/L")
         }
         item {
+            if (reconciliationRequired) Text(localized("Esito del salvataggio incerto. Aggiorna i dati prima di riprovare."), color = MaterialTheme.colorScheme.error)
             Button(onClick = {
+                if (loading || !dataReady || reconciliationRequired || !writeBusy.compareAndSet(false, true)) return@Button
+                loading = true
                 scope.launch {
-                    loading = true
+                    var attemptedWrite = false
                     try {
                         check(ownerRevision?.let(api::isSessionOwnerCurrent) == true) { "Account cambiato. Riapri la schermata." }
                         val ratio = number(deal)
                         val pnl = number(profit)
                         PokerCalculations.nextCut(spending, ratio, pnl)
                         val payload = JSONObject().put("deal", ratio).put("profit_loss", pnl).put("amount", spending)
+                        attemptedWrite = true
                         if (record == null) api.insert("poker_next_cut", payload.put("name", "Next Cut").put("user_id", owner), expectedOwner = owner, expectedRevision = ownerRevision)
                         else api.update("poker_next_cut", record!!.getString("id"), payload, expectedOwner = owner, expectedRevision = ownerRevision)
+                        dataReady = false
                         revision++
                         error = null
-                    } catch (failure: CancellationException) { throw failure }
-                    catch (failure: Exception) { error = failure.message ?: "Salvataggio non riuscito" }
-                    finally { loading = false }
+                    } catch (failure: CancellationException) {
+                        if (attemptedWrite) { reconciliationRequired = true; dataReady = false }
+                        throw failure
+                    } catch (failure: Exception) {
+                        val rejected = failure is cc.savely.android.data.ApiException &&
+                            ((failure.status in 400..499 && failure.status != 408) || failure.status == null &&
+                                failure.kind in setOf(cc.savely.android.data.ApiError.CONFIGURATION, cc.savely.android.data.ApiError.VALIDATION))
+                        if (attemptedWrite && !rejected) { reconciliationRequired = true; dataReady = false; error = null }
+                        else error = failure.message ?: "Salvataggio non riuscito"
+                    } finally { loading = false; writeBusy.set(false) }
                 }
-            }, enabled = !loading && dataReady, modifier = Modifier.fillMaxWidth()) { Text(localized("Salva Next Cut")) }
+            }, enabled = !loading && dataReady && !reconciliationRequired, modifier = Modifier.fillMaxWidth()) { Text(localized("Salva Next Cut")) }
         }
     }
 }

@@ -1,5 +1,7 @@
 # Verifica Savely Android
 
+**[V10, Poker, è PASS LOCALE](POKER_QUALIFICATION.md)**: 601 JVM per variante, lint debug senza errori e **12/12 API 31 in 442,269 s**, nove PNG/JSON IT/EN revisionati. Corretti cutoff locale della mediana, overflow e gestione degli esiti incerti di Next Cut. Sei risultati del codice web fissato coincidono. Due client QA hanno entrambi creato lo stesso mese: assenza di unicità server documentata, sole due righe rimosse con CAS e baseline ripristinato. **15 criteri chiusi localmente, 18 aperti**; nessun nuovo R8 o rilascio pubblico. V09 conserva il percorso firmato; segue V11, Fumo.
+
 ## Diagnostico CI USD concluso
 
 La [diagnosi](CI_VISUAL_GLYPH_DIAGNOSIS.md) sul sorgente `2747631` passa build/lint e 593 JVM, più il solo test portfolio-glyph IT/EN API 35. Verificati 14 file e sei PNG: il viewport sintetico rispetta ora gli inset di sistema. La suite completa storica `38580288372` resta fallita; il nuovo diagnostico non include le modifiche Poker locali.

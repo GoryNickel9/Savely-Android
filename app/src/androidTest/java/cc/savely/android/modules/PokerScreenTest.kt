@@ -142,7 +142,7 @@ class PokerScreenTest {
             .assertTextContains("Orario dopo deal ${euro("-29.70")} · EV/h ${euro("59.04")}", substring = true)
         list().performScrollToIndex(2)
         compose.onNodeWithText("Mese (AAAA-MM): $month").assertIsDisplayed()
-        compose.onNodeWithText("Orario dopo deal ${euro("-29.70")} · EV ${euro("59.04")}").assertIsDisplayed()
+        scrollVisible(hasText("Orario dopo deal ${euro("-29.70")} · EV ${euro("59.04")}")).assertIsDisplayed()
         assertEquals(1, posts.size)
         assertScope()
     }
@@ -280,7 +280,7 @@ class PokerScreenTest {
             .assertTextContains("Orario dopo deal ${euro("12")}", substring = true)
         list().performScrollToIndex(2)
         compose.onNodeWithText(previousYear.toString()).assertIsDisplayed()
-        compose.onNode(hasText("2h 00m · Net Won", substring = true)).assertIsDisplayed()
+        scrollVisible(hasText("2h 00m · Net Won", substring = true)).assertIsDisplayed()
             .assertTextContains("Net Won ${euro("50")}", substring = true)
             .assertTextContains("Orario dopo deal ${euro("15")}", substring = true)
         list().performScrollToIndex(4)

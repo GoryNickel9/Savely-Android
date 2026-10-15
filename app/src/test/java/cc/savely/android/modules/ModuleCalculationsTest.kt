@@ -4,7 +4,10 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.json.JSONObject
 import java.io.File
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 class ModuleCalculationsTest {
     @Test fun fireMatchesExecutedWebFixture() {
@@ -88,7 +91,7 @@ class ModuleCalculationsTest {
             PokerCalculations.Expense(LocalDate.parse("2026-03-02"), 250.0, "expense"),
             PokerCalculations.Expense(LocalDate.parse("2026-03-02"), 9999.0, "income"),
             PokerCalculations.Expense(LocalDate.parse("2023-01-02"), 9999.0, "expense"))
-        assertEquals(200.0, PokerCalculations.medianMonthlySpending(items, LocalDate.parse("2025-01-01")), 0.0)
+        assertEquals(200.0, PokerCalculations.medianMonthlySpending(items, Clock.fixed(Instant.parse("2027-01-01T12:00:00Z"), ZoneOffset.UTC)), 0.0)
         assertEquals(0.0, PokerCalculations.median(emptyList()), 0.0)
     }
 

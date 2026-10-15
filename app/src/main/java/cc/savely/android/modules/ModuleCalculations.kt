@@ -1,6 +1,8 @@
 package cc.savely.android.modules
 
+import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import kotlin.math.ceil
@@ -122,7 +124,9 @@ object PokerCalculations {
     fun nextCut(monthlySpending: Double, deal: Double, profitLoss: Double): Double {
         require(deal.isFinite() && deal > 0 && deal <= 1) { "Il deal deve essere maggiore di 0 e massimo 1" }
         require(monthlySpending.isFinite() && profitLoss.isFinite())
-        return monthlySpending / deal - profitLoss
+        val need = monthlySpending / deal - profitLoss
+        require(need.isFinite()) { "Inserisci un numero valido" }
+        return need
     }
     fun median(values: List<Double>): Double {
         if (values.isEmpty()) return 0.0
@@ -130,10 +134,15 @@ object PokerCalculations {
         val middle = sorted.size / 2
         return if (sorted.size % 2 == 1) sorted[middle] else (sorted[middle - 1] + sorted[middle]) / 2
     }
-    /** Web counts only months with expenses and includes future dates; no empty-month padding. */
-    fun medianMonthlySpending(expenses: List<Expense>, startDate: LocalDate): Double = median(
-        expenses.filter { it.type == "expense" && it.date >= startDate }
+    /** Web parseLocalDate + setDate(-730): local calendar cutoff, inclusive, without future cap or empty-month padding. */
+    fun medianMonthlySpending(expenses: List<Expense>, clock: Clock = Clock.systemDefaultZone()): Double {
+        val zone = clock.zone
+        // Date.setDate preserves wall time; atZone also matches its earlier-overlap/forward-gap resolution.
+        val cutoff = LocalDateTime.ofInstant(clock.instant().truncatedTo(ChronoUnit.MILLIS), zone)
+            .minusDays(730).atZone(zone).toInstant()
+        return median(expenses.filter { it.type == "expense" && it.date.atStartOfDay(zone).toInstant() >= cutoff }
             .groupBy { YearMonth.from(it.date) }.values.map { month -> month.sumOf { it.amount } })
+    }
 }
 
 object FumoCalculations {
