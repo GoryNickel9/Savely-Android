@@ -1,12 +1,31 @@
 package cc.savely.android.modules
 
 import org.json.JSONObject
+import cc.savely.android.data.ApiException
+import cc.savely.android.data.parseBackendInstant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.net.URI
 import java.net.URISyntaxException
 import java.text.NumberFormat
 import java.util.Locale
+
+/** Only an explicit HTTP rejection proves a generic form save did not commit. */
+internal fun recordMutationRequiresRefresh(failure: Exception): Boolean {
+    val status = (failure as? ApiException)?.status
+    return status == null || status !in 400..499 || status == 408
+}
+
+/** Fumo's toFixed(2) preserves the exact binary input, including 0.125 -> 0.13. */
+internal fun fumoMoney(value: Double): String {
+    require(value.isFinite())
+    return NumberFormat.getCurrencyInstance(Locale.ITALY).apply {
+        minimumFractionDigits = 2; maximumFractionDigits = 2; roundingMode = RoundingMode.HALF_UP
+    }.format(BigDecimal(value))
+}
 
 /** CardTrader's proxy reports euros; a non-EUR record must retain its manually declared unit. */
 internal fun tcgRecordCurrency(row: JSONObject): String = if (row.isNull("currency")) "EUR"
@@ -46,6 +65,39 @@ internal fun moduleRecordDate(row: JSONObject, field: String): String =
         if (row.isNull(key)) null else row.getString(key)
     } ?: error("Data del record mancante")
 
+/** JS Date parses date-only values as UTC and truncates fractional timestamps to milliseconds. */
+private fun fumoBackendEpochMillis(raw: String): Long =
+    if (Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}").matches(raw))
+        LocalDate.parse(raw).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    else parseBackendInstant(raw).toEpochMilli()
+
+/** FumoCrud.computeDerived uses ceil(elapsed milliseconds / 86400000), including offsets. */
+internal fun fumoLegacyDerived(arrival: String, finished: String?, quantity: Double?, cost: Double): FumoCalculations.Derived {
+    require(cost.isFinite() && (quantity == null || quantity.isFinite())) { "Dati Fumo non validi" }
+    if (finished == null) return FumoCalculations.Derived(null, null, null, null)
+    val elapsed = Math.subtractExact(fumoBackendEpochMillis(finished), fumoBackendEpochMillis(arrival))
+    val unit = 86_400_000L
+    val days = Math.floorDiv(elapsed, unit) + if (Math.floorMod(elapsed, unit) == 0L) 0 else 1
+    return if (days > 0) FumoCalculations.Derived(days, quantity?.div(days), cost / days, cost / days * 30)
+        else FumoCalculations.Derived(null, null, null, null)
+}
+
+/** SQL DATE stays civil; TIMESTAMPTZ follows the device day with its raw instant preserved separately. */
+internal fun fumoEndDateForEditor(raw: String, zone: ZoneId = ZoneId.systemDefault()): String =
+    if (Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}").matches(raw)) LocalDate.parse(raw).toString()
+    else parseBackendInstant(raw).atZone(zone).toLocalDate().toString()
+
+/** Validate the retained instant, not its potentially different editor day in a local zone. */
+internal fun fumoEndNotBeforeArrival(arrival: String, finished: String?): Boolean =
+    finished == null || fumoBackendEpochMillis(finished) >= fumoBackendEpochMillis(arrival)
+
+/** An unrelated edit must not erase the original end timestamp or its offset/fraction. */
+internal fun fumoEndValueForSave(original: String?, edited: String, zone: ZoneId = ZoneId.systemDefault()): String? {
+    if (edited.isBlank()) return null
+    val day = LocalDate.parse(edited).toString()
+    return if (original != null && day == fumoEndDateForEditor(original, zone)) original else day
+}
+
 /** The web preserves saved derived fields; only finished records with missing days are recomputed. */
 internal fun fumoDisplayedDerived(row: JSONObject, liquid: Boolean): FumoCalculations.Derived {
     fun optional(key: String): Double? = if (row.isNull(key)) null else row.getDouble(key).also {
@@ -54,8 +106,8 @@ internal fun fumoDisplayedDerived(row: JSONObject, liquid: Boolean): FumoCalcula
     val fallbackQuantity = optional("quantita") ?: optional("grammi")
     // FumoCrudPage's legacy fallback excludes millilitri-only records and leaves the daily quantity column unchanged.
     val fallback = if (!row.isNull("data_finito") && fallbackQuantity != null && row.isNull("giorni_durata"))
-        FumoCalculations.derived(java.time.LocalDate.parse(moduleRecordDate(row, if (liquid) "data_arrivo" else "data_acquisto")),
-            java.time.LocalDate.parse(row.getString("data_finito")), fallbackQuantity, row.getDouble("costo")) else null
+        fumoLegacyDerived(moduleRecordDate(row, if (liquid) "data_arrivo" else "data_acquisto"),
+            row.getString("data_finito"), fallbackQuantity, row.getDouble("costo")) else null
     val days = (fallback?.days?.toDouble() ?: optional("giorni_durata"))?.also { require(it % 1 == 0.0 && it >= 0 && it <= Int.MAX_VALUE) }
     val daily = if (fallback != null) fallback.euroPerDay else optional("euro_al_giorno")
     val savedMonthly = if (fallback != null) fallback.monthlyCost else optional("costo_mensile")
@@ -99,20 +151,10 @@ internal data class FumoDetailValues(val days: Long?, val quantity: String, val 
 internal fun fumoDetailValues(derived: FumoCalculations.Derived): FumoDetailValues? {
     if (derived.days == null && derived.quantityPerDay == null && derived.euroPerDay == null && derived.monthlyCost == null) return null
     val days = derived.days
-    fun decimal(value: Double, currency: Boolean): String {
-        require(value.isFinite())
-        val formatter = if (currency) NumberFormat.getCurrencyInstance(Locale.ITALY)
-            else NumberFormat.getNumberInstance(Locale.ITALY).apply { isGroupingUsed = false }
-        return formatter.apply {
-            minimumFractionDigits = 2
-            maximumFractionDigits = 2
-            roundingMode = RoundingMode.HALF_UP
-        }.format(BigDecimal(value))
-    }
-    val quantity = derived.quantityPerDay?.let { decimal(it, false) } ?: "-"
+    val quantity = derived.quantityPerDay?.let(::moduleTwoDecimals) ?: "-"
     // The web displays a dash for a missing or zero daily euro amount.
-    val dailyCost = derived.euroPerDay?.takeIf { it != 0.0 }?.let { decimal(it, true) } ?: "-"
-    val monthlyCost = derived.monthlyCost?.let { decimal(it, true) } ?: "-"
+    val dailyCost = derived.euroPerDay?.takeIf { it != 0.0 }?.let(::fumoMoney) ?: "-"
+    val monthlyCost = derived.monthlyCost?.let(::fumoMoney) ?: "-"
     return FumoDetailValues(days, quantity, dailyCost, monthlyCost)
 }
 

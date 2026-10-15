@@ -1,5 +1,7 @@
 # Roadmap Savely Android
 
+**[V11, Fumo: fixture locali qualificate](docs/FUMO_QUALIFICATION.md)**. Passano 611 JVM per variante, lint senza errori, 72 confronti web e **15/15 API 31 in 256,038 s**; dieci PNG/JSON IT/EN revisionati. Corretti TIMESTAMPTZ, arrotondamenti ed esiti incerti dei form; le failure precedenti restano conservate. **V11 resta aperto alle 16 invocazioni firmate: 15 criteri chiusi localmente, 18 aperti.** Nessun nuovo R8 o rilascio pubblico; segue V12, TCG.
+
 **[V10, Poker, è PASS LOCALE](docs/POKER_QUALIFICATION.md)**: 601 JVM per variante, lint debug senza errori e **12/12 API 31 in 442,269 s**, nove PNG/JSON IT/EN revisionati. Corretti cutoff locale della mediana, overflow e gestione degli esiti incerti di Next Cut. Sei risultati del codice web fissato coincidono. Due client QA hanno entrambi creato lo stesso mese: assenza di unicità server documentata, sole due righe rimosse con CAS e baseline ripristinato. **15 criteri chiusi localmente, 18 aperti**; nessun nuovo R8 o rilascio pubblico. V09 conserva il percorso firmato; segue V11, Fumo.
 
 ## Stato corrente — FIRE V09: fixture locali qualificate

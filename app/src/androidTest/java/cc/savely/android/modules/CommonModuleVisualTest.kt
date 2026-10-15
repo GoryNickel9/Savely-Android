@@ -148,9 +148,19 @@ class CommonModuleVisualTest {
         val prefix = if (english(profile)) "20 days" else "20 giorni"
         list().performScrollToNode(hasText(prefix, substring = true))
         val detail = compose.onNodeWithText(prefix, substring = true)
-        detail.assertIsDisplayed().assertTextContains("1,25", substring = true)
-            .assertTextContains(money("0.63", "EUR"), substring = true)
-            .assertTextContains(money("18.75", "EUR"), substring = true)
+        // Lazy scrolling exposes the record Card; its detail Text can still be below the clipped viewport.
+        detail.performScrollTo()
+        try {
+            detail.assertIsDisplayed().assertTextContains("1,25", substring = true)
+                .assertTextContains(money("0.63", "EUR"), substring = true)
+                .assertTextContains(money("18.75", "EUR"), substring = true)
+        } catch (failure: AssertionError) {
+            val node = detail.fetchSemanticsNode()
+            CommonVisualArtifacts.capture(compose, "diagnostic-fumo-detail-${profile.suffix}", profile)
+            throw AssertionError("Fumo detail position=${node.positionInRoot}, size=${node.size}, bounds=${node.boundsInRoot}, " +
+                "placed=${generateSequence(node.layoutInfo) { it.parentInfo }.map { it.isPlaced }.toList()}, " +
+                "list=${list().fetchSemanticsNode().boundsInRoot}\n${compose.onRoot().printToString().take(12_000)}", failure)
+        }
         capture("fumo-detail", profile)
         assertEquals("2026-06-01", tables.getValue("liquido_sigaretta").getJSONObject(0).getString("data_arrivo"))
         assertEquals("2026-06-11", tables.getValue("liquido_sigaretta").getJSONObject(0).getString("data_finito"))

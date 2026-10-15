@@ -740,6 +740,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
         var ownerRevision by remember { mutableStateOf<Long?>(null) }
         var loading by remember { mutableStateOf(true) }
         var dataReady by remember { mutableStateOf(false) }
+        var reconciliationRequired by rememberSaveable { mutableStateOf(false) }
         var deal by remember { mutableDoubleStateOf(0.55) }
         var error by remember { mutableStateOf<String?>(null) }
         var revision by remember { mutableIntStateOf(0) }
@@ -774,7 +775,7 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
                 check(api.isSessionOwnerCurrent(expectedRevision)) { "Account cambiato. Riapri la schermata." }
                 api.withCurrentSessionOwner(expectedRevision) {
                     owner = snapshot.userId; ownerRevision = expectedRevision; rows = loadedRows; deal = loadedDeal
-                    error = null; dataReady = true
+                    error = null; dataReady = true; reconciliationRequired = false
                 }
             } catch (failure: CancellationException) { throw failure }
             catch (failure: Exception) { error = failure.message ?: "Impossibile leggere i dati" }
@@ -819,6 +820,9 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
             }
             if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             error?.let { item { Text(localized(it), color = MaterialTheme.colorScheme.error) } }
+            if (reconciliationRequired) item {
+                Text(localized("Le modifiche sono bloccate finché un aggiornamento dei dati non riesce."), color = MaterialTheme.colorScheme.error)
+            }
             if (schema.table == "library_items") {
                 val cost = rows.sumOf { it.optDouble("purchase_price", 0.0) * it.optInt("quantity", 1) }
                 val value = rows.sumOf { it.optDouble("reselling_value", 0.0) * it.optInt("quantity", 1) }
@@ -914,7 +918,11 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
         // Keep a mounted form through subsequent refreshes so its immutable pending plan survives.
         val loadedOwnerRevision = ownerRevision
         if ((formOpen || mangaCreationOpen) && loadedOwnerRevision != null) RecordForm(api, catalog, schema, editRow, seed, rows, owner, loadedOwnerRevision,
-            { formOpen = false; mangaCreationOpen = false }) { revision++ }
+            close = { formOpen = false; mangaCreationOpen = false }, requireRefresh = {
+                formOpen = false; mangaCreationOpen = false; editRow = null; seed = null
+                dataReady = false; reconciliationRequired = true
+                error = "Salvataggio non confermato. Aggiorna i dati e verifica la riga prima di creare un nuovo elemento."
+            }, saved = { revision++ })
         deleteRow?.let { row ->
             AlertDialog(onDismissRequest = { if (!loading) { deleteRow = null; deleteError = null } }, title = { Text(localized("Eliminare questo record?")) },
                 text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -940,13 +948,14 @@ private fun RecordsScreen(api: SupabaseApi, schema: RecordSchema, modifier: Modi
 private fun readField(row: JSONObject, field: Field): String {
     if (field.key in setOf("data_arrivo", "data_acquisto")) return moduleRecordDate(row, field.key)
     if (row.isNull(field.key)) return ""
+    if (field.key == "data_finito") return fumoEndDateForEditor(row.getString(field.key))
     if (field.key == "hours_played") return (row.getDouble(field.key) * 60).toString()
     if (field.type == FieldType.MONTH) return row.getString(field.key).take(7)
     return row.get(field.key).toString()
 }
 
 @Composable
-private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: RecordSchema, row: JSONObject?, seed: JSONObject?, existing: List<JSONObject>, expectedOwner: String, expectedRevision: Long, close: () -> Unit, saved: () -> Unit) {
+private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: RecordSchema, row: JSONObject?, seed: JSONObject?, existing: List<JSONObject>, expectedOwner: String, expectedRevision: Long, close: () -> Unit, requireRefresh: () -> Unit, saved: () -> Unit) {
     val scope = rememberCoroutineScope()
     val mangaCreation = row == null && schema.table == "library_items" && schema.category == "manga"
     var volumeRange by rememberSaveable { mutableStateOf("") }
@@ -957,6 +966,7 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
     val volumeNumbers = rangeResult.getOrNull()
     val mangaRepository = remember(api) { MangaVolumeRepository(api) }
     val formOriginRevision = rememberSaveable { expectedRevision }
+    val formOriginOwner = rememberSaveable { expectedOwner }
     var formOriginAuthSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     var formOriginCaptured by rememberSaveable { mutableStateOf(false) }
     val values = remember { mutableStateMapOf<String, String>().apply { schema.fields.forEach { field ->
@@ -1043,8 +1053,10 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
         scope.launch {
             if (loading) return@launch
             loading = true
+            var mutationAttempted = false
             try {
-                check(api.isSessionOwnerCurrent(expectedRevision)) { "Account cambiato. Riapri la schermata." }
+                check(expectedOwner == formOriginOwner && expectedRevision == formOriginRevision &&
+                    api.isSessionOwnerCurrent(formOriginRevision)) { "Account cambiato. Riapri la schermata." }
                 if (mangaCreation && batchSnapshot != null) {
                     saveSeries(batch ?: error("Serie locale non leggibile"))
                     return@launch
@@ -1065,7 +1077,8 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                                 if (field.type == FieldType.INTEGER) require(it % 1 == 0.0 && it <= Int.MAX_VALUE) { "${field.label}: usa un intero valido" }
                                 if (field.key == "quantity") require(it >= 1) { "La quantità minima è 1" }
                             }.let { if (field.type == FieldType.INTEGER) it.toInt() else it }
-                            FieldType.DATE -> LocalDate.parse(text).toString()
+                            FieldType.DATE -> try { LocalDate.parse(text).toString() }
+                                catch (_: java.time.format.DateTimeParseException) { error("Formato data non valido") }
                             FieldType.MONTH -> YearMonth.parse(text).atDay(1).toString()
                             FieldType.URL -> checkNotNull(mangaCoverUrl(text))
                         }
@@ -1082,8 +1095,14 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                     val liquid = schema.table == "liquido_sigaretta"
                     val arrival = LocalDate.parse(payload.getString(if (liquid) "data_arrivo" else "data_acquisto"))
                     val finished = if (payload.isNull("data_finito")) null else LocalDate.parse(payload.getString("data_finito"))
-                    require(finished == null || finished >= arrival) { "La data di fine precede l'arrivo" }
-                    val derived = FumoCalculations.derived(arrival, finished, payload.getDouble(if (liquid) "millilitri" else "grammi"), payload.getDouble("costo"))
+                    val originalEnd = row?.takeUnless { it.isNull("data_finito") }?.getString("data_finito")
+                    val savedEnd = fumoEndValueForSave(originalEnd, finished?.toString().orEmpty())
+                    require(fumoEndNotBeforeArrival(arrival.toString(), savedEnd)) { "La data di fine precede l'arrivo" }
+                    payload.put("data_finito", savedEnd ?: JSONObject.NULL)
+                    val quantity = payload.getDouble(if (liquid) "millilitri" else "grammi")
+                    val derived = if (savedEnd != null && savedEnd != finished?.toString())
+                        fumoLegacyDerived(arrival.toString(), savedEnd, quantity, payload.getDouble("costo"))
+                    else FumoCalculations.derived(arrival, finished, quantity, payload.getDouble("costo"))
                     payload.put("giorni_durata", derived.days ?: JSONObject.NULL)
                         .put(if (liquid) "millilitri_al_giorno" else "grammi_al_giorno", derived.quantityPerDay ?: JSONObject.NULL)
                         .put("euro_al_giorno", derived.euroPerDay ?: JSONObject.NULL).put("costo_mensile", derived.monthlyCost ?: JSONObject.NULL)
@@ -1102,11 +1121,17 @@ private fun RecordForm(api: SupabaseApi, catalog: CatalogRepository, schema: Rec
                         catch (_: Exception) { null } // Web also allows adding a card while its price service is unavailable.
                     payload.put("current_price", price ?: JSONObject.NULL)
                 }
-                if (row == null) api.insert(schema.table, payload.put("user_id", expectedOwner), expectedOwner = expectedOwner, expectedRevision = expectedRevision)
-                else api.update(schema.table, row.getString("id"), payload, expectedOwner = expectedOwner, expectedRevision = expectedRevision)
+                mutationAttempted = true
+                if (row == null) api.insert(schema.table, payload.put("user_id", formOriginOwner), expectedOwner = formOriginOwner, expectedRevision = formOriginRevision)
+                else api.update(schema.table, row.getString("id"), payload, expectedOwner = formOriginOwner, expectedRevision = formOriginRevision)
                 saved(); close()
-            } catch (failure: CancellationException) { throw failure }
-            catch (failure: Exception) { error = failure.message ?: "Salvataggio non riuscito" }
+            } catch (failure: CancellationException) {
+                if (mutationAttempted) requireRefresh()
+                throw failure
+            } catch (failure: Exception) {
+                if (mutationAttempted && recordMutationRequiresRefresh(failure)) requireRefresh()
+                else error = failure.message ?: "Salvataggio non riuscito"
+            }
             finally { loading = false }
         }
     }, enabled = !loading && (!mangaCreation || (formOriginCaptured && restoredBatch.isSuccess && (batchSnapshot != null || rangeResult.isSuccess)))) {
@@ -1148,9 +1173,9 @@ private fun yearlyMetrics(schema: RecordSchema, rows: List<JSONObject>, deal: Do
                 val quantity = group.sumOf(::fumoQuantity)
                 val detail = if (liquid) {
                     localized(" · {{quantity}} ml/giorno", "quantity" to moduleTwoDecimals(fumoAnnualLiquidAverage(group)))
-                } else " · ${money(if (quantity > 0) cost / quantity else 0.0)}/g"
-                localized("Costo {{cost}} · mensile {{monthly}} · {{quantity}} {{unit}}{{detail}}", "cost" to money(cost),
-                    "monthly" to money(cost / 12), "quantity" to moduleTwoDecimals(quantity), "unit" to if (liquid) "ml" else "g", "detail" to detail)
+                } else " · ${fumoMoney(if (quantity > 0) cost / quantity else 0.0)}/g"
+                localized("Costo {{cost}} · mensile {{monthly}} · {{quantity}} {{unit}}{{detail}}", "cost" to fumoMoney(cost),
+                    "monthly" to fumoMoney(cost / 12), "quantity" to moduleTwoDecimals(quantity), "unit" to if (liquid) "ml" else "g", "detail" to detail)
             }
         }
         year to result

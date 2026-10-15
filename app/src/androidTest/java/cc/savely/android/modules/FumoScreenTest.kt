@@ -17,6 +17,8 @@ import cc.savely.android.data.MemorySessionStore
 import cc.savely.android.data.Session
 import cc.savely.android.data.SupabaseApi
 import cc.savely.android.ui.SavelyTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -48,9 +50,12 @@ import java.util.concurrent.atomic.AtomicInteger
  * TLS and real Compose touch use synthetic owners/rows; deployed RLS is outside this fixture.
  */
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class, ExperimentalCoroutinesApi::class)
 class FumoScreenTest {
     @get:Rule(order = 0) val timeout: Timeout = Timeout.seconds(90)
-    @get:Rule(order = 1) val compose = createComposeRule()
+    private val effectDispatcher = StandardTestDispatcher()
+    // Frame/effect continuations run only when the UI thread drains the queued dispatcher.
+    @get:Rule(order = 1) val compose = createComposeRule(effectContext = effectDispatcher)
     private lateinit var server: MockWebServer
     private lateinit var client: OkHttpClient
     private lateinit var api: SupabaseApi
@@ -106,14 +111,14 @@ class FumoScreenTest {
         replace(ARRIVAL, arrival)
         replace(FINISH, finish)
         touch(button("Salva"))
-        compose.onNodeWithText("Inserisci un numero valido").performScrollTo().assertIsDisplayed()
+        scroll(hasText("Inserisci un numero valido")).assertIsDisplayed()
         assertEquals(0, posts.size)
         assertEquals(0, patches.size)
 
         replace(COST, "12,50")
         replace(FINISH, beforeArrival)
         touch(button("Salva"))
-        compose.onNodeWithText("La data di fine precede l'arrivo").performScrollTo().assertIsDisplayed()
+        scroll(hasText("La data di fine precede l'arrivo")).assertIsDisplayed()
         assertEquals("Invalid dates must not reach the transport", 0, posts.size)
         assertEquals(0, patches.size)
         replace(FINISH, finish)
@@ -201,12 +206,12 @@ class FumoScreenTest {
             .assertTextContains("Costo ${euro("30")} · mensile ${euro("2.5")}", substring = true)
         val savedDetail = "20 giorni · 2,00/giorno · ${euro("1")}/giorno · ${euro("30")}/mese"
         val fallbackDetail = "10 giorni · -/giorno · ${euro("1")}/giorno · ${euro("30")}/mese"
-        list().performScrollToNode(hasText(savedDetail))
+        scroll(hasText(savedDetail))
         compose.onNodeWithText(savedDetail).assertIsDisplayed()
         val savedRecord = hasAnyAncestor(hasAnyDescendant(hasText(savedDetail)) and !hasAnyDescendant(hasText(fallbackDetail)))
         compose.onNode(hasText("$ARRIVAL: $arrival") and savedRecord).assertIsDisplayed()
         compose.onNode(hasText("Data fine (AAAA-MM-GG): $finish") and savedRecord).assertIsDisplayed()
-        list().performScrollToNode(hasText(fallbackDetail))
+        scroll(hasText(fallbackDetail))
         compose.onNodeWithText(fallbackDetail).assertIsDisplayed()
         assertEquals(before, rows.mapValues { it.value.toString() })
         assertEquals(0, posts.size); assertEquals(0, patches.size); assertTrue(patchedIds.isEmpty())
@@ -222,7 +227,7 @@ class FumoScreenTest {
         mountLiquid()
         refresh()
         val detail = "- giorni · 2,50/giorno · ${euro("1.25")}/giorno · ${euro("37.50")}/mese"
-        list().performScrollToNode(hasText(detail))
+        scroll(hasText(detail))
         compose.onNodeWithText(detail).assertIsDisplayed()
         compose.onNodeWithText("$ARRIVAL: $arrival").assertIsDisplayed()
         assertSame(JSONObject.NULL, rows[OWN_ROW]!!.get("giorni_durata"))
@@ -253,7 +258,7 @@ class FumoScreenTest {
         clearInput()
         list().performScrollToIndex(2)
         // This fixture has exactly one current-year row belonging to the signed-in account.
-        compose.onNode(button("Modifica")).performScrollTo()
+        scroll(button("Modifica"))
         touch(button("Modifica"))
         compose.onNodeWithText(COST).assertIsDisplayed()
     }
@@ -322,9 +327,60 @@ class FumoScreenTest {
             !it.config.contains(SemanticsProperties.Disabled)
         } == true
     private fun clearInput() { compose.runOnIdle { focus.clearFocus(force = true); keyboard?.hide() } }
+    private fun scroll(matcher: SemanticsMatcher): SemanticsNodeInteraction {
+        clearInput()
+        var swipes = 0
+        var nextLazyIndex = 0
+        await("Visible scroll target: $matcher") {
+            val nodes = compose.onAllNodes(matcher).fetchSemanticsNodes()
+            check(nodes.size <= 1) { "Ambiguous Fumo scroll target: $matcher" }
+            val node = nodes.singleOrNull()
+            if (node == null) {
+                // Lazy items disappear from semantics. Inspect each item rather than flinging
+                // past a short count/summary row; no test depends on its particular index.
+                check(nextLazyIndex < 32) { "Fumo target was not composed after $nextLazyIndex items: $matcher" }
+                list().performScrollToIndex(nextLazyIndex++)
+                settleScroll()
+                return@await false
+            }
+            val scrollable = generateSequence(node.parent) { it.parent }.firstOrNull {
+                it.config.contains(SemanticsProperties.VerticalScrollAxisRange)
+            }
+            val viewport = scrollable?.boundsInRoot
+            val targetY = node.positionInRoot.y + node.size.height / 2f
+            if (compose.onNode(matcher).isDisplayed() &&
+                (viewport == null || targetY in viewport.top..viewport.bottom)) true
+            else {
+                check(scrollable != null && swipes < 8) {
+                    "Fumo target could not be exposed: $matcher, targetY=$targetY, viewport=$viewport, swipes=$swipes"
+                }
+                // Unlike performScrollTo's internal loop, a gesture yields between queued effects.
+                compose.onNode(SemanticsMatcher("Scrollable ancestor ${scrollable.id}") {
+                    it.id == scrollable.id
+                }).performTouchInput {
+                    if (targetY > scrollable.boundsInRoot.center.y) swipeUp() else swipeDown()
+                }
+                swipes++
+                settleScroll()
+                false
+            }
+        }
+        return compose.onNode(matcher).assertIsDisplayed()
+    }
+    private fun settleScroll() {
+        var previous: Float? = null
+        var stableFrames = 0
+        await("Fumo scroll settled") {
+            compose.mainClock.advanceTimeByFrame()
+            val current = list().fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+            stableFrames = if (current == previous) stableFrames + 1 else 0
+            previous = current
+            stableFrames >= 2
+        }
+    }
     private fun replace(label: String, value: String) {
         clearInput()
-        compose.onNodeWithText(label).performScrollTo().performTextReplacement(value)
+        scroll(hasText(label) and hasSetTextAction()).performTextReplacement(value)
     }
     private fun touch(matcher: SemanticsMatcher, taps: Int = 1) {
         clearInput()
@@ -354,7 +410,10 @@ class FumoScreenTest {
         }
     }
     private fun await(label: String, predicate: () -> Boolean) {
-        try { compose.waitUntil(15_000, predicate) }
+        try { compose.waitUntil(15_000) {
+            compose.runOnUiThread { effectDispatcher.scheduler.runCurrent() }
+            predicate()
+        } }
         catch (failure: ComposeTimeoutException) {
             val trees = compose.onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes().indices.map { index ->
                 runCatching { compose.onAllNodes(isRoot(), useUnmergedTree = true)[index].printToString() }
